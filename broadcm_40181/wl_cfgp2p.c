@@ -734,6 +734,8 @@ wl_cfgp2p_disable_discovery(struct wl_priv *wl)
 	CFGP2P_DBG((" enter\n"));
 	wl_clr_p2p_status(wl, DISCOVERY_ON);
 
+	if(!wl->p2p) 
+		return -1;
 	if (wl_to_p2p_bss_bssidx(wl, P2PAPI_BSSCFG_DEVICE) == 0) {
 		CFGP2P_ERR((" do nothing, not initialized\n"));
 		goto exit;
