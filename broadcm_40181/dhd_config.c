@@ -13,6 +13,7 @@
 
 #include <dhd_config.h>
 #include <dhd_dbg.h>
+#include <wl_cfg80211.h>
 
 /* message levels */
 #define CONFIG_ERROR_LEVEL	0x0001
@@ -691,8 +692,13 @@ dhd_conf_wifi_power(bool on)
 		wl_cfg80211_user_sync(true);
 		wl_android_wifi_on(g_netdev);
 		wl_cfg80211_send_disconnect();
+		wl_cfgp2p_start_p2p_device(NULL, NULL);
 		wl_cfg80211_user_sync(false);
 	} else {
+		extern struct wl_priv *wlcfg_drv_priv;
+		wl_cfgp2p_clear_management_ie(wlcfg_drv_priv, 0);
+		wl_cfgp2p_clear_management_ie(wlcfg_drv_priv, 1);
+		wl_cfgp2p_stop_p2p_device(NULL, wlcfg_drv_priv->p2p_wdev);
 		dhd_conf_wifi_stop(g_netdev);
 	}
 }

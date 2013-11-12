@@ -595,7 +595,7 @@ wl_cfgp2p_init_discovery(struct wl_priv *wl)
 
 	CFGP2P_DBG(("enter\n"));
 
-	if (wl_to_p2p_bss_bssidx(wl, P2PAPI_BSSCFG_DEVICE) != 0) {
+	if (wl_to_p2p_bss_bssidx(wl, P2PAPI_BSSCFG_DEVICE) != 0 && wl_to_p2p_bss_bssidx(wl, P2PAPI_BSSCFG_DEVICE) != WL_INVALID) {
 		CFGP2P_ERR(("do nothing, already initialized\n"));
 		return ret;
 	}
