@@ -18,6 +18,7 @@
 #include <linux/timer.h>
 #include <linux/if_arp.h>
 #include <asm/uaccess.h>
+#include <net/rtnetlink.h>
 
 #include <bcmutils.h>
 #include <bcmendian.h>
@@ -2629,11 +2630,15 @@ wl_cfgp2p_del_p2p_disc_if(struct wireless_dev *wdev)
 
 	WL_TRACE(("Enter\n"));
 
+	rtnl_lock();
+
 	cfg80211_unregister_wdev(wdev);
 
 	kfree(wdev);
 
 	wl->p2p_wdev = NULL;
+
+	rtnl_unlock();
 
 	CFGP2P_ERR(("P2P interface unregistered\n"));
 
