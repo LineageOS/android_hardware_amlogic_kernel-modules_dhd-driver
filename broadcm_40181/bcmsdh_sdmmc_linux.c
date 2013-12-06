@@ -147,7 +147,8 @@ static int bcmsdh_sdmmc_probe(struct sdio_func *func,
 		ret = -ENODEV;
 	}
 #ifdef POWER_OFF_IN_SUSPEND
-	dhd_conf_register_wifi_suspend(func);
+	if (ret == 0)
+		dhd_conf_register_wifi_suspend(func);
 #endif
 
 	return ret;
