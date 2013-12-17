@@ -14,6 +14,7 @@
 
 #define FW_PATH_AUTO_SELECT 1
 extern char firmware_path[MOD_PARAM_PATHLEN];
+extern bool wifi_ready;
 
 /* channel list */
 typedef struct wl_channel_list {

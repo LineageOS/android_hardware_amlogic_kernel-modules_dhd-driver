@@ -689,8 +689,6 @@ wl_cfgp2p_enable_discovery(struct wl_priv *wl, struct net_device *dev,
 		goto set_ie;
 	}
 
-	wl_set_p2p_status(wl, DISCOVERY_ON);
-
 	CFGP2P_DBG(("enter\n"));
 
 	ret = wl_cfgp2p_init_discovery(wl);
@@ -718,6 +716,7 @@ set_ie:
 			goto exit;
 		}
 	}
+	wl_set_p2p_status(wl, DISCOVERY_ON);
 exit:
 	return ret;
 }

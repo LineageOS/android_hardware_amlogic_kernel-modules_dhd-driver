@@ -2262,6 +2262,11 @@ __wl_cfg80211_scan(struct wiphy *wiphy, struct net_device *ndev,
 
 	dhd_pub_t *dhd;
 
+	if (!wifi_ready) {
+		WL_INFO(("Too early scan req\n"));
+		return -EAGAIN;
+	}
+	
 	dhd = (dhd_pub_t *)(wl->pub);
 	if (dhd->op_mode & DHD_FLAG_HOSTAP_MODE) {
 		WL_ERR(("Invalid Scan Command at SoftAP mode\n"));
@@ -10899,6 +10904,15 @@ s32 wl_cfg80211_up(void *para)
 	return err;
 }
 
+static void __wl_cfg80211_send_hang(struct net_device *dev)
+{
+	char buf[5] = "HANG";
+	if (dev) {
+		WL_ERR(("send HANG to supplicant\n"));
+		cfg80211_send_unprot_deauth(dev, buf, 5);	//lin : hack HANG into NL80211_CMD_UNPROT_DEAUTHENTICATE msg
+	}
+}
+
 /* Private Event to Supplicant with indication that chip hangs */
 int wl_cfg80211_hang(struct net_device *dev, u16 reason)
 {
@@ -10917,6 +10931,7 @@ int wl_cfg80211_hang(struct net_device *dev, u16 reason)
 	if (wl != NULL) {
 		wl_link_down(wl);
 	}
+	__wl_cfg80211_send_hang(dev);
 	return 0;
 }
 

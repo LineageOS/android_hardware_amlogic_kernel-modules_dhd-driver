@@ -5771,7 +5771,7 @@ static void dhd_hang_process(struct work_struct *work)
 
 	if (dev) {
 		rtnl_lock();
-		dev_close(dev);
+		////dev_close(dev);		//lin : do real HANG
 		rtnl_unlock();
 #if defined(WL_WIRELESS_EXT)
 		wl_iw_send_priv_event(dev, "HANG");
