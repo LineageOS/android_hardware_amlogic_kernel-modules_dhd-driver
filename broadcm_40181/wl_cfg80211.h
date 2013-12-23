@@ -16,6 +16,9 @@
 #include <linux/wireless.h>
 #include <net/cfg80211.h>
 #include <linux/rfkill.h>
+#ifdef CONFIG_HAS_WAKELOCK
+#include <linux/wakelock.h>
+#endif
 
 #include <wl_cfgp2p.h>
 
@@ -533,6 +536,10 @@ struct wl_priv {
 	struct mutex usr_sync;	/* maily for up/down synchronization */
 	struct wl_scan_results *bss_list;
 	struct wl_scan_results *scan_results;
+
+#if defined(CONFIG_HAS_WAKELOCK)
+		struct wake_lock priv_lock;	
+#endif
 
 	/* scan request object for internal purpose */
 	struct wl_scan_req *scan_req_int;

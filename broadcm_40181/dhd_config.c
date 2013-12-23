@@ -689,20 +689,26 @@ bool wifi_ready = true;
 void
 dhd_conf_wifi_power(bool on)
 {
+	extern struct wl_priv *wlcfg_drv_priv;
 	printk("%s: Enter %d\n", __FUNCTION__, on);
 	if (on) {
 		wl_cfg80211_user_sync(true);
 		wl_android_wifi_on(g_netdev);
 		wl_cfg80211_send_disconnect();
-		wl_cfgp2p_start_p2p_device(NULL, NULL);
+		if (wlcfg_drv_priv && wlcfg_drv_priv->p2p)
+			wl_cfgp2p_start_p2p_device(NULL, NULL);
+		else		
+			printk("======= ON : no p2p ======\n");
 		wl_cfg80211_user_sync(false);
 		wifi_ready = true;
 	} else {
-		extern struct wl_priv *wlcfg_drv_priv;
 		wifi_ready = false;
-		wl_cfgp2p_clear_management_ie(wlcfg_drv_priv, 0);
-		wl_cfgp2p_clear_management_ie(wlcfg_drv_priv, 1);
-		wl_cfgp2p_stop_p2p_device(NULL, wlcfg_drv_priv->p2p_wdev);
+		if (wlcfg_drv_priv && wlcfg_drv_priv->p2p) {
+			wl_cfgp2p_clear_management_ie(wlcfg_drv_priv, 0);
+			wl_cfgp2p_clear_management_ie(wlcfg_drv_priv, 1);
+			wl_cfgp2p_stop_p2p_device(NULL, wlcfg_drv_priv->p2p_wdev);
+		} else 
+			printk("======= OFF : no p2p ======\n");
 		dhd_conf_wifi_stop(g_netdev);
 	}
 	printk("%s: Exit %d\n", __FUNCTION__, on);

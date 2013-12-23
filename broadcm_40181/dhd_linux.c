@@ -2857,7 +2857,7 @@ dhd_stop(struct net_device *net)
 	int ifidx = 0;
 	dhd_info_t *dhd = *(dhd_info_t **)netdev_priv(net);
 	DHD_OS_WAKE_LOCK(&dhd->pub);
-	DHD_TRACE(("%s: Enter %p\n", __FUNCTION__, net));
+	DHD_ERROR(("%s: Enter %p\n", __FUNCTION__, net));
 
 	if (dhd->pub.up == 0) {
 		goto exit;
@@ -2918,6 +2918,8 @@ dhd_open(struct net_device *net)
 #endif
 	int ifidx;
 	int32 ret = 0;
+
+	DHD_ERROR(("%s: Enter %p\n", __FUNCTION__, net));
 
 #if defined(MULTIPLE_SUPPLICANT)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)) && 1 && 1

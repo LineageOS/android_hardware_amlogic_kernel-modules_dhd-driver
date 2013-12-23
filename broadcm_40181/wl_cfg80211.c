@@ -602,6 +602,14 @@ wl_sdo_proto_t wl_sdo_protos [] = {
 };
 #endif
 
+static void wl_wakelock_timeout(struct wl_priv *priv)
+{
+#if defined(CONFIG_HAS_WAKELOCK)	
+	wake_lock_timeout(&priv->priv_lock, msecs_to_jiffies(20));	
+#endif
+}
+
+
 #define RETURN_EIO_IF_NOT_UP(wlpriv)						\
 do {									\
 	struct net_device *checkSysUpNDev = wl_to_prmry_ndev(wlpriv);       	\
@@ -609,6 +617,11 @@ do {									\
 		WL_INFO(("device is not ready\n"));			\
 		return -EIO;						\
 	}								\
+	if (unlikely(!g_wifi_on)) {		\
+		WL_ERR(("g_wifi_on is not ready\n"));	\
+		return -EIO;	\
+	}	\
+	wl_wakelock_timeout(wlpriv);	\
 } while (0)
 
 
@@ -9872,7 +9885,10 @@ static s32 wl_init_priv(struct wl_priv *wl)
 	wl_init_prof(wl, ndev);
 	wl_link_down(wl);
 	DNGL_FUNC(dhd_cfg80211_init, (wl));
-
+#ifdef CONFIG_HAS_WAKELOCK
+	wake_lock_init(&wl->priv_lock, WAKE_LOCK_SUSPEND, "wlan_priv_wake");
+	printk("init wlan_priv_wake\n");
+#endif
 	return err;
 }
 
@@ -9886,6 +9902,9 @@ static void wl_deinit_priv(struct wl_priv *wl)
 	wl_term_iscan(wl);
 	wl_deinit_priv_mem(wl);
 	unregister_netdevice_notifier(&wl_cfg80211_netdev_notifier);
+#ifdef CONFIG_HAS_WAKELOCK
+	wake_lock_destroy(&wl->priv_lock);
+#endif
 }
 
 #if defined(WL_ENABLE_P2P_IF)
