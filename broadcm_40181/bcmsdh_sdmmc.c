@@ -1504,7 +1504,6 @@ sdioh_sdmmc_card_regwrite(sdioh_info_t *sd, int func, uint32 regaddr, int regsiz
 int
 sdioh_start(sdioh_info_t *si, int stage)
 {
-	int ret;
 	sdioh_info_t *sd = gInstance->sd;
 
 	if (!sd) {

@@ -9412,7 +9412,7 @@ static s32 wl_escan_handler(struct wl_priv *wl, bcm_struct_cfgdev *cfgdev,
 					goto exit;
 				if ((p2p_ie = wl_cfgp2p_find_p2pie(((u8 *) bi) + bi->ie_offset,
 					bi->ie_length)) == NULL) {
-						WL_ERR(("Couldn't find P2PIE in probe"
+						WL_SCAN(("Couldn't find P2PIE in probe"
 							" response/beacon\n"));
 						goto exit;
 				}
