@@ -761,7 +761,7 @@ dhd_conf_register_wifi_suspend(struct sdio_func *func)
 	if (func->num == 2) {
 		sdioinfo[func->num].func = func;
 		sdioinfo[func->num].do_late_resume = 0;
-		sdioinfo[func->num].sdio_early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN + 30;
+		sdioinfo[func->num].sdio_early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN - 30;
 		sdioinfo[func->num].sdio_early_suspend.suspend = dhd_conf_early_suspend;
 		sdioinfo[func->num].sdio_early_suspend.resume = dhd_conf_late_resume;
 		register_early_suspend(&sdioinfo[func->num].sdio_early_suspend);
