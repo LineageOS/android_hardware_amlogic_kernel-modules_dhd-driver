@@ -1615,7 +1615,7 @@ wl_cfgp2p_cancel_listen(struct wl_priv *wl, struct net_device *ndev,
 	if (timer_pending(&wl->p2p->listen_timer)) {
 		del_timer_sync(&wl->p2p->listen_timer);
 		if (notify)
-			if (ndev && ndev->ieee80211_ptr) {
+			if (ndev && ndev->ieee80211_ptr && wdev) {
 #if defined(WL_CFG80211_P2P_DEV_IF)
 				cfg80211_remain_on_channel_expired(wdev, wl->last_roc_id,
 					&wl->remain_on_chan, GFP_KERNEL);
