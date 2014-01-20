@@ -693,12 +693,17 @@ dhd_conf_wifi_power(bool on)
 	printk("%s: Enter %d\n", __FUNCTION__, on);
 	if (on) {
 		wl_cfg80211_user_sync(true);
-		wl_android_wifi_on(g_netdev);
-		wl_cfg80211_send_disconnect();
-		if (wlcfg_drv_priv && wlcfg_drv_priv->p2p)
-			wl_cfgp2p_start_p2p_device(NULL, NULL);
-		else		
-			printk("======= ON : no p2p ======\n");
+		if(wl_android_wifi_on(g_netdev) < 0) {
+            /* wifi on failed, send HANG message to tell wpa_supplicant to restart wifi*/
+            net_os_send_hang_message(g_netdev);
+		}
+        else {
+    		wl_cfg80211_send_disconnect();
+    		if (wlcfg_drv_priv && wlcfg_drv_priv->p2p)
+    			wl_cfgp2p_start_p2p_device(NULL, NULL);
+    		else		
+    			printk("======= ON : no p2p ======\n");
+        }
 		wl_cfg80211_user_sync(false);
 		wifi_ready = true;
 	} else {
@@ -761,7 +766,7 @@ dhd_conf_register_wifi_suspend(struct sdio_func *func)
 	if (func->num == 2) {
 		sdioinfo[func->num].func = func;
 		sdioinfo[func->num].do_late_resume = 0;
-		sdioinfo[func->num].sdio_early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN - 30;
+		sdioinfo[func->num].sdio_early_suspend.level = EARLY_SUSPEND_LEVEL_DISABLE_FB + 30;
 		sdioinfo[func->num].sdio_early_suspend.suspend = dhd_conf_early_suspend;
 		sdioinfo[func->num].sdio_early_suspend.resume = dhd_conf_late_resume;
 		register_early_suspend(&sdioinfo[func->num].sdio_early_suspend);

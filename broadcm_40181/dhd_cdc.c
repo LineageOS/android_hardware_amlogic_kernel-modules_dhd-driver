@@ -222,8 +222,10 @@ dhdcdc_set_ioctl(dhd_pub_t *dhd, int ifidx, uint cmd, void *buf, uint len, uint8
 		goto done;
 	}
 
-	if ((ret = dhdcdc_cmplt(dhd, prot->reqid, len)) < 0)
+	if ((ret = dhdcdc_cmplt(dhd, prot->reqid, len)) < 0) {
+        DHD_ERROR(("%s: dhdcdc_cmplt failed %d\n", __FUNCTION__, ret));
 		goto done;
+	}
 
 	flags = ltoh32(msg->flags);
 	id = (flags & CDCF_IOC_ID_MASK) >> CDCF_IOC_ID_SHIFT;
@@ -238,6 +240,7 @@ dhdcdc_set_ioctl(dhd_pub_t *dhd, int ifidx, uint cmd, void *buf, uint len, uint8
 	/* Check the ERROR flag */
 	if (flags & CDCF_IOC_ERROR)
 	{
+	    DHD_ERROR(("%s: CDCF_IOC_ERROR msg->status:%d\n", __FUNCTION__, msg->status));
 		ret = ltoh32(msg->status);
 		/* Cache error from dongle */
 		dhd->dongle_error = ret;
