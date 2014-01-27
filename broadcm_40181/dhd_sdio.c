@@ -4583,6 +4583,11 @@ dhd_bus_init(dhd_pub_t *dhdp, bool enforce_mutex)
 	if (enforce_mutex)
 		dhd_os_sdlock(bus->dhd);
 
+	if (bus->sih->chip == BCM43362_CHIP_ID) {
+		printf("%s: delay 100ms for BCM43362\n", __FUNCTION__);
+		OSL_DELAY(100000); // terence 20131209: delay for 43362
+	}
+
 	/* Make sure backplane clock is on, needed to generate F2 interrupt */
 	dhdsdio_clkctl(bus, CLK_AVAIL, FALSE);
 	if (bus->clkstate != CLK_AVAIL) {
@@ -7058,6 +7063,15 @@ dhdsdio_probe(uint16 venid, uint16 devid, uint16 bus_no, uint16 slot,
 		DHD_ERROR(("%s: dhdsdio_probe_attach failed\n", __FUNCTION__));
 		goto fail;
 	}
+	
+#ifdef PROP_TXSTATUS
+	if (bus->sih->chip == BCM4330_CHIP_ID ||
+		bus->sih->chip == BCM43362_CHIP_ID ) {
+		// terence 20131215: disable_proptx should be set before dhd_attach
+		printf("%s: disable prop_txstatus\n", __FUNCTION__);
+		disable_proptx = TRUE;
+	}
+#endif
 
 	/* Attach to the dhd/OS/network interface */
 	if (!(bus->dhd = dhd_attach(osh, bus, SDPCM_RESERVE))) {

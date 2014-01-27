@@ -172,6 +172,7 @@ enum wl_cfgp2p_status {
 
 #if !defined(WL_CFG80211_P2P_DEV_IF) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
 #define WL_CFG80211_P2P_DEV_IF
+#undef WL_ENABLE_P2P_IF
 #endif /* !WL_CFG80211_P2P_DEV_IF && (LINUX_VERSION >= VERSION(3, 8, 0)) */
 
 #if defined(WL_ENABLE_P2P_IF) && (defined(WL_CFG80211_P2P_DEV_IF) || \

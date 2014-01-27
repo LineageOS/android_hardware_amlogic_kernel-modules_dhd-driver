@@ -1340,6 +1340,12 @@ int wl_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 	}
 	else if (strnicmp(command, CMD_SETBAND, strlen(CMD_SETBAND)) == 0) {
 		uint band = *(command + strlen(CMD_SETBAND) + 1) - '0';
+
+		if (dhd_conf_get_band(bcmsdh_get_drvdata()) != WLC_BAND_AUTO) {
+			printf("%s: Band is fixed in config.txt\n", __FUNCTION__);
+			goto exit;
+		}
+
 #ifdef WL_HOST_BAND_MGMT
 		s32 ret = 0;
 		if ((ret = wl_cfg80211_set_band(net, band)) < 0) {
@@ -2092,7 +2098,7 @@ wl_delete_dirty_rssi_cache(wl_rssi_cache_ctrl_t *rssi_cache_ctrl)
 	wl_rssi_cache_t *node, *prev, **rssi_head;
 	int i = -1, tmp = 0;
 #if defined(BSSCACHE)
-	int max = BSSCACHE_LEN;
+	int max = 0;
 #else
 	int max = RSSICACHE_LEN;
 #endif
@@ -2103,7 +2109,7 @@ wl_delete_dirty_rssi_cache(wl_rssi_cache_ctrl_t *rssi_cache_ctrl)
 	prev = node;
 	for (;node;) {
 		i++;
-		if (node->dirty >= max) {
+		if (node->dirty > max) {
 			if (node == *rssi_head) {
 				tmp = 1;
 				*rssi_head = node->next;
@@ -2309,7 +2315,7 @@ int16
 wl_get_avg_rssi(wl_rssi_cache_ctrl_t *rssi_cache_ctrl, void *addr)
 {
 	wl_rssi_cache_t *node, **rssi_head;
-	int j, rssi_sum, rssi=-200;
+	int j, rssi_sum, rssi=RSSI_MINVAL;
 
 	rssi_head = &rssi_cache_ctrl->m_cache_head;
 
@@ -2326,9 +2332,8 @@ wl_get_avg_rssi(wl_rssi_cache_ctrl_t *rssi_cache_ctrl, void *addr)
 		}
 		node = node->next;
 	}
-	if (rssi >= -2)
-		rssi = -2;
-	if (rssi == -200) {
+	rssi = MIN(rssi, RSSI_MAXVAL);
+	if (rssi == RSSI_MINVAL) {
 		ANDROID_ERROR(("%s: BSSID %pM does not in RSSI cache\n",
 		__FUNCTION__, addr));
 	}
@@ -2351,7 +2356,7 @@ wl_update_rssi_offset(int rssi)
 #if defined(RSSIOFFSET_NEW)
 		int j;
 		for (j=0; j<RSSI_OFFSET; j++) {
-			if (rssi - (RSSI_MIN+RSSI_INT*(j+1)) < 0)
+			if (rssi - (RSSI_OFFSET_MINVAL+RSSI_OFFSET_INTVAL*(j+1)) < 0)
 				break;
 		}
 		rssi += j;
@@ -2359,9 +2364,7 @@ wl_update_rssi_offset(int rssi)
 		rssi += RSSI_OFFSET;
 #endif
 	}
-	if (rssi >= -2)
-		rssi = -2;
-	return rssi;
+	return MIN(rssi, RSSI_MAXVAL);
 }
 #endif
 
@@ -2401,7 +2404,7 @@ wl_delete_dirty_bss_cache(wl_bss_cache_ctrl_t *bss_cache_ctrl)
 	prev = node;
 	for (;node;) {
 		i++;
-		if (node->dirty >= BSSCACHE_LEN) {
+		if (node->dirty > BSSCACHE_LEN) {
 			if (node == *bss_head) {
 				tmp = 1;
 				*bss_head = node->next;
@@ -2509,8 +2512,8 @@ wl_update_bss_cache(wl_bss_cache_ctrl_t *bss_cache_ctrl, wl_scan_results_t *ss_l
 				leaf->dirty = 0;
 				leaf->results.count = 1;
 				leaf->results.version = ss_list->version;
-				ANDROID_TRACE(("%s: Update %d with BSSID %pM, RSSI=%d, SSID \"%s\"\n",
-					__FUNCTION__, k, &bi->BSSID, dtoh16(bi->RSSI), bi->SSID));
+				ANDROID_TRACE(("%s: Update %d with BSSID %pM, RSSI=%d, SSID \"%s\", length=%d\n",
+					__FUNCTION__, k, &bi->BSSID, dtoh16(bi->RSSI), bi->SSID, dtoh32(bi->length)));
 				if (!prev)
 					*bss_head = leaf;
 				else
@@ -2591,7 +2594,7 @@ wl_release_bss_cache_ctrl(wl_bss_cache_ctrl_t *bss_cache_ctrl)
 	}
 }
 
-void
+int
 wl_init_bss_cache_ctrl(wl_bss_cache_ctrl_t *bss_cache_ctrl)
 {
 	ANDROID_TRACE(("%s:\n", __FUNCTION__));
@@ -2600,10 +2603,12 @@ wl_init_bss_cache_ctrl(wl_bss_cache_ctrl_t *bss_cache_ctrl)
 	bss_cache_ctrl->m_timer = kmalloc(sizeof(struct timer_list), GFP_KERNEL);
 	if (!bss_cache_ctrl->m_timer) {
 		ANDROID_ERROR(("%s: Memory alloc failure\n", __FUNCTION__ ));
-		return;
+		return -ENOMEM;
 	}
 	init_timer(bss_cache_ctrl->m_timer);
 	bss_cache_ctrl->m_timer->function = (void *)wl_set_bss_cache_timer_flag;
 	bss_cache_ctrl->m_timer->data = (ulong)bss_cache_ctrl;
+
+	return 0;
 }
 #endif

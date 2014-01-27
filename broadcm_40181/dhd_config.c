@@ -228,9 +228,10 @@ dhd_conf_set_band(dhd_pub_t *dhd)
 {
 	int bcmerror = -1;
 
+	printf("%s: Set band %d\n", __FUNCTION__, dhd->conf->band);
 	if ((bcmerror = dhd_wl_ioctl_cmd(dhd, WLC_SET_BAND, &dhd->conf->band,
 		sizeof(dhd->conf->band), TRUE, 0)) < 0)
-		CONFIG_ERROR(("%s: band set failed %d\n", __FUNCTION__, bcmerror));
+		CONFIG_ERROR(("%s: WLC_SET_BAND setting failed %d\n", __FUNCTION__, bcmerror));
 
 	return bcmerror;
 }
@@ -238,7 +239,14 @@ dhd_conf_set_band(dhd_pub_t *dhd)
 uint
 dhd_conf_get_band(dhd_pub_t *dhd)
 {
-	return dhd->conf->band;
+	uint band = WLC_BAND_AUTO;
+
+	if (dhd && dhd->conf)
+		band = dhd->conf->band;
+	else
+		CONFIG_ERROR(("%s: dhd or conf is NULL\n", __FUNCTION__));
+
+	return band;
 }
 
 int
@@ -278,16 +286,21 @@ bool
 dhd_conf_match_channel(dhd_pub_t *dhd, uint32 channel)
 {
 	int i;
+	bool match = false;
 
-	if (dhd->conf->channels.count== 0)
-		return true;
-	for (i=0; i<dhd->conf->channels.count; i++) {
-		if (channel == dhd->conf->channels.channel[i]) {
+	if (dhd && dhd->conf) {
+		if (dhd->conf->channels.count == 0)
 			return true;
+		for (i=0; i<dhd->conf->channels.count; i++) {
+			if (channel == dhd->conf->channels.channel[i])
+				match = true;
 		}
+	} else {
+		match = true;
+		CONFIG_ERROR(("%s: dhd or conf is NULL\n", __FUNCTION__));
 	}
 
-	return false;
+	return match;
 }
 
 int
@@ -305,22 +318,22 @@ dhd_conf_set_roam(dhd_pub_t *dhd)
 		printf("%s: Set roam_trigger %d\n", __FUNCTION__, dhd->conf->roam_trigger[0]);
 		if ((bcmerror = dhd_wl_ioctl_cmd(dhd, WLC_SET_ROAM_TRIGGER, dhd->conf->roam_trigger,
 				sizeof(dhd->conf->roam_trigger), TRUE, 0)) < 0)
-			CONFIG_ERROR(("%s: roam trigger set failed %d\n", __FUNCTION__, bcmerror));
+			CONFIG_ERROR(("%s: roam trigger setting failed %d\n", __FUNCTION__, bcmerror));
 
 		printf("%s: Set roam_scan_period %d\n", __FUNCTION__, dhd->conf->roam_scan_period[0]);
 		if ((bcmerror = dhd_wl_ioctl_cmd(dhd, WLC_SET_ROAM_SCAN_PERIOD, dhd->conf->roam_scan_period,
 				sizeof(dhd->conf->roam_scan_period), TRUE, 0)) < 0)
-			CONFIG_ERROR(("%s: roam scan period set failed %d\n", __FUNCTION__, bcmerror));
+			CONFIG_ERROR(("%s: roam scan period setting failed %d\n", __FUNCTION__, bcmerror));
 
 		printf("%s: Set roam_delta %d\n", __FUNCTION__, dhd->conf->roam_delta[0]);
 		if ((bcmerror = dhd_wl_ioctl_cmd(dhd, WLC_SET_ROAM_DELTA, dhd->conf->roam_delta,
 				sizeof(dhd->conf->roam_delta), TRUE, 0)) < 0)
-			CONFIG_ERROR(("%s: roam delta set failed %d\n", __FUNCTION__, bcmerror));
+			CONFIG_ERROR(("%s: roam delta setting failed %d\n", __FUNCTION__, bcmerror));
 
 		printf("%s: Set fullroamperiod %d\n", __FUNCTION__, dhd->conf->fullroamperiod);
 		bcm_mkiovar("fullroamperiod", (char *)&dhd->conf->fullroamperiod, 4, iovbuf, sizeof(iovbuf));
 		if ((bcmerror = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0)) < 0)
-			CONFIG_ERROR(("%s: roam fullscan period set failed %d\n", __FUNCTION__, bcmerror));
+			CONFIG_ERROR(("%s: roam fullscan period setting failed %d\n", __FUNCTION__, bcmerror));
 	}
 
 	return bcmerror;
@@ -335,12 +348,187 @@ dhd_conf_set_bw(dhd_pub_t *dhd)
 
 	if (dhd_bus_chip_id(dhd) == BCM43341_CHIP_ID ||
 			dhd_bus_chip_id(dhd) == BCM4324_CHIP_ID ||
-			dhd_bus_chip_id(dhd) == BCM4335_CHIP_ID) {
+			dhd_bus_chip_id(dhd) == BCM4335_CHIP_ID ||
+			dhd_bus_chip_id(dhd) == BCM4339_CHIP_ID) {
+		if ((bcmerror = dhd_wl_ioctl_cmd(dhd, WLC_DOWN, NULL, 0, TRUE, 0)) < 0)
+			CONFIG_ERROR(("%s: WLC_DOWN setting failed %d\n", __FUNCTION__, bcmerror));
 		/* Enable HT40 in 2.4 GHz */
 		printf("%s: Enable HT40 in 2.4 GHz\n", __FUNCTION__);
 		bcm_mkiovar("mimo_bw_cap", (char *)&mimo_bw_cap, 4, iovbuf, sizeof(iovbuf));
 		if ((bcmerror = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0)) < 0)
-			CONFIG_ERROR(("%s: mimo_bw_cap set failed %d\n", __FUNCTION__, bcmerror));
+			CONFIG_ERROR(("%s: mimo_bw_cap setting failed %d\n", __FUNCTION__, bcmerror));
+	}
+}
+
+void
+dhd_conf_force_wme(dhd_pub_t *dhd)
+{
+	int bcmerror = -1;
+	char iovbuf[WL_EVENTING_MASK_LEN + 12];	/*  Room for "event_msgs" + '\0' + bitvec  */
+
+	if (dhd_bus_chip_id(dhd) == BCM43362_CHIP_ID && dhd->conf->force_wme_ac) {
+		bcm_mkiovar("force_wme_ac", (char *)&dhd->conf->force_wme_ac, 4, iovbuf, sizeof(iovbuf));
+		if ((bcmerror = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0)) < 0)
+			CONFIG_ERROR(("%s: force_wme_ac setting failed %d\n", __FUNCTION__, bcmerror));
+	}
+}
+
+void
+dhd_conf_get_wme(dhd_pub_t *dhd, edcf_acparam_t *acp)
+{
+	int bcmerror = -1;
+	char iovbuf[WLC_IOCTL_SMLEN];
+	edcf_acparam_t *acparam;
+
+	bzero(iovbuf, sizeof(iovbuf));
+
+	/*
+	 * Get current acparams, using buf as an input buffer.
+	 * Return data is array of 4 ACs of wme params.
+	 */
+	bcm_mkiovar("wme_ac_sta", NULL, 0, iovbuf, sizeof(iovbuf));
+	if ((bcmerror = dhd_wl_ioctl_cmd(dhd, WLC_GET_VAR, iovbuf, sizeof(iovbuf), FALSE, 0)) < 0) {
+		CONFIG_ERROR(("%s: wme_ac_sta getting failed %d\n", __FUNCTION__, bcmerror));
+		return;
+	}
+	memcpy((char*)acp, iovbuf, sizeof(edcf_acparam_t)*AC_COUNT);
+
+	acparam = &acp[AC_BK];
+	CONFIG_TRACE(("BK: aci %d aifsn %d ecwmin %d ecwmax %d size %d\n",
+		acparam->ACI, acparam->ACI&EDCF_AIFSN_MASK,
+		acparam->ECW&EDCF_ECWMIN_MASK, (acparam->ECW&EDCF_ECWMAX_MASK)>>EDCF_ECWMAX_SHIFT,
+		sizeof(acp)));
+	acparam = &acp[AC_BE];
+	CONFIG_TRACE(("BE: aci %d aifsn %d ecwmin %d ecwmax %d size %d\n",
+		acparam->ACI, acparam->ACI&EDCF_AIFSN_MASK,
+		acparam->ECW&EDCF_ECWMIN_MASK, (acparam->ECW&EDCF_ECWMAX_MASK)>>EDCF_ECWMAX_SHIFT,
+		sizeof(acp)));
+	acparam = &acp[AC_VI];
+	CONFIG_TRACE(("VI: aci %d aifsn %d ecwmin %d ecwmax %d size %d\n",
+		acparam->ACI, acparam->ACI&EDCF_AIFSN_MASK,
+		acparam->ECW&EDCF_ECWMIN_MASK, (acparam->ECW&EDCF_ECWMAX_MASK)>>EDCF_ECWMAX_SHIFT,
+		sizeof(acp)));
+	acparam = &acp[AC_VO];
+	CONFIG_TRACE(("VO: aci %d aifsn %d ecwmin %d ecwmax %d size %d\n",
+		acparam->ACI, acparam->ACI&EDCF_AIFSN_MASK,
+		acparam->ECW&EDCF_ECWMIN_MASK, (acparam->ECW&EDCF_ECWMAX_MASK)>>EDCF_ECWMAX_SHIFT,
+		sizeof(acp)));
+
+	return;
+}
+
+void
+dhd_conf_update_wme(dhd_pub_t *dhd, edcf_acparam_t *acparam_cur, int aci)
+{
+	int bcmerror = -1;
+	int aifsn, ecwmin, ecwmax;
+	edcf_acparam_t *acp;
+	char iovbuf[WLC_IOCTL_SMLEN];
+
+	/* Default value */
+	aifsn = acparam_cur->ACI&EDCF_AIFSN_MASK;
+	ecwmin = acparam_cur->ECW&EDCF_ECWMIN_MASK;
+	ecwmax = (acparam_cur->ECW&EDCF_ECWMAX_MASK)>>EDCF_ECWMAX_SHIFT;
+
+	/* Modified value */
+	if (dhd->conf->wme.aifsn[aci] > 0)
+		aifsn = dhd->conf->wme.aifsn[aci];
+	if (dhd->conf->wme.cwmin[aci] > 0)
+		ecwmin = dhd->conf->wme.cwmin[aci];
+	if (dhd->conf->wme.cwmax[aci] > 0)
+		ecwmax = dhd->conf->wme.cwmax[aci];
+
+	/* Update */
+	acp = acparam_cur;
+	acp->ACI = (acp->ACI & ~EDCF_AIFSN_MASK) | (aifsn & EDCF_AIFSN_MASK);
+	acp->ECW = ((ecwmax << EDCF_ECWMAX_SHIFT) & EDCF_ECWMAX_MASK) | (acp->ECW & EDCF_ECWMIN_MASK);
+	acp->ECW = ((acp->ECW & EDCF_ECWMAX_MASK) | (ecwmin & EDCF_ECWMIN_MASK));
+
+	CONFIG_TRACE(("mod aci %d aifsn %d ecwmin %d ecwmax %d size %d\n",
+		acp->ACI, acp->ACI&EDCF_AIFSN_MASK,
+		acp->ECW&EDCF_ECWMIN_MASK, (acp->ECW&EDCF_ECWMAX_MASK)>>EDCF_ECWMAX_SHIFT,
+		sizeof(edcf_acparam_t)));
+
+	/*
+	* Now use buf as an output buffer.
+	* Put WME acparams after "wme_ac\0" in buf.
+	* NOTE: only one of the four ACs can be set at a time.
+	*/
+	bcm_mkiovar("wme_ac_sta", (char*)acp, sizeof(edcf_acparam_t), iovbuf,
+		sizeof(iovbuf));
+	if ((bcmerror = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, sizeof(iovbuf), FALSE, 0)) < 0) {
+		CONFIG_ERROR(("%s: wme_ac_sta setting failed %d\n", __FUNCTION__, bcmerror));
+		return;
+	}
+}
+
+void
+dhd_conf_set_wme(dhd_pub_t *dhd)
+{
+	edcf_acparam_t acparam_cur[AC_COUNT];
+
+	if (dhd && dhd->conf) {
+		if (!dhd->conf->force_wme_ac) {
+			CONFIG_TRACE(("%s: force_wme_ac is not enabled %d\n",
+				__FUNCTION__, dhd->conf->force_wme_ac));
+			return;
+		}
+
+		CONFIG_TRACE(("Before change:\n"));
+		dhd_conf_get_wme(dhd, acparam_cur);
+
+		dhd_conf_update_wme(dhd, &acparam_cur[AC_BK], AC_BK);
+		dhd_conf_update_wme(dhd, &acparam_cur[AC_BE], AC_BE);
+		dhd_conf_update_wme(dhd, &acparam_cur[AC_VI], AC_VI);
+		dhd_conf_update_wme(dhd, &acparam_cur[AC_VO], AC_VO);
+
+		CONFIG_TRACE(("After change:\n"));
+		dhd_conf_get_wme(dhd, acparam_cur);
+	} else {
+		CONFIG_ERROR(("%s: dhd or conf is NULL\n", __FUNCTION__));
+	}
+
+	return;
+}
+
+void
+dhd_conf_set_stbc(dhd_pub_t *dhd)
+{
+	int bcmerror = -1;
+	char iovbuf[WL_EVENTING_MASK_LEN + 12];	/*  Room for "event_msgs" + '\0' + bitvec  */
+	uint stbc = 0;
+
+	if (dhd_bus_chip_id(dhd) == BCM4324_CHIP_ID) {
+		if (dhd->conf->stbc >= 0) {
+			stbc = (uint)dhd->conf->stbc;
+			printf("%s: set stbc_tx %d\n", __FUNCTION__, stbc);
+		    bcm_mkiovar("stbc_tx", (char *)&stbc, 4, iovbuf, sizeof(iovbuf));
+		    if ((bcmerror = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0)) < 0)
+				CONFIG_ERROR(("%s: stbc_tx setting failed %d\n", __FUNCTION__, bcmerror));
+
+			printf("%s: set stbc_rx %d\n", __FUNCTION__, stbc);
+		    bcm_mkiovar("stbc_rx", (char *)&stbc, 4, iovbuf, sizeof(iovbuf));
+		    if ((bcmerror = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0)) < 0)
+				CONFIG_ERROR(("%s: stbc_rx setting failed %d\n", __FUNCTION__, bcmerror));
+		}
+	}
+}
+
+void
+dhd_conf_set_phyoclscdenable(dhd_pub_t *dhd)
+{
+	int bcmerror = -1;
+	char iovbuf[WL_EVENTING_MASK_LEN + 12];	/*  Room for "event_msgs" + '\0' + bitvec  */
+	uint phy_oclscdenable = 0;
+
+	if (dhd_bus_chip_id(dhd) == BCM4324_CHIP_ID) {
+		if (dhd->conf->phy_oclscdenable >= 0) {
+			phy_oclscdenable = (uint)dhd->conf->phy_oclscdenable;
+			printf("%s: set stbc_tx %d\n", __FUNCTION__, phy_oclscdenable);
+		    bcm_mkiovar("phy_oclscdenable", (char *)&phy_oclscdenable, 4, iovbuf, sizeof(iovbuf));
+		    if ((bcmerror = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0)) < 0)
+				CONFIG_ERROR(("%s: stbc_tx setting failed %d\n", __FUNCTION__, bcmerror));
+		}
 	}
 }
 
@@ -452,6 +640,10 @@ dhd_conf_download_config(dhd_pub_t *dhd)
 		if (len_val) {
 			if (!strncmp(pick, "b", len_val))
 				dhd->conf->band = WLC_BAND_2G;
+			else if (!strncmp(pick, "a", len_val))
+				dhd->conf->band = WLC_BAND_5G;
+			else
+				dhd->conf->band = WLC_BAND_AUTO;
 			printf("%s: band = %d\n", __FUNCTION__, dhd->conf->band);
 		}
 
@@ -559,6 +751,116 @@ dhd_conf_download_config(dhd_pub_t *dhd)
 				dhd->conf->keep_alive_period);
 		}
 
+		/* Process WMM parameters */
+		memset(pick, 0, MAXSZ_BUF);
+		len_val = process_config_vars(bufp, len, pick, "force_wme_ac=");
+		if (len_val) {
+			dhd->conf->force_wme_ac = (int)simple_strtol(pick, NULL, 10);
+			printf("%s: force_wme_ac = %d\n", __FUNCTION__, dhd->conf->force_wme_ac);
+		}
+
+		if (dhd->conf->force_wme_ac) {
+			memset(pick, 0, MAXSZ_BUF);
+			len_val = process_config_vars(bufp, len, pick, "bk_aifsn=");
+			if (len_val) {
+				dhd->conf->wme.aifsn[AC_BK] = (int)simple_strtol(pick, NULL, 10);
+				printf("%s: AC_BK aifsn = %d\n", __FUNCTION__, dhd->conf->wme.aifsn[AC_BK]);
+			}
+
+			memset(pick, 0, MAXSZ_BUF);
+			len_val = process_config_vars(bufp, len, pick, "bk_cwmin=");
+			if (len_val) {
+				dhd->conf->wme.cwmin[AC_BK] = (int)simple_strtol(pick, NULL, 10);
+				printf("%s: AC_BK cwmin = %d\n", __FUNCTION__, dhd->conf->wme.cwmin[AC_BK]);
+			}
+
+			memset(pick, 0, MAXSZ_BUF);
+			len_val = process_config_vars(bufp, len, pick, "bk_cwmax=");
+			if (len_val) {
+				dhd->conf->wme.cwmax[AC_BK] = (int)simple_strtol(pick, NULL, 10);
+				printf("%s: AC_BK cwmax = %d\n", __FUNCTION__, dhd->conf->wme.cwmax[AC_BK]);
+			}
+
+			memset(pick, 0, MAXSZ_BUF);
+			len_val = process_config_vars(bufp, len, pick, "be_aifsn=");
+			if (len_val) {
+				dhd->conf->wme.aifsn[AC_BE] = (int)simple_strtol(pick, NULL, 10);
+				printf("%s: AC_BE aifsn = %d\n", __FUNCTION__, dhd->conf->wme.aifsn[AC_BE]);
+			}
+
+			memset(pick, 0, MAXSZ_BUF);
+			len_val = process_config_vars(bufp, len, pick, "be_cwmin=");
+			if (len_val) {
+				dhd->conf->wme.cwmin[AC_BE] = (int)simple_strtol(pick, NULL, 10);
+				printf("%s: AC_BE cwmin = %d\n", __FUNCTION__, dhd->conf->wme.cwmin[AC_BE]);
+			}
+
+			memset(pick, 0, MAXSZ_BUF);
+			len_val = process_config_vars(bufp, len, pick, "be_cwmax=");
+			if (len_val) {
+				dhd->conf->wme.cwmax[AC_BE] = (int)simple_strtol(pick, NULL, 10);
+				printf("%s: AC_BE cwmax = %d\n", __FUNCTION__, dhd->conf->wme.cwmax[AC_BE]);
+			}
+
+			memset(pick, 0, MAXSZ_BUF);
+			len_val = process_config_vars(bufp, len, pick, "vi_aifsn=");
+			if (len_val) {
+				dhd->conf->wme.aifsn[AC_VI] = (int)simple_strtol(pick, NULL, 10);
+				printf("%s: AC_VI aifsn = %d\n", __FUNCTION__, dhd->conf->wme.aifsn[AC_VI]);
+			}
+
+			memset(pick, 0, MAXSZ_BUF);
+			len_val = process_config_vars(bufp, len, pick, "vi_cwmin=");
+			if (len_val) {
+				dhd->conf->wme.cwmin[AC_VI] = (int)simple_strtol(pick, NULL, 10);
+				printf("%s: AC_VI cwmin = %d\n", __FUNCTION__, dhd->conf->wme.cwmin[AC_VI]);
+			}
+
+			memset(pick, 0, MAXSZ_BUF);
+			len_val = process_config_vars(bufp, len, pick, "vi_cwmax=");
+			if (len_val) {
+				dhd->conf->wme.cwmax[AC_VI] = (int)simple_strtol(pick, NULL, 10);
+				printf("%s: AC_VI cwmax = %d\n", __FUNCTION__, dhd->conf->wme.cwmax[AC_VI]);
+			}
+
+			memset(pick, 0, MAXSZ_BUF);
+			len_val = process_config_vars(bufp, len, pick, "vo_aifsn=");
+			if (len_val) {
+				dhd->conf->wme.aifsn[AC_VO] = (int)simple_strtol(pick, NULL, 10);
+				printf("%s: AC_VO aifsn = %d\n", __FUNCTION__, dhd->conf->wme.aifsn[AC_VO]);
+			}
+
+			memset(pick, 0, MAXSZ_BUF);
+			len_val = process_config_vars(bufp, len, pick, "vo_cwmin=");
+			if (len_val) {
+				dhd->conf->wme.cwmin[AC_VO] = (int)simple_strtol(pick, NULL, 10);
+				printf("%s: AC_VO cwmin = %d\n", __FUNCTION__, dhd->conf->wme.cwmin[AC_VO]);
+			}
+
+			memset(pick, 0, MAXSZ_BUF);
+			len_val = process_config_vars(bufp, len, pick, "vo_cwmax=");
+			if (len_val) {
+				dhd->conf->wme.cwmax[AC_VO] = (int)simple_strtol(pick, NULL, 10);
+				printf("%s: AC_VO cwmax = %d\n", __FUNCTION__, dhd->conf->wme.cwmax[AC_VO]);
+			}
+		}
+
+		/* Process STBC parameters */
+		memset(pick, 0, MAXSZ_BUF);
+		len_val = process_config_vars(bufp, len, pick, "stbc=");
+		if (len_val) {
+			dhd->conf->stbc = (int)simple_strtol(pick, NULL, 10);
+			printf("%s: stbc = %d\n", __FUNCTION__, dhd->conf->stbc);
+		}
+
+		/* Process phy_oclscdenable parameters */
+		memset(pick, 0, MAXSZ_BUF);
+		len_val = process_config_vars(bufp, len, pick, "phy_oclscdenable=");
+		if (len_val) {
+			dhd->conf->phy_oclscdenable = (int)simple_strtol(pick, NULL, 10);
+			printf("%s: phy_oclscdenable = %d\n", __FUNCTION__, dhd->conf->phy_oclscdenable);
+		}
+
 		bcmerror = 0;
 	} else {
 		CONFIG_ERROR(("%s: error reading config file: %d\n", __FUNCTION__, len));
@@ -578,6 +880,8 @@ err:
 int
 dhd_conf_preinit(dhd_pub_t *dhd)
 {
+	CONFIG_TRACE(("%s: Enter\n", __FUNCTION__));
+
 	memset(dhd->conf, 0, sizeof(dhd_conf_t));
 
 	dhd->conf->band = WLC_BAND_AUTO;
@@ -612,6 +916,9 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 #else
 	dhd->conf->keep_alive_period = 28000;
 #endif
+	dhd->conf->force_wme_ac = 0;
+	dhd->conf->stbc = -1;
+	dhd->conf->phy_oclscdenable = -1;
 
 	return 0;
 }
@@ -621,7 +928,12 @@ dhd_conf_attach(dhd_pub_t *dhd)
 {
 	dhd_conf_t *conf;
 
-	dhd->conf = NULL;
+	CONFIG_TRACE(("%s: Enter\n", __FUNCTION__));
+
+	if (dhd->conf != NULL) {
+		printf("%s: config is attached before!\n", __FUNCTION__);
+		return 0;
+	}
 	/* Allocate private bus interface state */
 	if (!(conf = MALLOC(dhd->osh, sizeof(dhd_conf_t)))) {
 		CONFIG_ERROR(("%s: MALLOC failed\n", __FUNCTION__));
@@ -642,6 +954,8 @@ fail:
 void
 dhd_conf_detach(dhd_pub_t *dhd)
 {
+	CONFIG_TRACE(("%s: Enter\n", __FUNCTION__));
+
 	if (dhd->conf)
 		MFREE(dhd->osh, dhd->conf, sizeof(dhd_conf_t));
 	dhd->conf = NULL;
@@ -671,13 +985,17 @@ dhd_conf_wifi_stop(struct net_device *dev)
 	dhd_net_if_lock(dev);
 	printk("%s in 2: g_wifi_on=%d, name=%s\n", __FUNCTION__, g_wifi_on, dev->name);
 	if (g_wifi_on) {
+#ifdef WL_CFG80211
 		wl_cfg80211_user_sync(true);
 		wl_cfg80211_stop();
+#endif
 		dhd_bus_devreset(bcmsdh_get_drvdata(), true);
 		sdioh_stop(NULL);
 		dhd_customer_gpio_wlan_ctrl(WLAN_RESET_OFF);
 		g_wifi_on = FALSE;
+#ifdef WL_CFG80211
 		wl_cfg80211_user_sync(false);
+#endif
 	}
 	printk("%s out\n", __FUNCTION__);
 	dhd_net_if_unlock(dev);
@@ -692,19 +1010,25 @@ dhd_conf_wifi_power(bool on)
 	extern struct wl_priv *wlcfg_drv_priv;
 	printk("%s: Enter %d\n", __FUNCTION__, on);
 	if (on) {
+#ifdef WL_CFG80211
 		wl_cfg80211_user_sync(true);
+#endif
 		if(wl_android_wifi_on(g_netdev) < 0) {
             /* wifi on failed, send HANG message to tell wpa_supplicant to restart wifi*/
             net_os_send_hang_message(g_netdev);
 		}
         else {
+#ifdef WL_CFG80211
     		wl_cfg80211_send_disconnect();
+#endif
     		if (wlcfg_drv_priv && wlcfg_drv_priv->p2p)
     			wl_cfgp2p_start_p2p_device(NULL, NULL);
     		else		
     			printk("======= ON : no p2p ======\n");
         }
+#ifdef WL_CFG80211
 		wl_cfg80211_user_sync(false);
+#endif
 		wifi_ready = true;
 	} else {
 		wifi_ready = false;
@@ -720,7 +1044,7 @@ dhd_conf_wifi_power(bool on)
 }
 
 void
-dhd_conf_probe_workqueue(struct work_struct *work)
+dhd_conf_power_workqueue(struct work_struct *work)
 {
     dhd_conf_wifi_power(true);
 }
@@ -770,7 +1094,7 @@ dhd_conf_register_wifi_suspend(struct sdio_func *func)
 		sdioinfo[func->num].sdio_early_suspend.suspend = dhd_conf_early_suspend;
 		sdioinfo[func->num].sdio_early_suspend.resume = dhd_conf_late_resume;
 		register_early_suspend(&sdioinfo[func->num].sdio_early_suspend);
-		INIT_WORK(&sdioinfo[func->num].tqueue, dhd_conf_probe_workqueue);
+		INIT_WORK(&sdioinfo[func->num].tqueue, dhd_conf_power_workqueue);
 	}
 #endif
 }

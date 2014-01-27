@@ -104,6 +104,9 @@ s32 wl_genl_send_msg(struct net_device *ndev, u32 event_type,
 #define RSSIOFFSET
 //#define RSSIOFFSET_NEW
 
+#define RSSI_MAXVAL -2
+#define RSSI_MINVAL -200
+
 #if defined(ESCAN_RESULT_PATCH)
 #define REPEATED_SCAN_RESULT_CNT	2
 #else
@@ -136,9 +139,11 @@ int16 wl_get_avg_rssi(wl_rssi_cache_ctrl_t *rssi_cache_ctrl, void *addr);
 
 #if defined(RSSIOFFSET)
 #define RSSI_OFFSET	5
-#define RSSI_MAX -80
-#define RSSI_MIN -94
-#define RSSI_INT ((RSSI_MAX-RSSI_MIN)/RSSI_OFFSET)
+#if defined(RSSIOFFSET_NEW)
+#define RSSI_OFFSET_MAXVAL -80
+#define RSSI_OFFSET_MINVAL -94
+#define RSSI_OFFSET_INTVAL ((RSSI_OFFSET_MAXVAL-RSSI_OFFSET_MINVAL)/RSSI_OFFSET)
+#endif
 #define BCM4330_CHIP_ID		0x4330
 #define BCM4330B2_CHIP_REV      4
 int wl_update_rssi_offset(int rssi);
@@ -167,6 +172,6 @@ void wl_reset_bss_cache(wl_bss_cache_ctrl_t *bss_cache_ctrl);
 void wl_update_bss_cache(wl_bss_cache_ctrl_t *bss_cache_ctrl, wl_scan_results_t *ss_list);
 void wl_run_bss_cache_timer(wl_bss_cache_ctrl_t *bss_cache_ctrl, int kick_off);
 void wl_release_bss_cache_ctrl(wl_bss_cache_ctrl_t *bss_cache_ctrl);
-void wl_init_bss_cache_ctrl(wl_bss_cache_ctrl_t *bss_cache_ctrl);
+int wl_init_bss_cache_ctrl(wl_bss_cache_ctrl_t *bss_cache_ctrl);
 #endif
 #endif /* _wl_android_ */
