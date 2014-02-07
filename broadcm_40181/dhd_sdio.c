@@ -8474,6 +8474,7 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 
 						bus->dhd->dongle_reset = FALSE;
 						bus->dhd->up = TRUE;
+						bus->dhd->hang_was_sent = 0;
 
 #if !defined(IGNORE_ETH0_DOWN)
 						/* Restore flow control  */
