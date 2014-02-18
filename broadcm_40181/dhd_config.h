@@ -58,10 +58,10 @@ void dhd_conf_detach(dhd_pub_t *dhd);
 
 extern void *bcmsdh_get_drvdata(void);
 
+extern int g_wifi_on;
 #ifdef POWER_OFF_IN_SUSPEND
 extern struct net_device *g_netdev;
 #if defined(CONFIG_HAS_EARLYSUSPEND)
-extern int g_wifi_on;
 void wl_cfg80211_stop(void);
 void wl_cfg80211_send_disconnect(void);
 void wl_cfg80211_user_sync(bool lock);

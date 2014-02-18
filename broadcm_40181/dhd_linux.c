@@ -4204,7 +4204,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 		dhd->pktfilter[DHD_MULTICAST4_FILTER_NUM] = NULL;
 		dhd->pktfilter[DHD_MULTICAST6_FILTER_NUM] = NULL;
 		/* Add filter to pass multicastDNS packet and NOT filter out as Broadcast */
-		dhd->pktfilter[DHD_MDNS_FILTER_NUM] = "104 0 0 0 0xFFFFFFFFFFFF 0x01005E0000FB";
+		dhd->pktfilter[DHD_MDNS_FILTER_NUM] = NULL;//"104 0 0 0 0xFFFFFFFFFFFF 0x01005E0000FB";
 		/* apply APP pktfilter */
 		dhd->pktfilter[DHD_ARP_FILTER_NUM] = "105 0 0 12 0xFFFF 0x0806";
 	}

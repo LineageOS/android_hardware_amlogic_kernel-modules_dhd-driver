@@ -16,7 +16,7 @@
 #include <linux/wireless.h>
 #include <net/cfg80211.h>
 #include <linux/rfkill.h>
-#ifdef CONFIG_HAS_WAKELOCK
+#if defined(POWER_OFF_IN_SUSPEND) && defined(CONFIG_HAS_WAKELOCK)
 #include <linux/wakelock.h>
 #endif
 
@@ -537,7 +537,7 @@ struct wl_priv {
 	struct wl_scan_results *bss_list;
 	struct wl_scan_results *scan_results;
 
-#if defined(CONFIG_HAS_WAKELOCK)
+#if defined(POWER_OFF_IN_SUSPEND) && defined(CONFIG_HAS_WAKELOCK)
 		struct wake_lock priv_lock;	
 #endif
 

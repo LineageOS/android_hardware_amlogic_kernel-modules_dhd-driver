@@ -604,7 +604,7 @@ wl_sdo_proto_t wl_sdo_protos [] = {
 
 static void wl_wakelock_timeout(struct wl_priv *priv)
 {
-#if defined(CONFIG_HAS_WAKELOCK)	
+#if defined(POWER_OFF_IN_SUSPEND) && defined(CONFIG_HAS_WAKELOCK)	
 	wake_lock_timeout(&priv->priv_lock, msecs_to_jiffies(20));	
 #endif
 }
@@ -2275,10 +2275,12 @@ __wl_cfg80211_scan(struct wiphy *wiphy, struct net_device *ndev,
 
 	dhd_pub_t *dhd;
 
+#ifdef POWER_OFF_IN_SUSPEND
 	if (!wifi_ready) {
 		WL_INFO(("Too early scan req\n"));
 		return -EAGAIN;
 	}
+#endif
 	
 	dhd = (dhd_pub_t *)(wl->pub);
 	if (dhd->op_mode & DHD_FLAG_HOSTAP_MODE) {
@@ -9885,7 +9887,7 @@ static s32 wl_init_priv(struct wl_priv *wl)
 	wl_init_prof(wl, ndev);
 	wl_link_down(wl);
 	DNGL_FUNC(dhd_cfg80211_init, (wl));
-#ifdef CONFIG_HAS_WAKELOCK
+#if defined(POWER_OFF_IN_SUSPEND) && defined(CONFIG_HAS_WAKELOCK)
 	wake_lock_init(&wl->priv_lock, WAKE_LOCK_SUSPEND, "wlan_priv_wake");
 	printk("init wlan_priv_wake\n");
 #endif
@@ -9902,7 +9904,7 @@ static void wl_deinit_priv(struct wl_priv *wl)
 	wl_term_iscan(wl);
 	wl_deinit_priv_mem(wl);
 	unregister_netdevice_notifier(&wl_cfg80211_netdev_notifier);
-#ifdef CONFIG_HAS_WAKELOCK
+#if defined(POWER_OFF_IN_SUSPEND) && defined(CONFIG_HAS_WAKELOCK)
 	wake_lock_destroy(&wl->priv_lock);
 #endif
 }
