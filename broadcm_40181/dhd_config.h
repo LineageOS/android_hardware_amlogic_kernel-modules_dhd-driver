@@ -16,7 +16,9 @@
 #define FW_PATH_AUTO_SELECT 1
 extern char firmware_path[MOD_PARAM_PATHLEN];
 extern int disable_proptx;
+#ifdef POWER_OFF_IN_SUSPEND
 extern bool wifi_ready;
+#endif
 
 /* channel list */
 typedef struct wl_channel_list {

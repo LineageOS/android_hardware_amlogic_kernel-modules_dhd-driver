@@ -610,6 +610,7 @@ static void wl_wakelock_timeout(struct wl_priv *priv)
 }
 
 
+#ifdef POWER_OFF_IN_SUSPEND
 #define RETURN_EIO_IF_NOT_UP(wlpriv)						\
 do {									\
 	struct net_device *checkSysUpNDev = wl_to_prmry_ndev(wlpriv);       	\
@@ -623,7 +624,16 @@ do {									\
 	}	\
 	wl_wakelock_timeout(wlpriv);	\
 } while (0)
-
+#else
+#define RETURN_EIO_IF_NOT_UP(wlpriv)						\
+do {									\
+	struct net_device *checkSysUpNDev = wl_to_prmry_ndev(wlpriv);       	\
+	if (unlikely(!wl_get_drv_status(wlpriv, READY, checkSysUpNDev))) {	\
+		WL_INFO(("device is not ready\n"));			\
+		return -EIO;						\
+	}								\
+} while (0)
+#endif
 
 #define IS_WPA_AKM(akm) ((akm) == RSN_AKM_NONE || 			\
 				 (akm) == RSN_AKM_UNSPECIFIED || 	\

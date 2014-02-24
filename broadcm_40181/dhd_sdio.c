@@ -8460,6 +8460,7 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 					/* Re-init bus, enable F2 transfer */
 					bcmerror = dhd_bus_init((dhd_pub_t *) bus->dhd, FALSE);
 					if (bcmerror == BCME_OK) {
+						bcmsdh_set_drvdata(dhdp); // terence 20131214: fix for null pointer issue
 #if defined(OOB_INTR_ONLY)
 						/* make sure oob intr get registered */
 						if (!bcmsdh_is_oob_intr_registered()) {
