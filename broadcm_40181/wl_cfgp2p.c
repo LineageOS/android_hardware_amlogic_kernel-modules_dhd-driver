@@ -735,7 +735,7 @@ wl_cfgp2p_disable_discovery(struct wl_priv *wl)
 
 	if(!wl->p2p) { // terence 20130113: Fix for p2p NULL pointer
 		CFGP2P_ERR(("wl->p2p is NULL\n"));
-		goto exit;
+		return -1;
 	}
 
 	if (wl_to_p2p_bss_bssidx(wl, P2PAPI_BSSCFG_DEVICE) == 0) {
