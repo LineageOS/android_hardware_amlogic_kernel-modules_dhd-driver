@@ -1015,7 +1015,8 @@ dhd_conf_wifi_power(bool on)
 #endif
 		if(wl_android_wifi_on(g_netdev) < 0) {
             /* wifi on failed, send HANG message to tell wpa_supplicant to restart wifi*/
-            net_os_send_hang_message(g_netdev);
+            if(g_netdev)
+                net_os_send_hang_message(g_netdev);
 		}
         else {
 #ifdef WL_CFG80211

@@ -9119,8 +9119,8 @@ static void wl_scan_timeout(unsigned long data)
 		wl_notify_iscan_complete(wl_to_iscan(wl), true);
 	}
 	// terence 20130729: work around to fix out of memory in firmware
-	WL_ERR(("Send hang event\n"));
-	net_os_send_hang_message(ndev);
+	//WL_ERR(("Send hang event\n"));
+	//net_os_send_hang_message(ndev);
 }
 
 static void wl_iscan_timer(unsigned long data)
@@ -9454,7 +9454,7 @@ static s32 wl_escan_handler(struct wl_priv *wl, bcm_struct_cfgdev *cfgdev,
 					goto exit;
 				if ((p2p_ie = wl_cfgp2p_find_p2pie(((u8 *) bi) + bi->ie_offset,
 					bi->ie_length)) == NULL) {
-						WL_ERR(("Couldn't find P2PIE in probe"
+						WL_SCAN(("Couldn't find P2PIE in probe"
 							" response/beacon\n"));
 						goto exit;
 				}
