@@ -799,6 +799,9 @@ dhdsdio_clk_kso_init(dhd_bus_t *bus)
 static int
 dhdsdio_clk_kso_enab(dhd_bus_t *bus, bool on)
 {
+#ifdef KSO_NO_SUPPORT
+       return 0;
+#else
 	uint8 wr_val = 0, rd_val, cmp_val, bmask;
 	int err = 0;
 	int try_cnt = 0;
@@ -841,6 +844,7 @@ dhdsdio_clk_kso_enab(dhd_bus_t *bus, bool on)
 			__FUNCTION__, (on ? "KSO_SET" : "KSO_CLR"), try_cnt, rd_val, err));
 	}
 	return err;
+#endif
 }
 
 static int

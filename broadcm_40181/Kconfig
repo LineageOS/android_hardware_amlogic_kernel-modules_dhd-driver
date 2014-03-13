@@ -34,6 +34,13 @@ config BCMDHD_POWER_OFF_IN_SUSPEND
 	default n
     ---help---
 	  Shut down Wi-Fi power in suspend.
+	  
+config KSO_NO_SUPPORT
+	depends on SDIO_DHD_CDC_WIFI_40181_MODULE
+    bool "kso no support"
+	default n
+    ---help---
+	  Shut down SLEEPCSR  KSO Function.	  
 
 config BCMDHD_WEXT
 	bool "Enable WEXT support"
