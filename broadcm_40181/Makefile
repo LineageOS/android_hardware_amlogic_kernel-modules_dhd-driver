@@ -1,11 +1,11 @@
 # bcmdhd
-# 1. WL_ENABLE_P2P_IF must be removed if kernel version is 3.8 later, otherwise please remove it.
+# 1. WL_ENABLE_P2P_IF must be removed if kernel version is 3.8 later, otherwise please add it.
 # 2. WL_IFACE_COMB_NUM_CHANNELS must be added if Android version is 4.4 with Kernel version 3.0~3.4,
 #    otherwise please remove it.
 DHDCFLAGS = -Wall -Wstrict-prototypes -Dlinux -DBCMDRIVER                \
 	-DBCMDONGLEHOST -DUNRELEASEDCHIP -DBCMDMA32 -DWLBTAMP -DBCMFILEIMAGE  \
 	-DDHDTHREAD -DDHD_DEBUG -DSDTEST -DBDC -DTOE                          \
-	-DDHD_BCMEVENTS -DSHOW_EVENTS -DBCMDBG                \
+	-DDHD_BCMEVENTS -DSHOW_EVENTS -DBCMDBG                                \
 	-DMMC_SDIO_ABORT -DBCMSDIO -DBCMLXSDMMC -DBCMPLATFORM_BUS             \
 	-DWIFI_ACT_FRAME -DARP_OFFLOAD_SUPPORT                                \
 	-DKEEP_ALIVE -DPKT_FILTER_SUPPORT                                     \
@@ -15,12 +15,14 @@ DHDCFLAGS = -Wall -Wstrict-prototypes -Dlinux -DBCMDRIVER                \
 	-DESCAN_RESULT_PATCH -DHT40_GO -DPASS_ARP_PACKET -DSUPPORT_PM2_ONLY   \
 	-DDHD_DONOT_FORWARD_BCMEVENT_AS_NETWORK_PKT -DAMPDU_HOSTREORDER       \
 	-DCUSTOM_SDIO_F2_BLKSIZE=128 -DWL_SDO -DWLTDLS                        \
+	-DPROP_TXSTATUS -DPROP_TXSTATUS_VSDB                                  \
+	-DDHDTCPACK_SUPPRESS                                                  \
 	-DWL_SUPPORT_BACKPORTED_KPATCHES                                      \
-	-I$(src) -I$(src)/include
+	-I../hardware/wifi/broadcom/drivers/ap6xxx/broadcm_40181/ -I../hardware/wifi/broadcom/drivers/ap6xxx/broadcm_40181/include
 
 DHDOFILES = aiutils.o bcmsdh_sdmmc_linux.o dhd_linux.o siutils.o bcmutils.o   \
-	dhd_linux_sched.o bcmwifi_channels.o dhd_sdio.o bcmevent.o dhd_bta.o hndpmu.o       \
-	bcmsdh.o dhd_cdc.o bcmsdh_linux.o dhd_common.o dhd_wlfc.o dhd_ip.o linux_osl.o   \
+	dhd_linux_sched.o bcmwifi_channels.o dhd_sdio.o bcmevent.o dhd_bta.o hndpmu.o  \
+	bcmsdh.o dhd_cdc.o bcmsdh_linux.o dhd_common.o dhd_wlfc.o dhd_ip.o linux_osl.o \
 	bcmsdh_sdmmc.o dhd_custom_gpio.o sbutils.o wldev_common.o wl_android.o \
 	dhd_pno.o dhd_config.o
 
@@ -39,16 +41,14 @@ endif
 ifeq ($(CONFIG_BCMDHD_OOB),y)
 DHDCFLAGS += -DOOB_INTR_ONLY -DHW_OOB
 DHDCFLAGS += -DCUSTOM_OOB_GPIO_NUM=INT_GPIO_4
-else
-DHDCFLAGS += -DSDIO_ISR_THREAD
+ifeq ($(CONFIG_BCMDHD_DISABLE_WOWLAN),y)
+DHDCFLAGS += -DDISABLE_WOWLAN
 endif
-
 ifeq ($(CONFIG_BCMDHD_POWER_OFF_IN_SUSPEND),y)
 DHDCFLAGS += -DPOWER_OFF_IN_SUSPEND
 endif
-
-ifeq ($(CONFIG_KSO_NO_SUPPORT),y)
-DHDCFLAGS += -DKSO_NO_SUPPORT
+else
+DHDCFLAGS += -DSDIO_ISR_THREAD
 endif
 
 ifeq ($(CONFIG_BCMDHD_AG),y)

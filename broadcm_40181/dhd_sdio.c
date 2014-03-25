@@ -799,12 +799,12 @@ dhdsdio_clk_kso_init(dhd_bus_t *bus)
 static int
 dhdsdio_clk_kso_enab(dhd_bus_t *bus, bool on)
 {
-#ifdef KSO_NO_SUPPORT
-       return 0;
-#else
 	uint8 wr_val = 0, rd_val, cmp_val, bmask;
 	int err = 0;
 	int try_cnt = 0;
+
+	if (!bus->dhd->conf->kso_enable)
+		return 0;
 
 	KSO_DBG(("%s> op:%s\n", __FUNCTION__, (on ? "KSO_SET" : "KSO_CLR")));
 
@@ -844,7 +844,6 @@ dhdsdio_clk_kso_enab(dhd_bus_t *bus, bool on)
 			__FUNCTION__, (on ? "KSO_SET" : "KSO_CLR"), try_cnt, rd_val, err));
 	}
 	return err;
-#endif
 }
 
 static int
@@ -7069,11 +7068,13 @@ dhdsdio_probe(uint16 venid, uint16 devid, uint16 bus_no, uint16 slot,
 	}
 	
 #ifdef PROP_TXSTATUS
-	if (bus->sih->chip == BCM4330_CHIP_ID ||
-		bus->sih->chip == BCM43362_CHIP_ID ) {
-		// terence 20131215: disable_proptx should be set before dhd_attach
-		printf("%s: disable prop_txstatus\n", __FUNCTION__);
-		disable_proptx = TRUE;
+	// terence 20131215: disable_proptx should be set before dhd_attach
+	if (bus->sih->chip == BCM4339_CHIP_ID) {
+		printf("%s: Enable prop_txstatus\n", __FUNCTION__);
+		disable_proptx = 0;
+	} else {
+		printf("%s: Disable prop_txstatus\n", __FUNCTION__);
+		disable_proptx = 1;
 	}
 #endif
 
@@ -7790,9 +7791,11 @@ dhdsdio_download_firmware(struct dhd_bus *bus, osl_t *osh, void *sdh)
 
 	/* External conf takes precedence if specified */
 	dhd_conf_preinit(bus->dhd);
-	dhd_conf_download_config(bus->dhd);
+	dhd_conf_read_config(bus->dhd);
 	dhd_conf_set_fw_path(bus->dhd, bus->fw_path);
 	dhd_conf_set_nv_path(bus->dhd, bus->nv_path);
+	dhd_conf_set_fw_name_by_mac(bus->dhd, bus->sdh, bus->fw_path);
+	dhd_conf_set_nv_name_by_mac(bus->dhd, bus->sdh, bus->nv_path);
 
 	printk("Final fw_path=%s\n", bus->fw_path);
 	printk("Final nv_path=%s\n", bus->nv_path);
