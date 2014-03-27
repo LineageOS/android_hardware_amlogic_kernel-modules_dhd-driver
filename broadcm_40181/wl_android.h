@@ -174,7 +174,4 @@ void wl_run_bss_cache_timer(wl_bss_cache_ctrl_t *bss_cache_ctrl, int kick_off);
 void wl_release_bss_cache_ctrl(wl_bss_cache_ctrl_t *bss_cache_ctrl);
 int wl_init_bss_cache_ctrl(wl_bss_cache_ctrl_t *bss_cache_ctrl);
 #endif
-#if defined(CUSTOMER_HW) && defined(CONFIG_DHD_USE_STATIC_BUF)
-void* wl_android_prealloc(int section, unsigned long size);
-#endif
 #endif /* _wl_android_ */

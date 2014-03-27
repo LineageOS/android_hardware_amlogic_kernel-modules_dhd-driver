@@ -309,6 +309,11 @@ int wldev_set_band(
 	struct net_device *dev, uint band)
 {
 	int error = -1;
+	uint band_conf;
+
+	band_conf = dhd_conf_get_band(bcmsdh_get_drvdata());
+	if (band_conf != WLC_BAND_AUTO)
+		band = band_conf;
 
 	if ((band == WLC_BAND_AUTO) || (band == WLC_BAND_5G) || (band == WLC_BAND_2G)) {
 		error = wldev_ioctl(dev, WLC_SET_BAND, &band, sizeof(band), true);
@@ -360,8 +365,6 @@ int wldev_set_country(
 				__FUNCTION__, country_code, cspec.ccode, cspec.rev));
 			return error;
 		}
-		dhd_conf_fix_country(bcmsdh_get_drvdata());
-		dhd_conf_get_country(bcmsdh_get_drvdata(), &cspec);
 		dhd_bus_country_set(dev, &cspec, notify);
 		WLDEV_ERROR(("%s: set country for %s as %s rev %d\n",
 			__FUNCTION__, country_code, cspec.ccode, cspec.rev));

@@ -7305,7 +7305,7 @@ static s32 wl_inform_single_bss(struct wl_priv *wl, struct wl_bss_info *bi)
 	struct wiphy *wiphy = wl_to_wiphy(wl);
 	struct ieee80211_mgmt *mgmt;
 	struct ieee80211_channel *channel;
-	struct ieee80211_supported_band *band = NULL;
+	struct ieee80211_supported_band *band;
 	struct wl_cfg80211_bss_info *notif_bss_info;
 	struct wl_scan_req *sr = wl_to_sr(wl);
 	struct beacon_proberesp *beacon_proberesp;
@@ -9119,8 +9119,8 @@ static void wl_scan_timeout(unsigned long data)
 		wl_notify_iscan_complete(wl_to_iscan(wl), true);
 	}
 	// terence 20130729: work around to fix out of memory in firmware
-	WL_ERR(("Send hang event\n"));
-	net_os_send_hang_message(ndev);
+	//WL_ERR(("Send hang event\n"));
+	//net_os_send_hang_message(ndev);
 }
 
 static void wl_iscan_timer(unsigned long data)
@@ -9454,7 +9454,7 @@ static s32 wl_escan_handler(struct wl_priv *wl, bcm_struct_cfgdev *cfgdev,
 					goto exit;
 				if ((p2p_ie = wl_cfgp2p_find_p2pie(((u8 *) bi) + bi->ie_offset,
 					bi->ie_length)) == NULL) {
-						WL_ERR(("Couldn't find P2PIE in probe"
+						WL_SCAN(("Couldn't find P2PIE in probe"
 							" response/beacon\n"));
 						goto exit;
 				}
@@ -10248,7 +10248,7 @@ static s32 wl_event_handler(void *data)
 			if (!cfgdev) {
 #if defined(WL_CFG80211_P2P_DEV_IF)
 				cfgdev = wl_to_prmry_wdev(wl);
-#else
+#elif defined(WL_ENABLE_P2P_IF)
 				cfgdev = wl_to_prmry_ndev(wl);
 #endif /* WL_CFG80211_P2P_DEV_IF */
 			}

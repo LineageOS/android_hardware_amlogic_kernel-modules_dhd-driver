@@ -24,7 +24,7 @@ config BCMDHD_NVRAM_PATH
 config BCMDHD_CONFIG_PATH
 	depends on SDIO_DHD_CDC_WIFI_40181_MODULE
 	string "Config path"
-	default "/system/etc/wifi/config.txt"
+	default "/system/etc/firmware/config.txt"
 	---help---
 	  Path to the driver configuration file.
 
@@ -34,6 +34,13 @@ config BCMDHD_POWER_OFF_IN_SUSPEND
 	default n
     ---help---
 	  Shut down Wi-Fi power in suspend.
+	  
+config KSO_NO_SUPPORT
+	depends on SDIO_DHD_CDC_WIFI_40181_MODULE
+    bool "kso no support"
+	default n
+    ---help---
+	  Shut down SLEEPCSR  KSO Function.	  
 
 config BCMDHD_WEXT
 	bool "Enable WEXT support"
@@ -42,22 +49,19 @@ config BCMDHD_WEXT
 	select WEXT_PRIV
 	help
 	  Enables WEXT support
-
 choice
-	depends on SDIO_DHD_CDC_WIFI_40181_MODULE
-	prompt "Interrupt type"
-	---help---
-	  Interrupt type
+    depends on SDIO_DHD_CDC_WIFI_40181_MODULE
+    prompt "Interrupt type"
 config BCMDHD_OOB
 	depends on SDIO_DHD_CDC_WIFI_40181_MODULE
 	bool "Out-of-Band Interrupt"
 	default y
 	---help---
-	  Interrupt from WL_HOST_WAKE.
+		Interrupt from WL_HOST_WAKE.
 config SDIO_HARD_IRQ
 	depends on SDIO_DHD_CDC_WIFI_40181_MODULE
 	bool "In-Band Interrupt"
 	---help---
-	  Interrupt from SDIO DAT[1]
+		Interrupt from SDIO DAT[1]
 endchoice
-
+  

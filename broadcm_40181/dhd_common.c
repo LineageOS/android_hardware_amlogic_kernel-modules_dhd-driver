@@ -1239,32 +1239,31 @@ wl_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata,
 		}
 
 #ifdef PROP_TXSTATUS
-			{
-		uint8* ea = pvt_data->eth.ether_dhost;
-		WLFC_DBGMESG(("WLC_E_IF: idx:%d, action:%s, iftype:%s, "
+		{
+			uint8* ea = pvt_data->eth.ether_dhost;
+			WLFC_DBGMESG(("WLC_E_IF: idx:%d, action:%s, iftype:%s, "
 		              "[%02x:%02x:%02x:%02x:%02x:%02x]\n",
 		              ifevent->ifidx,
 		              ((ifevent->action == WLC_E_IF_ADD) ? "ADD":"DEL"),
 		              ((ifevent->is_AP == 0) ? "STA":"AP "),
 		              ea[0], ea[1], ea[2], ea[3], ea[4], ea[5]));
-		(void)ea;
+			(void)ea;
+			dhd_os_wlfc_block(dhd_pub);
+			if (ifevent->action == WLC_E_IF_CHANGE)
+				dhd_wlfc_interface_event(dhd_pub->info,
+					eWLFC_MAC_ENTRY_ACTION_UPDATE,
+					ifevent->ifidx, ifevent->is_AP, ea);
+			else
+				dhd_wlfc_interface_event(dhd_pub->info,
+					((ifevent->action == WLC_E_IF_ADD) ?
+					eWLFC_MAC_ENTRY_ACTION_ADD : eWLFC_MAC_ENTRY_ACTION_DEL),
+					ifevent->ifidx, ifevent->is_AP, ea);
+			dhd_os_wlfc_unblock(dhd_pub);
 
-		dhd_os_wlfc_block(dhd_pub);
-		if (ifevent->action == WLC_E_IF_CHANGE)
-			dhd_wlfc_interface_event(dhd_pub->info,
-				eWLFC_MAC_ENTRY_ACTION_UPDATE,
-				ifevent->ifidx, ifevent->is_AP, ea);
-		else
-			dhd_wlfc_interface_event(dhd_pub->info,
-				((ifevent->action == WLC_E_IF_ADD) ?
-				eWLFC_MAC_ENTRY_ACTION_ADD : eWLFC_MAC_ENTRY_ACTION_DEL),
-				ifevent->ifidx, ifevent->is_AP, ea);
-		dhd_os_wlfc_unblock(dhd_pub);
-
-		/* dhd already has created an interface by default, for 0 */
-		if (ifevent->ifidx == 0)
-			break;
-			}
+			/* dhd already has created an interface by default, for 0 */
+			if (ifevent->ifidx == 0)
+				break;
+		}
 #endif /* PROP_TXSTATUS */
 
 #ifdef WL_CFG80211
@@ -1481,8 +1480,6 @@ dhd_pktfilter_offload_enable(dhd_pub_t * dhd, char *arg, int enable, int master_
 
 	/* Parse packet filter id. */
 	enable_parm.id = htod32(strtoul(argv[i], NULL, 0));
-	if (dhd_conf_del_pkt_filter(dhd, enable_parm.id))
-		goto fail;
 
 	/* Parse enable/disable value. */
 	enable_parm.enable = htod32(enable);
@@ -1496,19 +1493,19 @@ dhd_pktfilter_offload_enable(dhd_pub_t * dhd, char *arg, int enable, int master_
 	rc = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, buf, buf_len, TRUE, 0);
 	rc = rc >= 0 ? 0 : rc;
 	if (rc)
-		DHD_TRACE(("%s: failed to %s pktfilter %s, retcode = %d\n",
-		__FUNCTION__, enable?"enable":"disable", arg, rc));
+		DHD_TRACE(("%s: failed to add pktfilter %s, retcode = %d\n",
+		__FUNCTION__, arg, rc));
 	else
-		DHD_TRACE(("%s: successfully %s pktfilter %s\n",
-		__FUNCTION__, enable?"enable":"disable", arg));
+		DHD_TRACE(("%s: successfully added pktfilter %s\n",
+		__FUNCTION__, arg));
 
 	/* Contorl the master mode */
 	bcm_mkiovar("pkt_filter_mode", (char *)&master_mode, 4, buf, sizeof(buf));
 	rc = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, buf, sizeof(buf), TRUE, 0);
 	rc = rc >= 0 ? 0 : rc;
 	if (rc)
-		DHD_TRACE(("%s: failed to set pkt_filter_mode %d, retcode = %d\n",
-		__FUNCTION__, master_mode, rc));
+		DHD_TRACE(("%s: failed to add pktfilter %s, retcode = %d\n",
+		__FUNCTION__, arg, rc));
 
 fail:
 	if (arg_org)
@@ -1573,8 +1570,6 @@ dhd_pktfilter_offload_set(dhd_pub_t * dhd, char *arg)
 
 	/* Parse packet filter id. */
 	pkt_filter.id = htod32(strtoul(argv[i], NULL, 0));
-	if (dhd_conf_del_pkt_filter(dhd, pkt_filter.id))
-		goto fail;
 
 	if (argv[++i] == NULL) {
 		DHD_ERROR(("Polarity not provided\n"));
@@ -1665,9 +1660,6 @@ void dhd_pktfilter_offload_delete(dhd_pub_t *dhd, int id)
 		DHD_ERROR(("%s: Failed to delete filter ID:%d, ret=%d\n",
 			__FUNCTION__, id, ret));
 	}
-	else
-		DHD_TRACE(("%s: successfully deleted pktfilter %d\n",
-		__FUNCTION__, id));
 }
 #endif /* PKT_FILTER_SUPPORT */
 

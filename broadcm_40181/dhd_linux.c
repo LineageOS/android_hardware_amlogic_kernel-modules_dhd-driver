@@ -429,7 +429,7 @@ uint dhd_pkt_filter_init = 0;
 module_param(dhd_pkt_filter_init, uint, 0);
 
 /* Pkt filter mode control */
-uint dhd_master_mode = FALSE;
+uint dhd_master_mode = TRUE;
 module_param(dhd_master_mode, uint, 0);
 
 #ifdef DHDTHREAD
@@ -576,6 +576,7 @@ static int dhd_sleep_pm_callback(struct notifier_block *nfb, unsigned long actio
 {
 	int ret = NOTIFY_DONE;
 
+
 	switch (action) {
 	case PM_HIBERNATION_PREPARE:
 	case PM_SUSPEND_PREPARE:
@@ -589,6 +590,7 @@ static int dhd_sleep_pm_callback(struct notifier_block *nfb, unsigned long actio
 		break;
 	}
 	smp_mb();
+
 	return ret;
 }
 
@@ -730,7 +732,8 @@ void dhd_enable_packet_filter(int value, dhd_pub_t *dhd)
 	{
 		for (i = 0; i < dhd->pktfilter_count; i++) {
 #ifndef GAN_LITE_NAT_KEEPALIVE_FILTER
-			if (value && (i == DHD_ARP_FILTER_NUM) &&
+			if (!dhd->conf->filter_out_all_packets &&
+				value && (i == DHD_ARP_FILTER_NUM) &&
 				!_turn_on_arp_filter(dhd, dhd->op_mode)) {
 				DHD_TRACE(("Do not turn on ARP white list pkt filter:"
 					"val %d, cnt %d, op_mode 0x%x\n",
@@ -3722,7 +3725,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 	uint power_mode = PM_FAST;
 	uint32 dongle_align = DHD_SDALIGN;
 	uint32 glom = CUSTOM_GLOM_SETTING;
-	uint bcn_timeout = dhd->conf->bcn_timeout;
+	uint bcn_timeout = 4;
 	uint retry_max = 3;
 #if defined(ARP_OFFLOAD_SUPPORT)
 	int arpoe = 1;
@@ -3940,11 +3943,9 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 			sizeof(wl_country_t), iovbuf, sizeof(iovbuf));
 		if ((ret = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0)) < 0)
 			printf("%s: country code setting failed %d\n", __FUNCTION__, ret);
-	} else {
+	} else
 		dhd_conf_set_country(dhd);
-		dhd_conf_fix_country(dhd);
-	}
-	dhd_conf_get_country(dhd, &dhd->dhd_cspec);
+	dhd_conf_get_country(dhd);
 
 	/* Set Listen Interval */
 	bcm_mkiovar("assoc_listen", (char *)&listen_interval, 4, iovbuf, sizeof(iovbuf));
@@ -4001,7 +4002,6 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 		bcm_mkiovar("bus:txglom", (char *)&glom, 4, iovbuf, sizeof(iovbuf));
 		dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0);
 	}
-	dhd_conf_set_glom(dhd);
 
 	/* Setup timeout if Beacons are lost and roam is off to report link down */
 	bcm_mkiovar("bcn_timeout", (char *)&bcn_timeout, 4, iovbuf, sizeof(iovbuf));
@@ -4019,8 +4019,6 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 	dhd_conf_set_bw(dhd);
 	dhd_conf_force_wme(dhd);
 	dhd_conf_set_stbc(dhd);
-	dhd_conf_set_srl(dhd);
-	dhd_conf_set_lrl(dhd);
 
 #if defined(SOFTAP)
 	if (ap_fw_loaded == TRUE) {
@@ -4081,8 +4079,6 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 			__FUNCTION__, CUSTOM_AMPDU_BA_WSIZE, ret));
 	}
 #endif /* CUSTOM_AMPDU_BA_WSIZE */
-	dhd_conf_set_ampdu_ba_wsize(dhd);
-
 #if defined(BCMSUP_4WAY_HANDSHAKE) && defined(WLAN_AKM_SUITE_FT_8021X)
 	/* Read 4-way handshake requirements. */
 	bcm_mkiovar("sup_wpa", (char *)&sup_wpa, 4,
@@ -4197,10 +4193,14 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 #endif /* ARP_OFFLOAD_SUPPORT */
 
 #ifdef PKT_FILTER_SUPPORT
-	/* Setup default defintions for pktfilter , enable in suspend */
-	dhd->pktfilter_count = 6;
-	/* Setup filter to allow only unicast */
-	if (dhd_master_mode) {
+	if (dhd->conf->filter_out_all_packets) {
+		dhd_master_mode = FALSE;
+		dhd->pktfilter_count = 1;
+		dhd->pktfilter[0] = "99 0 0 0 0x000000000000 0xFFFFFFFFFFFF";
+	} else {
+		/* Setup default defintions for pktfilter , enable in suspend */
+		dhd->pktfilter_count = 6;
+		/* Setup filter to allow only unicast */
 		dhd->pktfilter[DHD_UNICAST_FILTER_NUM] = "100 0 0 0 0x01 0x00";
 		dhd->pktfilter[DHD_BROADCAST_FILTER_NUM] = NULL;
 		dhd->pktfilter[DHD_MULTICAST4_FILTER_NUM] = NULL;
@@ -4209,9 +4209,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 		dhd->pktfilter[DHD_MDNS_FILTER_NUM] = "104 0 0 0 0xFFFFFFFFFFFF 0x01005E0000FB";
 		/* apply APP pktfilter */
 		dhd->pktfilter[DHD_ARP_FILTER_NUM] = "105 0 0 12 0xFFFF 0x0806";
-	} else
-		dhd_conf_discard_pkt_filter(dhd);
-	dhd_conf_add_pkt_filter(dhd);
+	}
 
 #if defined(SOFTAP)
 	if (ap_fw_loaded) {
@@ -5627,8 +5625,8 @@ int net_os_rxfilter_add_remove(struct net_device *dev, int add_remove, int num)
 	int filter_id = 0;
 	int ret = 0;
 
-	if (!dhd_master_mode)
-		add_remove = !add_remove;
+	if (dhd->pub.conf->filter_out_all_packets)
+		return 0;
 
 	if (!dhd || (num == DHD_UNICAST_FILTER_NUM) ||
 		(num == DHD_MDNS_FILTER_NUM))
