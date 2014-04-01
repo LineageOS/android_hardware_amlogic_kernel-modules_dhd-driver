@@ -2612,3 +2612,20 @@ wl_init_bss_cache_ctrl(wl_bss_cache_ctrl_t *bss_cache_ctrl)
 	return 0;
 }
 #endif
+
+#if defined(CUSTOMER_HW) && defined(CONFIG_DHD_USE_STATIC_BUF)
+extern bcmdhd_mem_prealloc(int section, unsigned long size);
+void* wl_android_prealloc(int section, unsigned long size)
+{
+	void *alloc_ptr = NULL;
+	alloc_ptr = bcmdhd_mem_prealloc(section, size);
+	if (alloc_ptr) {
+		ANDROID_INFO(("success alloc section %d\n", section));
+		if (size != 0L)
+			bzero(alloc_ptr, size);
+		return alloc_ptr;
+	}
+	ANDROID_ERROR(("can't alloc section %d\n", section));
+	return NULL;
+}
+#endif

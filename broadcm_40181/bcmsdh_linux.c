@@ -626,7 +626,12 @@ int bcmsdh_register_oob_intr(void * dhdp)
 #if defined(CONFIG_ARCH_RHEA) || defined(CONFIG_ARCH_CAPRI)
 		if (device_may_wakeup(sdhcinfo->dev)) {
 #endif
+#if defined(DISABLE_WOWLAN)
+			SDLX_MSG(("%s: disable_irq_wake \n", __FUNCTION__));
+			error = disable_irq_wake(sdhcinfo->oob_irq);
+#else
 			error = enable_irq_wake(sdhcinfo->oob_irq);
+#endif
 #if defined(CONFIG_ARCH_RHEA) || defined(CONFIG_ARCH_CAPRI)
 		}
 #endif
@@ -651,7 +656,12 @@ void bcmsdh_set_irq(int flag)
 #if defined(CONFIG_ARCH_RHEA) || defined(CONFIG_ARCH_CAPRI)
 	//		if (device_may_wakeup(sdhcinfo->dev))
 #endif
+#if defined(DISABLE_WOWLAN)
+				SDLX_MSG(("%s: disable_irq_wake \n", __FUNCTION__));
+				disable_irq_wake(sdhcinfo->oob_irq);
+#else
 	//			enable_irq_wake(sdhcinfo->oob_irq);
+#endif
 		} else {
 #if defined(CONFIG_ARCH_RHEA) || defined(CONFIG_ARCH_CAPRI)
 	//		if (device_may_wakeup(sdhcinfo->dev))

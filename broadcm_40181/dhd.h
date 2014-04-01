@@ -667,6 +667,7 @@ extern uint dhd_console_ms;
 #endif /* defined(DHD_DEBUG) */
 extern uint android_msg_level;
 extern uint config_msg_level;
+extern uint sd_msglevel;
 #ifdef WL_WIRELESS_EXT
 extern uint iw_msg_level;
 #endif
