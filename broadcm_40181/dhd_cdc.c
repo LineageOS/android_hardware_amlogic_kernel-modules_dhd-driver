@@ -240,7 +240,7 @@ dhdcdc_set_ioctl(dhd_pub_t *dhd, int ifidx, uint cmd, void *buf, uint len, uint8
 	/* Check the ERROR flag */
 	if (flags & CDCF_IOC_ERROR)
 	{
-	    DHD_ERROR(("%s: CDCF_IOC_ERROR msg->status:%d\n", __FUNCTION__, msg->status));
+	    DHD_ERROR(("%s: msg->status:%x\n", __FUNCTION__, msg->status));
 		ret = ltoh32(msg->status);
 		/* Cache error from dongle */
 		dhd->dongle_error = ret;

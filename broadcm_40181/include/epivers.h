@@ -25,6 +25,6 @@
 #define EPI_VERSION_DEV		1.88.45
 
 
-#define	EPI_VERSION_STR		"1.88.45.3 (r420671)"
+#define	EPI_VERSION_STR		"1.88.45.4 (r420671)"
 
 #endif 

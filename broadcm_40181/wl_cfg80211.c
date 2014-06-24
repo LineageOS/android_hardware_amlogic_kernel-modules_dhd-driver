@@ -5194,8 +5194,6 @@ wl_cfg80211_send_action_frame(struct wiphy *wiphy, struct net_device *dev,
 	ulong off_chan_started_jiffies = 0;
 #endif
 	dhd_pub_t *dhd = (dhd_pub_t *)(wl->pub);
-	struct net_device *dev_tmp = wl_to_prmry_ndev(wl);
-	static int cnt = 0;
 
 #ifdef WL11U
 #if defined(WL_CFG80211_P2P_DEV_IF)
@@ -5321,16 +5319,7 @@ wl_cfg80211_send_action_frame(struct wiphy *wiphy, struct net_device *dev,
 			WL_ERR(("couldn't find peer's channel.\n"));
 			wl_cfgp2p_print_actframe(true, action_frame->data, action_frame->len,
 				af_params->channel);
-			// terence 20130721: send hang event to wpa_supplicant
-			cnt++;
-			if (cnt > 2) {
-				WL_ERR(("Send hang event\n"));
-				net_os_send_hang_message(dev_tmp);
-				cnt = 0;
-			}
 			goto exit;
-		} else {
-			cnt = 0;
 		}
 
 		wl_clr_drv_status(wl, SCANNING, wl->afx_hdl->dev);
@@ -7231,12 +7220,11 @@ static s32 wl_inform_bss(struct wl_priv *wl)
 	bss_list = wl->bss_list;
 
 #if defined(BSSCACHE)
-	if (g_bss_cache_ctrl.m_timer_expired || (p2p_is_on(wl) && p2p_scan(wl))) {
+	if (p2p_is_on(wl) && p2p_scan(wl)) {
 #if defined(RSSIAVG)
 		wl_free_rssi_cache(&g_rssi_cache_ctrl);
 #endif
 		wl_free_bss_cache(&g_bss_cache_ctrl);
-		g_bss_cache_ctrl.m_timer_expired ^= 1;
 	}
 	wl_update_bss_cache(&g_bss_cache_ctrl, bss_list);
 	wl_delete_dirty_bss_cache(&g_bss_cache_ctrl);
@@ -7277,8 +7265,6 @@ static s32 wl_inform_bss(struct wl_priv *wl)
 		}
 		node = node->next;
 	}
-	wl_run_bss_cache_timer(&g_bss_cache_ctrl, 0);
-	wl_run_bss_cache_timer(&g_bss_cache_ctrl, 1);
 	bi = NULL;
 #endif
 
@@ -9119,8 +9105,8 @@ static void wl_scan_timeout(unsigned long data)
 		wl_notify_iscan_complete(wl_to_iscan(wl), true);
 	}
 	// terence 20130729: work around to fix out of memory in firmware
-	WL_ERR(("Send hang event\n"));
-	net_os_send_hang_message(ndev);
+	//WL_ERR(("Send hang event\n"));
+	//net_os_send_hang_message(ndev);
 }
 
 static void wl_iscan_timer(unsigned long data)
@@ -10095,10 +10081,6 @@ s32 wl_cfg80211_attach(struct net_device *ndev, void *data)
 	if (err)
 		goto cfg80211_attach_out;
 #endif 
-#if defined(BSSCACHE)
-	if (wl_init_bss_cache_ctrl(&g_bss_cache_ctrl))
-		goto cfg80211_attach_out;
-#endif
 
 	wlcfg_drv_priv = wl;
 
@@ -10977,7 +10959,6 @@ int wl_cfg80211_hang(struct net_device *dev, u16 reason)
 #endif
 #if defined(BSSCACHE)
 	wl_free_bss_cache(&g_bss_cache_ctrl);
-	wl_run_bss_cache_timer(&g_bss_cache_ctrl, 0);
 #endif
 	if (wl != NULL) {
 		wl_link_down(wl);
@@ -11000,7 +10981,6 @@ s32 wl_cfg80211_down(void *para)
 #endif
 #if defined(BSSCACHE)
 	wl_free_bss_cache(&g_bss_cache_ctrl);
-	wl_run_bss_cache_timer(&g_bss_cache_ctrl, 0);
 #endif
 	err = __wl_cfg80211_down(wl);
 	mutex_unlock(&wl->usr_sync);
@@ -13173,7 +13153,6 @@ void wl_cfg80211_stop(void)
 #endif
 #if defined(BSSCACHE)
 	wl_free_bss_cache(&g_bss_cache_ctrl);
-	wl_run_bss_cache_timer(&g_bss_cache_ctrl, 0);
 #endif
 }
 

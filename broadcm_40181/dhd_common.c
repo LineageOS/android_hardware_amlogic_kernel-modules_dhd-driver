@@ -1685,10 +1685,10 @@ dhd_arp_offload_set(dhd_pub_t * dhd, int arp_mode)
 	retcode = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0);
 	retcode = retcode >= 0 ? 0 : retcode;
 	if (retcode)
-		DHD_TRACE(("%s: failed to set ARP offload mode to 0x%x, retcode = %d\n",
+		DHD_ERROR(("%s: failed to set ARP offload mode to 0x%x, retcode = %d\n",
 			__FUNCTION__, arp_mode, retcode));
 	else
-		DHD_TRACE(("%s: successfully set ARP offload mode to 0x%x\n",
+		DHD_ARPOE(("%s: successfully set ARP offload mode to 0x%x\n",
 			__FUNCTION__, arp_mode));
 }
 
@@ -1702,10 +1702,10 @@ dhd_arp_offload_enable(dhd_pub_t * dhd, int arp_enable)
 	retcode = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0);
 	retcode = retcode >= 0 ? 0 : retcode;
 	if (retcode)
-		DHD_TRACE(("%s: failed to enabe ARP offload to %d, retcode = %d\n",
+		DHD_ERROR(("%s: failed to enabe ARP offload to %d, retcode = %d\n",
 			__FUNCTION__, arp_enable, retcode));
 	else
-		DHD_TRACE(("%s: successfully enabed ARP offload to %d\n",
+		DHD_ARPOE(("%s: successfully enabed ARP offload to %d\n",
 			__FUNCTION__, arp_enable));
 	if (arp_enable) {
 		uint32 version;
@@ -1772,10 +1772,10 @@ dhd_arp_offload_add_ip(dhd_pub_t *dhd, uint32 ipaddr, int idx)
 	retcode = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, iov_len, TRUE, idx);
 
 	if (retcode)
-		DHD_TRACE(("%s: ARP ip addr add failed, retcode = %d\n",
+		DHD_ERROR(("%s: ARP ip addr add failed, retcode = %d\n",
 		__FUNCTION__, retcode));
 	else
-		DHD_TRACE(("%s: sARP H ipaddr entry added \n",
+		DHD_ARPOE(("%s: sARP H ipaddr entry added \n",
 		__FUNCTION__));
 }
 
@@ -1798,7 +1798,7 @@ dhd_arp_get_arp_hostip_table(dhd_pub_t *dhd, void *buf, int buflen, int idx)
 	retcode = dhd_wl_ioctl_cmd(dhd, WLC_GET_VAR, buf, buflen, FALSE, idx);
 
 	if (retcode) {
-		DHD_TRACE(("%s: ioctl WLC_GET_VAR error %d\n",
+		DHD_ERROR(("%s: ioctl WLC_GET_VAR error %d\n",
 		__FUNCTION__, retcode));
 
 		return -1;

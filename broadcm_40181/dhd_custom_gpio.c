@@ -130,11 +130,14 @@ dhd_customer_gpio_wlan_ctrl(int onoff)
 #if defined(CUSTOMER_HW2)
 			wifi_set_power(0, WIFI_TURNOFF_DELAY);
 #endif
+#ifdef CUSTOMER_HW_AMLOGIC
+			//extern_wifi_set_enable(0);
+#endif /* CUSTOMER_HW_AMLOGIC */
 			WL_ERROR(("=========== WLAN placed in RESET ========\n"));
 		break;
 
 		case WLAN_RESET_ON:
-			WL_TRACE(("%s: callc customer specific GPIO to remove WLAN RESET\n",
+			WL_TRACE(("%s: call customer specific GPIO to remove WLAN RESET\n",
 				__FUNCTION__));
 #ifdef CUSTOMER_HW
 			bcm_wlan_power_on(2);

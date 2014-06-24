@@ -3,10 +3,10 @@
 #include <osl.h>
 
 #include <bcmutils.h>
+#include <hndsoc.h>
 #if defined(HW_OOB)
 #include <bcmdefs.h>
 #include <bcmsdh.h>
-#include <hndsoc.h>
 #include <sdio.h>
 #include <sbchipc.h>
 #endif
@@ -14,6 +14,10 @@
 #include <dhd_config.h>
 #include <dhd_dbg.h>
 #include <wl_cfg80211.h>
+
+#ifdef CONFIG_HAS_WAKELOCK
+#include <linux/wakelock.h>
+#endif
 
 /* message levels */
 #define CONFIG_ERROR_LEVEL	0x0001
@@ -594,7 +598,7 @@ dhd_conf_set_roam(dhd_pub_t *dhd)
 }
 
 void
-dhd_conf_set_bw(dhd_pub_t *dhd)
+dhd_conf_set_mimo_bw_cap(dhd_pub_t *dhd)
 {
 	int bcmerror = -1;
 	char iovbuf[WL_EVENTING_MASK_LEN + 12];	/*  Room for "event_msgs" + '\0' + bitvec  */
@@ -603,7 +607,8 @@ dhd_conf_set_bw(dhd_pub_t *dhd)
 
 	chip = dhd_bus_chip_id(dhd);
 	if (chip!=BCM43362_CHIP_ID && chip!=BCM4330_CHIP_ID) {
-		mimo_bw_cap = dhd->conf->bw;
+		if (dhd->conf->mimo_bw_cap >= 0) {
+			mimo_bw_cap = (uint)dhd->conf->mimo_bw_cap;
 		if ((bcmerror = dhd_wl_ioctl_cmd(dhd, WLC_DOWN, NULL, 0, TRUE, 0)) < 0)
 			CONFIG_ERROR(("%s: WLC_DOWN setting failed %d\n", __FUNCTION__, bcmerror));
 		/*  0:HT20 in ALL, 1:HT40 in ALL, 2: HT20 in 2G HT40 in 5G */
@@ -611,6 +616,7 @@ dhd_conf_set_bw(dhd_pub_t *dhd)
 		bcm_mkiovar("mimo_bw_cap", (char *)&mimo_bw_cap, 4, iovbuf, sizeof(iovbuf));
 		if ((bcmerror = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0)) < 0)
 			CONFIG_ERROR(("%s: mimo_bw_cap setting failed %d\n", __FUNCTION__, bcmerror));
+		}
 	}
 }
 
@@ -837,6 +843,9 @@ dhd_conf_discard_pkt_filter(dhd_pub_t *dhd)
 	/* discard IPv6 multicast address FF00::/8 */
 	dhd->pktfilter[dhd->pktfilter_count] = "112 0 0 12 0xFFFF000000000000000000000000000000000000000000000000FF 0x86DD000000000000000000000000000000000000000000000000FF";
 	dhd->pktfilter_count++;
+	/* discard Netbios pkt */
+	dhd->pktfilter[dhd->pktfilter_count] = "120 0 0 12 0xFFFF000000000000000000FF000000000000000000000000FFFF 0x0800000000000000000000110000000000000000000000000089";
+	dhd->pktfilter_count++;
 
 }
 #endif /* PKT_FILTER_SUPPORT */
@@ -902,6 +911,20 @@ dhd_conf_set_ampdu_ba_wsize(dhd_pub_t *dhd)
 			DHD_ERROR(("%s Set ampdu_ba_wsize to %d failed	%d\n",
 				__FUNCTION__, ampdu_ba_wsize, bcmerror));
 		}
+	}
+}
+
+void
+dhd_conf_set_spect(dhd_pub_t *dhd)
+{
+	int bcmerror = -1;
+	int spect = 0;
+
+	if (dhd->conf->spect >= 0) {
+		spect = (uint)dhd->conf->spect;
+		printf("%s: set spect %d\n", __FUNCTION__, spect);
+		if ((bcmerror = dhd_wl_ioctl_cmd(dhd, WLC_SET_SPECT_MANAGMENT, &spect , sizeof(spect), true, 0)) < 0)
+			CONFIG_ERROR(("%s: WLC_SET_SPECT_MANAGMENT setting failed %d\n", __FUNCTION__, bcmerror));
 	}
 }
 
@@ -1190,10 +1213,10 @@ dhd_conf_read_config(dhd_pub_t *dhd)
 
 		/* Process bandwidth */
 		memset(pick, 0, MAXSZ_BUF);
-		len_val = process_config_vars(bufp, len, pick, "bw=");
+		len_val = process_config_vars(bufp, len, pick, "mimo_bw_cap=");
 		if (len_val) {
-			dhd->conf->bw = (uint)simple_strtol(pick, NULL, 10);
-			printf("%s: bw = %d\n", __FUNCTION__, dhd->conf->bw);
+			dhd->conf->mimo_bw_cap = (uint)simple_strtol(pick, NULL, 10);
+			printf("%s: mimo_bw_cap = %d\n", __FUNCTION__, dhd->conf->mimo_bw_cap);
 		}
 
 		/* Process country code */
@@ -1505,6 +1528,14 @@ dhd_conf_read_config(dhd_pub_t *dhd)
 				dhd->conf->kso_enable = TRUE;
 			printf("%s: kso_enable = %d\n", __FUNCTION__, dhd->conf->kso_enable);
 		}
+
+		/* Process spect parameters */
+		memset(pick, 0, MAXSZ_BUF);
+		len_val = process_config_vars(bufp, len, pick, "spect=");
+		if (len_val) {
+			dhd->conf->spect = (int)simple_strtol(pick, NULL, 10);
+			printf("%s: spect = %d\n", __FUNCTION__, dhd->conf->spect);
+		}
  
 		bcmerror = 0;
 	} else {
@@ -1532,7 +1563,7 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 	memset(dhd->conf, 0, sizeof(dhd_conf_t));
 
 	dhd->conf->band = WLC_BAND_AUTO;
-	dhd->conf->bw = WLC_N_BW_40ALL;
+	dhd->conf->mimo_bw_cap = -1;
 	if (dhd_bus_chip_id(dhd) == BCM43362_CHIP_ID ||
 			dhd_bus_chip_id(dhd) == BCM4330_CHIP_ID) {
 		strcpy(dhd->conf->cspec.country_abbrev, "ALL");
@@ -1579,12 +1610,13 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 #endif
 	dhd->conf->srl = -1;
 	dhd->conf->lrl = -1;
-	dhd->conf->bcn_timeout = 4;
+	dhd->conf->bcn_timeout = 8;
 	if (dhd_bus_chip_id(dhd) == BCM4339_CHIP_ID) {
 		dhd->conf->bus_txglom = 8;
 		dhd->conf->ampdu_ba_wsize = 40;
 	}
 	dhd->conf->kso_enable = TRUE;
+	dhd->conf->spect = -1;
 
 	return 0;
 }
@@ -1639,6 +1671,9 @@ struct sdio_early_suspend_info {
 	struct early_suspend sdio_early_suspend;
 	struct work_struct	tqueue;
 	int do_late_resume;
+#if defined(CONFIG_HAS_WAKELOCK)
+    struct wake_lock power_wake_lock;
+#endif
 };
 struct sdio_early_suspend_info sdioinfo[4];
 
@@ -1660,7 +1695,7 @@ dhd_conf_wifi_stop(struct net_device *dev)
 #endif
 		dhd_bus_devreset(bcmsdh_get_drvdata(), true);
 		sdioh_stop(NULL);
-		dhd_customer_gpio_wlan_ctrl(WLAN_RESET_OFF);
+		dhd_customer_gpio_wlan_ctrl(WLAN_POWER_OFF);
 		g_wifi_on = FALSE;
 #ifdef WL_CFG80211
 		wl_cfg80211_user_sync(false);
@@ -1716,7 +1751,14 @@ dhd_conf_wifi_power(bool on)
 void
 dhd_conf_power_workqueue(struct work_struct *work)
 {
+#if defined(CONFIG_HAS_WAKELOCK)
+    struct sdio_early_suspend_info *sdioinfo =container_of(work, struct sdio_early_suspend_info, tqueue);
+    wake_lock(&sdioinfo->power_wake_lock);
+#endif
     dhd_conf_wifi_power(true);
+#if defined(CONFIG_HAS_WAKELOCK)
+    wake_unlock(&sdioinfo->power_wake_lock);
+#endif
 }
 
 void
@@ -1765,6 +1807,10 @@ dhd_conf_register_wifi_suspend(struct sdio_func *func)
 		sdioinfo[func->num].sdio_early_suspend.resume = dhd_conf_late_resume;
 		register_early_suspend(&sdioinfo[func->num].sdio_early_suspend);
 		INIT_WORK(&sdioinfo[func->num].tqueue, dhd_conf_power_workqueue);
+#ifdef CONFIG_HAS_WAKELOCK
+        wake_lock_init(&sdioinfo[func->num].power_wake_lock, WAKE_LOCK_SUSPEND, "wifi_power_wake");
+        printk("init wifi power_wake lock\n");
+#endif
 	}
 #endif
 }
@@ -1775,6 +1821,9 @@ dhd_conf_unregister_wifi_suspend(struct sdio_func *func)
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	if (func->num == 2) {
 		if (sdioinfo[func->num].sdio_early_suspend.suspend) {
+#ifdef CONFIG_HAS_WAKELOCK
+            wake_lock_destroy(&sdioinfo[func->num].power_wake_lock);
+#endif
 			unregister_early_suspend(&sdioinfo[func->num].sdio_early_suspend);
 			sdioinfo[func->num].sdio_early_suspend.suspend = NULL;
 		}

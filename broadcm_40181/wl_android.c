@@ -109,6 +109,14 @@ uint android_msg_level = ANDROID_ERROR_LEVEL;
 #define CMD_SETROAMMODE 	"SETROAMMODE"
 #define CMD_SETIBSSBEACONOUIDATA	"SETIBSSBEACONOUIDATA"
 #define CMD_MIRACAST		"MIRACAST"
+#define CMD_GET_CHANNEL			"GET_CHANNEL"
+#define CMD_SET_ROAM			"SET_ROAM_TRIGGER"			
+#define CMD_GET_ROAM			"GET_ROAM_TRIGGER"
+#define CMD_SET_KEEP_ALIVE		"SET_KEEP_ALIVE"
+#define CMD_GET_KEEP_ALIVE		"GET_KEEP_ALIVE"
+#define CMD_GET_PM				"GET_PM"
+#define CMD_SET_PM				"SET_PM"
+#define CMD_MONITOR			"MONITOR"
 
 #if defined(WL_SUPPORT_AUTO_CHANNEL)
 #define CMD_GET_BEST_CHANNELS	"GET_BEST_CHANNELS"
@@ -1227,6 +1235,214 @@ resume:
 	return ret;
 }
 
+int
+wl_android_get_channel(
+struct net_device *dev, char* command, int total_len)
+{
+	int ret;
+	channel_info_t ci;
+	int bytes_written = 0;
+
+	if (!(ret = wldev_ioctl(dev, WLC_GET_CHANNEL, &ci, sizeof(channel_info_t), FALSE))) {
+		ANDROID_TRACE(("hw_channel %d\n", ci.hw_channel));
+		ANDROID_TRACE(("target_channel %d\n", ci.target_channel));
+		ANDROID_TRACE(("scan_channel %d\n", ci.scan_channel));
+		bytes_written = snprintf(command, sizeof(channel_info_t)+2, "channel %d", ci.hw_channel);
+		ANDROID_TRACE(("%s: command result is %s\n", __FUNCTION__, command));
+	}
+
+	return bytes_written;
+}
+
+int
+wl_android_set_roam_trigger(
+struct net_device *dev, char* command, int total_len)
+{
+	int ret = 0;
+	int roam_trigger[2];
+
+	sscanf(command, "%*s %10d", &roam_trigger[0]);
+	roam_trigger[1] = WLC_BAND_ALL;
+	
+	ret = wldev_ioctl(dev, WLC_SET_ROAM_TRIGGER, roam_trigger, sizeof(roam_trigger), 1);
+	if (ret)
+		ANDROID_ERROR(("WLC_SET_ROAM_TRIGGER ERROR %d ret=%d\n", roam_trigger[0], ret));
+
+	return ret;
+}
+
+int
+wl_android_get_roam_trigger(
+struct net_device *dev, char *command, int total_len)
+{
+	int ret;
+	int bytes_written;
+	int roam_trigger[2] = {0, 0};
+	int trigger[2]= {0, 0};
+	
+	roam_trigger[1] = WLC_BAND_2G;
+	ret = wldev_ioctl(dev, WLC_GET_ROAM_TRIGGER, roam_trigger, sizeof(roam_trigger), 0);
+	if (!ret)
+		trigger[0] = roam_trigger[0];
+ 	else
+		ANDROID_ERROR(("2G WLC_GET_ROAM_TRIGGER ERROR %d ret=%d\n", roam_trigger[0], ret));
+
+	roam_trigger[1] = WLC_BAND_5G;
+	ret = wldev_ioctl(dev, WLC_GET_ROAM_TRIGGER, roam_trigger, sizeof(roam_trigger), 0);
+	if (!ret)
+		trigger[1] = roam_trigger[0];
+ 	else
+		ANDROID_ERROR(("5G WLC_GET_ROAM_TRIGGER ERROR %d ret=%d\n", roam_trigger[0], ret));
+	
+	ANDROID_TRACE(("roam_trigger %d %d\n", trigger[0], trigger[1]));
+	bytes_written = snprintf(command, total_len, "%d %d", trigger[0], trigger[1]);
+
+	return bytes_written;
+}
+
+s32
+wl_android_set_keep_alive(struct net_device *dev, char* command, int total_len)
+{
+	char *buf;
+	const char						*str;
+	wl_mkeep_alive_pkt_t	mkeep_alive_pkt;
+	wl_mkeep_alive_pkt_t	*mkeep_alive_pktp;
+	int	buf_len;
+	int	str_len;
+	int res = -1;
+	uint period_msec = 0;
+
+	ANDROID_TRACE(("%s: command = %s\n", __FUNCTION__, command));
+
+	buf = kmalloc(WLC_IOCTL_MAXLEN, GFP_KERNEL);
+	sscanf(command, "%d", &period_msec);
+	memset(&mkeep_alive_pkt, 0, sizeof(wl_mkeep_alive_pkt_t));
+	str = "mkeep_alive";
+	str_len = strlen(str);
+	strncpy(buf, str, str_len);
+	buf[str_len] = '\0';
+	mkeep_alive_pktp = (wl_mkeep_alive_pkt_t *) (buf + str_len + 1);
+	mkeep_alive_pkt.period_msec = period_msec;
+	buf_len = str_len + 1;
+	mkeep_alive_pkt.version = htod16(WL_MKEEP_ALIVE_VERSION);
+	mkeep_alive_pkt.length = htod16(WL_MKEEP_ALIVE_FIXED_LEN);
+	mkeep_alive_pkt.keep_alive_id = 0;
+	mkeep_alive_pkt.len_bytes = 0;
+	buf_len += WL_MKEEP_ALIVE_FIXED_LEN;
+	/* Keep-alive attributes are set in local	variable (mkeep_alive_pkt), and
+	 * then memcpy'ed into buffer (mkeep_alive_pktp) since there is no
+	 * guarantee that the buffer is properly aligned.
+	 */
+	memcpy((char *)mkeep_alive_pktp, &mkeep_alive_pkt, WL_MKEEP_ALIVE_FIXED_LEN);
+
+	if ((res = wldev_ioctl(dev, WLC_SET_VAR, buf, buf_len, TRUE)) != 0)
+		ANDROID_ERROR(("%s: mkeep_alive set failed. res[%d]\n", __FUNCTION__, res));
+
+	kfree(buf);
+	return res;
+}
+
+s32
+wl_android_get_keep_alive(struct net_device *dev, char *command, int total_len) {
+
+	wl_mkeep_alive_pkt_t *mkeep_alive_pktp;
+	int bytes_written = -1;
+	int res = -1, len, i = 0;
+	char* str = "mkeep_alive";
+
+	ANDROID_TRACE(("%s: command = %s\n", __FUNCTION__, command));
+
+	len = WLC_IOCTL_MEDLEN;
+	mkeep_alive_pktp = kmalloc(len, GFP_KERNEL);
+	memset(mkeep_alive_pktp, 0, len);
+	strcpy((char*)mkeep_alive_pktp, str);
+
+	if ((res = wldev_ioctl(dev, WLC_GET_VAR, mkeep_alive_pktp, len, FALSE))<0) {
+		ANDROID_ERROR(("%s: GET mkeep_alive ERROR %d\n", __FUNCTION__, res));
+		goto exit;
+	} else {
+		printf("Id            :%d\n"
+			   "Period (msec) :%d\n"
+			   "Length        :%d\n"
+			   "Packet        :0x",
+			   mkeep_alive_pktp->keep_alive_id,
+			   dtoh32(mkeep_alive_pktp->period_msec),
+			   dtoh16(mkeep_alive_pktp->len_bytes));
+		for (i=0; i<mkeep_alive_pktp->len_bytes; i++) {
+			printf("%02x", mkeep_alive_pktp->data[i]);
+		}
+		printf("\n");
+	}
+	bytes_written = snprintf(command, total_len, "mkeep_alive_period_msec %d ", dtoh32(mkeep_alive_pktp->period_msec));
+	bytes_written += snprintf(command+bytes_written, total_len, "0x");
+	for (i=0; i<mkeep_alive_pktp->len_bytes; i++) {
+		bytes_written += snprintf(command+bytes_written, total_len, "%x", mkeep_alive_pktp->data[i]);
+	}
+	ANDROID_TRACE(("%s: command result is %s\n", __FUNCTION__, command));
+
+exit:
+	kfree(mkeep_alive_pktp);
+	return bytes_written;
+}
+
+int
+wl_android_set_pm(struct net_device *dev,char *command, int total_len)
+{
+	int pm, ret = -1;
+
+	ANDROID_TRACE(("%s: cmd %s\n", __FUNCTION__, command));
+
+	sscanf(command, "%*s %d", &pm);
+
+	ret = wldev_ioctl(dev, WLC_SET_PM, &pm, sizeof(pm), FALSE);
+	if (ret)
+		ANDROID_ERROR(("WLC_SET_PM ERROR %d ret=%d\n", pm, ret));
+
+	return ret;
+}
+
+int
+wl_android_get_pm(struct net_device *dev,char *command, int total_len)
+{
+
+	int ret = 0;
+	int pm_local;
+	char *pm;
+	int bytes_written=-1;
+
+	ret = wldev_ioctl(dev, WLC_GET_PM, &pm_local, sizeof(pm_local),FALSE);
+	if (!ret) {
+		ANDROID_TRACE(("%s: PM = %d\n", __func__, pm_local));
+		if (pm_local == PM_OFF)
+			pm = "PM_OFF";
+		else if(pm_local == PM_MAX)
+			pm = "PM_MAX";
+		else if(pm_local == PM_FAST)
+			pm = "PM_FAST";
+		else {
+			pm_local = 0;
+			pm = "Invalid";
+		}
+		bytes_written = snprintf(command, total_len, "PM %s", pm);
+		ANDROID_TRACE(("%s: command result is %s\n", __FUNCTION__, command));
+	}
+	return bytes_written;
+}
+
+static int
+wl_android_set_monitor(struct net_device *dev, char *command, int total_len)
+{
+	int val;
+	int ret = 0;
+	int bytes_written;
+
+	sscanf(command, "%*s %d", &val);
+	bytes_written = wldev_ioctl(dev, WLC_SET_MONITOR, &val, sizeof(int), 1);
+	if (bytes_written)
+		ANDROID_ERROR(("WLC_SET_MONITOR ERROR %d ret=%d\n", val, ret));
+	return bytes_written;
+}
+
 int wl_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 {
 #define PRIVATE_COMMAND_MAX_LEN	8192
@@ -1468,6 +1684,31 @@ int wl_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 		strlen(CMD_SETIBSSBEACONOUIDATA)) == 0)
 		bytes_written = wl_android_set_ibss_beacon_ouidata(net, command,
 			priv_cmd.total_len);
+	else if(strnicmp(command, CMD_GET_CHANNEL, strlen(CMD_GET_CHANNEL)) == 0) {
+		bytes_written = wl_android_get_channel(net, command, priv_cmd.total_len);
+	}
+	else if (strnicmp(command, CMD_SET_ROAM, strlen(CMD_SET_ROAM)) == 0) {
+		bytes_written = wl_android_set_roam_trigger(net, command, priv_cmd.total_len);
+	}
+	else if (strnicmp(command, CMD_GET_ROAM, strlen(CMD_GET_ROAM)) == 0) {
+		bytes_written = wl_android_get_roam_trigger(net, command, priv_cmd.total_len);
+	}
+	else if (strnicmp(command, CMD_SET_KEEP_ALIVE, strlen(CMD_SET_KEEP_ALIVE)) == 0) {
+		int skip = strlen(CMD_SET_KEEP_ALIVE) + 1;
+		bytes_written = wl_android_set_keep_alive(net, command+skip, priv_cmd.total_len-skip);
+	}
+	else if (strnicmp(command, CMD_GET_KEEP_ALIVE, strlen(CMD_GET_KEEP_ALIVE)) == 0) {
+		int skip = strlen(CMD_GET_KEEP_ALIVE) + 1;
+		bytes_written = wl_android_get_keep_alive(net, command+skip, priv_cmd.total_len-skip);
+	}
+	else if (strnicmp(command, CMD_GET_PM, strlen(CMD_GET_PM)) == 0) {
+		bytes_written = wl_android_get_pm(net, command, priv_cmd.total_len);
+	}
+	else if (strnicmp(command, CMD_SET_PM, strlen(CMD_SET_PM)) == 0) {
+		bytes_written = wl_android_set_pm(net, command, priv_cmd.total_len);
+	}
+	else if (strnicmp(command, CMD_MONITOR, strlen(CMD_MONITOR)) == 0)
+		bytes_written = wl_android_set_monitor(net, command, priv_cmd.total_len);
 	else {
 		ANDROID_ERROR(("Unknown PRIVATE command %s - ignored\n", command));
 		snprintf(command, 3, "OK");
@@ -2097,19 +2338,16 @@ wl_delete_dirty_rssi_cache(wl_rssi_cache_ctrl_t *rssi_cache_ctrl)
 {
 	wl_rssi_cache_t *node, *prev, **rssi_head;
 	int i = -1, tmp = 0;
-#if defined(BSSCACHE)
-	int max = 0;
-#else
-	int max = RSSICACHE_LEN;
-#endif
-	max = min(max, RSSICACHE_LEN);
+	struct timeval now;
+
+	do_gettimeofday(&now);
 
 	rssi_head = &rssi_cache_ctrl->m_cache_head;
 	node = *rssi_head;
 	prev = node;
 	for (;node;) {
 		i++;
-		if (node->dirty > max) {
+		if (now.tv_sec > node->tv.tv_sec) {
 			if (node == *rssi_head) {
 				tmp = 1;
 				*rssi_head = node->next;
@@ -2190,6 +2428,7 @@ wl_update_connected_rssi_cache(struct net_device *net, wl_rssi_cache_ctrl_t *rss
 	int j, k=0;
 	int rssi, error=0;
 	struct ether_addr bssid;
+	struct timeval now, timeout;
 
 	if (!g_wifi_on)
 		return 0;
@@ -2208,6 +2447,16 @@ wl_update_connected_rssi_cache(struct net_device *net, wl_rssi_cache_ctrl_t *rss
 		return error;
 	}
 
+	do_gettimeofday(&now);
+	timeout.tv_sec = now.tv_sec + BSSCACHE_TIMEOUT;
+	if (timeout.tv_sec < now.tv_sec) {
+		/*
+		 * Integer overflow - assume long enough timeout to be assumed
+		 * to be infinite, i.e., the timeout would never happen.
+		 */
+		ANDROID_TRACE(("%s: Too long timeout (secs=%d) to ever happen - now=%lu, timeout=%lu",
+			__FUNCTION__, BSSCACHE_TIMEOUT, now.tv_sec, timeout.tv_sec));
+	}
 	/* update RSSI */
 	rssi_head = &rssi_cache_ctrl->m_cache_head;
 	node = *rssi_head;
@@ -2220,6 +2469,7 @@ wl_update_connected_rssi_cache(struct net_device *net, wl_rssi_cache_ctrl_t *rss
 				node->RSSI[j] = node->RSSI[j+1];
 			node->RSSI[j] = rssi;
 			node->dirty = 0;
+			node->tv = timeout;
 			goto exit;
 		}
 		prev = node;
@@ -2238,6 +2488,7 @@ wl_update_connected_rssi_cache(struct net_device *net, wl_rssi_cache_ctrl_t *rss
 
 	leaf->next = NULL;
 	leaf->dirty = 0;
+	leaf->tv = timeout;
 	memcpy(&leaf->BSSID, &bssid, ETHER_ADDR_LEN);
 	for (j=0; j<RSSIAVG_LEN; j++)
 		leaf->RSSI[j] = rssi;
@@ -2259,9 +2510,21 @@ wl_update_rssi_cache(wl_rssi_cache_ctrl_t *rssi_cache_ctrl, wl_scan_results_t *s
 	wl_rssi_cache_t *node, *prev, *leaf, **rssi_head;
 	wl_bss_info_t *bi = NULL;
 	int i, j, k;
+	struct timeval now, timeout;
 
 	if (!ss_list->count)
 		return;
+
+	do_gettimeofday(&now);
+	timeout.tv_sec = now.tv_sec + BSSCACHE_TIMEOUT;
+	if (timeout.tv_sec < now.tv_sec) {
+		/*
+		 * Integer overflow - assume long enough timeout to be assumed
+		 * to be infinite, i.e., the timeout would never happen.
+		 */
+		ANDROID_TRACE(("%s: Too long timeout (secs=%d) to ever happen - now=%lu, timeout=%lu",
+			__FUNCTION__, BSSCACHE_TIMEOUT, now.tv_sec, timeout.tv_sec));
+	}
 
 	rssi_head = &rssi_cache_ctrl->m_cache_head;
 
@@ -2279,6 +2542,7 @@ wl_update_rssi_cache(wl_rssi_cache_ctrl_t *rssi_cache_ctrl, wl_scan_results_t *s
 					node->RSSI[j] = node->RSSI[j+1];
 				node->RSSI[j] = dtoh16(bi->RSSI);
 				node->dirty = 0;
+				node->tv = timeout;
 				break;
 			}
 			prev = node;
@@ -2300,6 +2564,7 @@ wl_update_rssi_cache(wl_rssi_cache_ctrl_t *rssi_cache_ctrl, wl_scan_results_t *s
 
 		leaf->next = NULL;
 		leaf->dirty = 0;
+		leaf->tv = timeout;
 		memcpy(&leaf->BSSID, &bi->BSSID, ETHER_ADDR_LEN);
 		for (j=0; j<RSSIAVG_LEN; j++)
 			leaf->RSSI[j] = dtoh16(bi->RSSI);
@@ -2398,13 +2663,16 @@ wl_delete_dirty_bss_cache(wl_bss_cache_ctrl_t *bss_cache_ctrl)
 {
 	wl_bss_cache_t *node, *prev, **bss_head;
 	int i = -1, tmp = 0;
+	struct timeval now;
+
+	do_gettimeofday(&now);
 
 	bss_head = &bss_cache_ctrl->m_cache_head;
 	node = *bss_head;
 	prev = node;
 	for (;node;) {
 		i++;
-		if (node->dirty > BSSCACHE_LEN) {
+		if (now.tv_sec > node->tv.tv_sec) {
 			if (node == *bss_head) {
 				tmp = 1;
 				*bss_head = node->next;
@@ -2486,9 +2754,21 @@ wl_update_bss_cache(wl_bss_cache_ctrl_t *bss_cache_ctrl, wl_scan_results_t *ss_l
 	wl_bss_cache_t *node, *prev, *leaf, *tmp, **bss_head;
 	wl_bss_info_t *bi = NULL;
 	int i, k=0;
+	struct timeval now, timeout;
 
 	if (!ss_list->count)
 		return;
+
+	do_gettimeofday(&now);
+	timeout.tv_sec = now.tv_sec + BSSCACHE_TIMEOUT;
+	if (timeout.tv_sec < now.tv_sec) {
+		/*
+		 * Integer overflow - assume long enough timeout to be assumed
+		 * to be infinite, i.e., the timeout would never happen.
+		 */
+		ANDROID_TRACE(("%s: Too long timeout (secs=%d) to ever happen - now=%lu, timeout=%lu",
+			__FUNCTION__, BSSCACHE_TIMEOUT, now.tv_sec, timeout.tv_sec));
+	}
 
 	bss_head = &bss_cache_ctrl->m_cache_head;
 
@@ -2510,6 +2790,7 @@ wl_update_bss_cache(wl_bss_cache_ctrl_t *bss_cache_ctrl, wl_scan_results_t *ss_l
 				memcpy(leaf->results.bss_info, bi, dtoh32(bi->length));
 				leaf->next = node->next;
 				leaf->dirty = 0;
+				leaf->tv = timeout;
 				leaf->results.count = 1;
 				leaf->results.version = ss_list->version;
 				ANDROID_TRACE(("%s: Update %d with BSSID %pM, RSSI=%d, SSID \"%s\", length=%d\n",
@@ -2544,6 +2825,7 @@ wl_update_bss_cache(wl_bss_cache_ctrl_t *bss_cache_ctrl, wl_scan_results_t *ss_l
 		memcpy(leaf->results.bss_info, bi, dtoh32(bi->length));
 		leaf->next = NULL;
 		leaf->dirty = 0;
+		leaf->tv = timeout;
 		leaf->results.count = 1;
 		leaf->results.version = ss_list->version;
 		k++;
@@ -2556,64 +2838,14 @@ wl_update_bss_cache(wl_bss_cache_ctrl_t *bss_cache_ctrl, wl_scan_results_t *ss_l
 }
 
 void
-wl_run_bss_cache_timer(wl_bss_cache_ctrl_t *bss_cache_ctrl, int kick_off)
-{
-	struct timer_list **timer;
-
-	timer = &bss_cache_ctrl->m_timer;
-
-	if (*timer) {
-		if (kick_off) {
-			(*timer)->expires = jiffies + BSSCACHE_TIME * HZ / 1000;
-			add_timer(*timer);
-			ANDROID_TRACE(("%s: timer starts\n", __FUNCTION__));
-		} else {
-			del_timer_sync(*timer);
-			ANDROID_TRACE(("%s: timer stops\n", __FUNCTION__));
-		}
-	}
-}
-
-void
-wl_set_bss_cache_timer_flag(ulong data)
-{
-	wl_bss_cache_ctrl_t *bss_cache_ctrl = (wl_bss_cache_ctrl_t *)data;
-
-	bss_cache_ctrl->m_timer_expired = 1;
-	ANDROID_TRACE(("%s called\n", __FUNCTION__));
-}
-
-void
 wl_release_bss_cache_ctrl(wl_bss_cache_ctrl_t *bss_cache_ctrl)
 {
 	ANDROID_TRACE(("%s:\n", __FUNCTION__));
 	wl_free_bss_cache(bss_cache_ctrl);
-	wl_run_bss_cache_timer(bss_cache_ctrl, 0);
-	if (bss_cache_ctrl->m_timer) {
-		kfree(bss_cache_ctrl->m_timer);
-	}
-}
-
-int
-wl_init_bss_cache_ctrl(wl_bss_cache_ctrl_t *bss_cache_ctrl)
-{
-	ANDROID_TRACE(("%s:\n", __FUNCTION__));
-	bss_cache_ctrl->m_timer_expired = 0;
-
-	bss_cache_ctrl->m_timer = kmalloc(sizeof(struct timer_list), GFP_KERNEL);
-	if (!bss_cache_ctrl->m_timer) {
-		ANDROID_ERROR(("%s: Memory alloc failure\n", __FUNCTION__ ));
-		return -ENOMEM;
-	}
-	init_timer(bss_cache_ctrl->m_timer);
-	bss_cache_ctrl->m_timer->function = (void *)wl_set_bss_cache_timer_flag;
-	bss_cache_ctrl->m_timer->data = (ulong)bss_cache_ctrl;
-
-	return 0;
 }
 #endif
 
-#if defined(CUSTOMER_HW) && defined(CONFIG_DHD_USE_STATIC_BUF)
+#if defined(CUSTOMER_HW_AMLOGIC) && defined(CONFIG_DHD_USE_STATIC_BUF)
 extern bcmdhd_mem_prealloc(int section, unsigned long size);
 void* wl_android_prealloc(int section, unsigned long size)
 {

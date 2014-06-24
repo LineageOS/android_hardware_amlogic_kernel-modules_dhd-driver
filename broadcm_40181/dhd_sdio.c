@@ -4550,7 +4550,7 @@ dhd_txglom_enable(dhd_pub_t *dhdp, bool enable)
 	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
 
 	if (enable) {
-		rxglom = 1;
+		rxglom = 8;
 		memset(buf, 0, sizeof(buf));
 		bcm_mkiovar("bus:rxglom",
 			(void *)&rxglom,
@@ -6939,6 +6939,8 @@ dhdsdio_chipmatch(uint16 chipid)
 	return FALSE;
 }
 
+extern void wl_android_post_init(void); // terence 20120530: fix for preinit function missed called after resume
+
 static void *
 dhdsdio_probe(uint16 venid, uint16 devid, uint16 bus_no, uint16 slot,
 	uint16 func, uint bustype, void *regsva, osl_t * osh, void *sdh)
@@ -7135,6 +7137,9 @@ dhdsdio_probe(uint16 venid, uint16 devid, uint16 bus_no, uint16 slot,
 		goto fail;
 	}
 
+    wl_android_post_init(); // terence 20120530: fix for preinit function missed called after resume
+    dhd_init_unlock_local(bus->dhd);
+    
 #if defined(MULTIPLE_SUPPLICANT)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25))
 	mutex_unlock(&_dhd_sdio_mutex_lock_);

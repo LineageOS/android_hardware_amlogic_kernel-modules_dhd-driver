@@ -81,7 +81,7 @@ typedef struct dhd_conf {
 	char fw_path[MOD_PARAM_PATHLEN];		/* Firmware path */
 	char nv_path[MOD_PARAM_PATHLEN];		/* NVRAM path */
 	uint band;			/* Band, b:2.4G only, otherwise for auto */
-	uint bw;			/* Bandwidth, 0:HT20ALL, 1: HT40ALL, 2:HT20IN2G_HT40PIN5G */
+	int mimo_bw_cap;			/* Bandwidth, 0:HT20ALL, 1: HT40ALL, 2:HT20IN2G_HT40PIN5G */
 	wl_country_t cspec;		/* Country */
 	wl_channel_list_t channels;	/* Support channels */
 	uint roam_off;		/* Roaming, 0:enable, 1:disable */
@@ -105,6 +105,7 @@ typedef struct dhd_conf {
 	uint32 bus_txglom;	/* bus:txglom */
 	uint32 ampdu_ba_wsize;
 	bool kso_enable;
+	int spect;
 } dhd_conf_t;
 
 extern void *bcmsdh_get_drvdata(void);
@@ -123,7 +124,7 @@ int dhd_conf_get_country(dhd_pub_t *dhd, wl_country_t *cspec);
 int dhd_conf_fix_country(dhd_pub_t *dhd);
 bool dhd_conf_match_channel(dhd_pub_t *dhd, uint32 channel);
 int dhd_conf_set_roam(dhd_pub_t *dhd);
-void dhd_conf_set_bw(dhd_pub_t *dhd);
+void dhd_conf_set_mimo_bw_cap(dhd_pub_t *dhd);
 void dhd_conf_force_wme(dhd_pub_t *dhd);
 void dhd_conf_get_wme(dhd_pub_t *dhd, edcf_acparam_t *acp);
 void dhd_conf_set_wme(dhd_pub_t *dhd);
@@ -136,6 +137,7 @@ void dhd_conf_set_srl(dhd_pub_t *dhd);
 void dhd_conf_set_lrl(dhd_pub_t *dhd);
 void dhd_conf_set_glom(dhd_pub_t *dhd);
 void dhd_conf_set_ampdu_ba_wsize(dhd_pub_t *dhd);
+void dhd_conf_set_spect(dhd_pub_t *dhd);
 int dhd_conf_read_config(dhd_pub_t *dhd);
 int dhd_conf_preinit(dhd_pub_t *dhd);
 int dhd_conf_attach(dhd_pub_t *dhd);

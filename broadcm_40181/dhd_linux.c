@@ -308,6 +308,7 @@ typedef struct dhd_info {
 	struct mutex dhd_net_if_mutex;
 	struct mutex dhd_suspend_mutex;
 #endif
+    struct mutex dhd_init_mutex; // terence 20120530: fix for preinit function missed called after resume
 	spinlock_t wakelock_spinlock;
 	int wakelock_counter;
 	int wakelock_wd_counter;
@@ -2854,7 +2855,7 @@ dhd_stop(struct net_device *net)
 	int ifidx = 0;
 	dhd_info_t *dhd = *(dhd_info_t **)netdev_priv(net);
 	DHD_OS_WAKE_LOCK(&dhd->pub);
-	DHD_ERROR(("%s: Enter %p\n", __FUNCTION__, net));
+	printk("%s: Enter %p\n", __FUNCTION__, net);
 
 	if (dhd->pub.up == 0) {
 		goto exit;
@@ -2901,6 +2902,7 @@ exit:
 	dhd->pub.txcnt_timeout = 0;
 	dhd->pub.hang_was_sent = 0;
 
+	printk("%s: Exit\n", __FUNCTION__);
 	DHD_OS_WAKE_UNLOCK(&dhd->pub);
 	return 0;
 }
@@ -2916,7 +2918,7 @@ dhd_open(struct net_device *net)
 	int ifidx;
 	int32 ret = 0;
 
-	DHD_ERROR(("%s: Enter %p\n", __FUNCTION__, net));
+	printk("%s: Enter %p\n", __FUNCTION__, net);
 
 #if defined(MULTIPLE_SUPPLICANT)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)) && 1 && 1
@@ -2928,6 +2930,7 @@ dhd_open(struct net_device *net)
 #endif /* MULTIPLE_SUPPLICANT */
 
 	DHD_OS_WAKE_LOCK(&dhd->pub);
+    dhd_init_lock_local(&dhd->pub); // terence 20120530: fix for preinit function missed called after resume
 	/* Update FW path if it was changed */
 	if (strlen(firmware_path) != 0) {
 		if (firmware_path[strlen(firmware_path)-1] == '\n')
@@ -3026,6 +3029,7 @@ exit:
 	if (ret)
 		dhd_stop(net);
 
+    dhd_init_unlock_local(&dhd->pub); // terence 20120530: fix for preinit function missed called after resume
 	DHD_OS_WAKE_UNLOCK(&dhd->pub);
 
 #if defined(MULTIPLE_SUPPLICANT)
@@ -3034,6 +3038,7 @@ exit:
 #endif
 #endif /* MULTIPLE_SUPPLICANT */
 
+	printk("%s: Exit ret=%d\n", __FUNCTION__, ret);
 	return ret;
 }
 
@@ -3326,7 +3331,9 @@ dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)) && 1
 	mutex_init(&dhd->dhd_net_if_mutex);
 	mutex_init(&dhd->dhd_suspend_mutex);
+    mutex_init(&dhd->dhd_init_mutex); // terence 20120530: fix for preinit function missed called after resume
 #endif
+    dhd_init_lock_local(&dhd->pub); // terence 20120530: fix for preinit function missed called after resume
 	dhd_state |= DHD_ATTACH_STATE_WAKELOCKS_INIT;
 
 	if (dhd_conf_attach(&dhd->pub) != 0) {
@@ -4016,11 +4023,12 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 	bcm_mkiovar("apsta", (char *)&apsta, 4, iovbuf, sizeof(iovbuf));
 	dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0);
 #endif /* defined(AP) && !defined(WLP2P) */
-	dhd_conf_set_bw(dhd);
+	dhd_conf_set_mimo_bw_cap(dhd);
 	dhd_conf_force_wme(dhd);
 	dhd_conf_set_stbc(dhd);
 	dhd_conf_set_srl(dhd);
 	dhd_conf_set_lrl(dhd);
+	dhd_conf_set_spect(dhd);
 
 #if defined(SOFTAP)
 	if (ap_fw_loaded == TRUE) {
@@ -4868,9 +4876,8 @@ dhd_free(dhd_pub_t *dhdp)
 static void __exit
 dhd_module_cleanup(void)
 {
-	printk("+++dhd_module_cleanup+++\n");
 
-	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
+	printk("%s: Enter\n", __FUNCTION__);
 
 	dhd_bus_unregister();
 
@@ -4883,7 +4890,7 @@ dhd_module_cleanup(void)
 	dhd_customer_gpio_wlan_ctrl(WLAN_POWER_OFF);
 
 	wifi_teardown_dt();
-	printk("---dhd_module_cleanup---\n");
+	printk("%s: Exit\n", __FUNCTION__);
 }
 
 #if defined(CONFIG_WIFI_CONTROL_FUNC)
@@ -4899,13 +4906,12 @@ dhd_module_init(void)
 	int retry = POWERUP_MAX_RETRY;
 	int chip_up = 0;
 #endif 
-	printk("+++dhd_module_init+++\n");
+
+	printk("%s: Enter\n", __FUNCTION__);
 	if (wifi_setup_dt()) {
 		printk("wifi_dt : fail to setup dt\n");
 		goto fail_0;
 	}
-
-	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
 
 	wl_android_init();
 
@@ -5006,11 +5012,11 @@ dhd_module_init(void)
 		goto fail_2;
 	}
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) */
-#if defined(WL_CFG80211)
-	wl_android_post_init();
-#endif /* defined(WL_CFG80211) */
+//#if defined(WL_CFG80211)
+//	wl_android_post_init();     // terence 20120530: fix for preinit function missed called after resume
+//#endif /* defined(WL_CFG80211) */
 
-	printk("---dhd_module_init---\n");
+	printk("%s: Exit error=%d\n", __FUNCTION__, error);
 	return error;
 
 #if 1 && (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && defined(BCMLXSDMMC)
@@ -5029,10 +5035,10 @@ fail_1:
 
 	wifi_teardown_dt();
 fail_0:
-	printk("---dhd_module_init fail---\n");
 
 	wl_android_exit();
 
+	printk("%s: Exit error=%d\n", __FUNCTION__, error);
 	return error;
 }
 
@@ -5870,6 +5876,24 @@ static void dhd_net_if_unlock_local(dhd_info_t *dhd)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)) && 1
 	if (dhd)
 		mutex_unlock(&dhd->dhd_net_if_mutex);
+#endif
+}
+
+void dhd_init_lock_local(dhd_pub_t *pub) // terence 20120530: fix for preinit function missed called after resume
+{
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)) && 1
+	dhd_info_t *dhd = (dhd_info_t *)(pub->info);
+	if (dhd)
+		mutex_lock(&dhd->dhd_init_mutex);
+#endif
+}
+
+void dhd_init_unlock_local(dhd_pub_t *pub) // terence 20120530: fix for preinit function missed called after resume
+{
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)) && 1
+	dhd_info_t *dhd = (dhd_info_t *)(pub->info);
+	if (dhd)
+		mutex_unlock(&dhd->dhd_init_mutex);
 #endif
 }
 

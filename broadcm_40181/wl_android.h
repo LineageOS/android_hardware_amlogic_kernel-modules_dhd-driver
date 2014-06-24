@@ -115,11 +115,12 @@ s32 wl_genl_send_msg(struct net_device *ndev, u32 event_type,
 
 #if defined(RSSIAVG)
 #define RSSIAVG_LEN (4*REPEATED_SCAN_RESULT_CNT)
-#define RSSICACHE_LEN (4*REPEATED_SCAN_RESULT_CNT)
+#define RSSICACHE_TIMEOUT 15
 
 typedef struct wl_rssi_cache {
 	struct wl_rssi_cache *next;
 	int dirty;
+	struct timeval tv;
 	struct ether_addr BSSID;
 	int16 RSSI[RSSIAVG_LEN];
 } wl_rssi_cache_t;
@@ -150,19 +151,17 @@ int wl_update_rssi_offset(int rssi);
 #endif
 
 #if defined(BSSCACHE)
-#define BSSCACHE_LEN	(4*REPEATED_SCAN_RESULT_CNT)
-#define BSSCACHE_TIME	15000
+#define BSSCACHE_TIMEOUT	15
 
 typedef struct wl_bss_cache {
 	struct wl_bss_cache *next;
 	int dirty;
+	struct timeval tv;
 	wl_scan_results_t results;
 } wl_bss_cache_t;
 
 typedef struct wl_bss_cache_ctrl {
 	wl_bss_cache_t *m_cache_head;
-	struct timer_list *m_timer;
-	int m_timer_expired;
 } wl_bss_cache_ctrl_t;
 
 void wl_free_bss_cache(wl_bss_cache_ctrl_t *bss_cache_ctrl);
@@ -170,11 +169,9 @@ void wl_delete_dirty_bss_cache(wl_bss_cache_ctrl_t *bss_cache_ctrl);
 void wl_delete_disconnected_bss_cache(wl_bss_cache_ctrl_t *bss_cache_ctrl, u8 *bssid);
 void wl_reset_bss_cache(wl_bss_cache_ctrl_t *bss_cache_ctrl);
 void wl_update_bss_cache(wl_bss_cache_ctrl_t *bss_cache_ctrl, wl_scan_results_t *ss_list);
-void wl_run_bss_cache_timer(wl_bss_cache_ctrl_t *bss_cache_ctrl, int kick_off);
 void wl_release_bss_cache_ctrl(wl_bss_cache_ctrl_t *bss_cache_ctrl);
-int wl_init_bss_cache_ctrl(wl_bss_cache_ctrl_t *bss_cache_ctrl);
 #endif
-#if defined(CUSTOMER_HW) && defined(CONFIG_DHD_USE_STATIC_BUF)
+#if defined(CUSTOMER_HW_AMLOGIC) && defined(CONFIG_DHD_USE_STATIC_BUF)
 void* wl_android_prealloc(int section, unsigned long size);
 #endif
 #endif /* _wl_android_ */
