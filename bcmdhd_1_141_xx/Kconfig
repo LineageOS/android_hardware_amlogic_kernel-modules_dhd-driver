@@ -1,0 +1,45 @@
+config BCMDHD_141_AMPAK
+	tristate "Broadcom FullMAC wireless cards support"
+	depends on AM_WIFI_SD_MMC || SD_MMC
+	#	select WIRELESS_EXT
+	#	select WEXT_PRIV
+	---help---
+	  This module adds support for wireless adapters based on
+	  Broadcom FullMAC chipset.
+
+config BCMDHD_FW_PATH
+	depends on BCMDHD_141_AMPAK
+	string "Firmware path"
+	default "/system/etc/wifi/fw_bcmdhd.bin"
+	---help---
+	  Path to the firmware file.
+
+config BCMDHD_NVRAM_PATH
+	depends on BCMDHD_141_AMPAK
+	string "NVRAM path"
+	default "/system/etc/wifi/nvram.txt"
+	---help---
+	  Path to the calibration file.
+
+config BCMDHD_CONFIG_PATH
+	depends on BCMDHD_141_AMPAK
+	string "Config path"
+	default "/system/etc/wifi/config.txt"
+	---help---
+	  Path to the driver configuration file.
+
+config BCMDHD_WEXT
+	bool "Enable WEXT support"
+	depends on BCMDHD_141_AMPAK && CFG80211 = n
+	select WIRELESS_EXT
+	select WEXT_PRIV
+	help
+	  Enables WEXT support
+
+config BCMDHD_141_OOB
+	depends on BCMDHD_141_AMPAK
+	bool "Out-of-Band Interrupt"
+	default y
+	---help---
+	  Interrupt from WL_HOST_WAKE.
+
