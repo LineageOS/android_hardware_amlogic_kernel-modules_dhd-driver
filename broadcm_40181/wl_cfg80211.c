@@ -602,13 +602,14 @@ wl_sdo_proto_t wl_sdo_protos [] = {
 };
 #endif
 
+#ifdef POWER_OFF_IN_SUSPEND
 static void wl_wakelock_timeout(struct wl_priv *priv)
 {
 #if defined(POWER_OFF_IN_SUSPEND) && defined(CONFIG_HAS_WAKELOCK)	
 	wake_lock_timeout(&priv->priv_lock, msecs_to_jiffies(20));	
 #endif
 }
-
+#endif
 
 #ifdef POWER_OFF_IN_SUSPEND
 #define RETURN_EIO_IF_NOT_UP(wlpriv)						\
@@ -9086,7 +9087,7 @@ static void wl_scan_timeout(unsigned long data)
 {
 	wl_event_msg_t msg;
 	struct wl_priv *wl = (struct wl_priv *)data;
-	struct net_device *ndev = wl_to_prmry_ndev(wl);
+	//struct net_device *ndev = wl_to_prmry_ndev(wl);
 
 	if (!(wl->scan_request)) {
 		WL_ERR(("timer expired but no scan request\n"));
