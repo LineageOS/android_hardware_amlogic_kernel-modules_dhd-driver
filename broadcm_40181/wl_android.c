@@ -2535,15 +2535,26 @@ wl_update_rssi_cache(wl_rssi_cache_ctrl_t *rssi_cache_ctrl, wl_scan_results_t *s
 		k = 0;
 		bi = bi ? (wl_bss_info_t *)((uintptr)bi + dtoh32(bi->length)) : ss_list->bss_info;
 		for (;node;) {
-			if (!memcmp(&node->BSSID, &bi->BSSID, ETHER_ADDR_LEN)) {
-				ANDROID_INFO(("%s: Update %d with BSSID %pM, RSSI=%d, SSID \"%s\"\n",
-					__FUNCTION__, k, &bi->BSSID, dtoh16(bi->RSSI), bi->SSID));
-				for(j=0; j<RSSIAVG_LEN-1; j++)
-					node->RSSI[j] = node->RSSI[j+1];
-				node->RSSI[j] = dtoh16(bi->RSSI);
-				node->dirty = 0;
-				node->tv = timeout;
-				break;
+			if((&node->BSSID != NULL )&&(&bi->BSSID != NULL)){
+				if (!memcmp(&node->BSSID, &bi->BSSID, ETHER_ADDR_LEN)) {
+					ANDROID_INFO(("%s: Update %d with BSSID %pM, RSSI=%d, SSID \"%s\"\n",
+						__FUNCTION__, k, &bi->BSSID, dtoh16(bi->RSSI), bi->SSID));
+					for(j=0; j<RSSIAVG_LEN-1; j++)
+						node->RSSI[j] = node->RSSI[j+1];
+					node->RSSI[j] = dtoh16(bi->RSSI);
+					node->dirty = 0;
+					node->tv = timeout;
+					break;
+				}
+
+			} else{
+				if((bi != NULL) && (&bi->length != NULL) && (&bi->BSSID != NULL))
+					ANDROID_ERROR(("wl_update_rssi_cache: bi length = %d\n", bi->length));
+				else
+					ANDROID_ERROR(("wl_update_rssi_cache: bi error\n"));
+
+				if((node == NULL) ||  (&node->BSSID == NULL))
+					ANDROID_ERROR(("wl_update_rssi_cache: node error\n"));
 			}
 			prev = node;
 			node = node->next;
