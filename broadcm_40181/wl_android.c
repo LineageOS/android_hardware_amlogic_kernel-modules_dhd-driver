@@ -2846,7 +2846,7 @@ wl_release_bss_cache_ctrl(wl_bss_cache_ctrl_t *bss_cache_ctrl)
 #endif
 
 #if defined(CUSTOMER_HW_AMLOGIC) && defined(CONFIG_DHD_USE_STATIC_BUF)
-extern bcmdhd_mem_prealloc(int section, unsigned long size);
+extern void *bcmdhd_mem_prealloc(int section, unsigned long size);
 void* wl_android_prealloc(int section, unsigned long size)
 {
 	void *alloc_ptr = NULL;
