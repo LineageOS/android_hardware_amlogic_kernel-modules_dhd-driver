@@ -1066,8 +1066,9 @@ sdioh_request_packet_chain(sdioh_info_t *sd, uint fix_inc, uint write, uint func
 			addr += ttl_len;
 
 		sdio_claim_host(sdio_func);
-		mmc_set_data_timeout(&mmc_dat, sdio_func->card);
-		mmc_wait_for_req(host, &mmc_req);
+		//mmc_set_data_timeout(&mmc_dat, sdio_func->card);
+		//mmc_wait_for_req(host, &mmc_req);
+                //tustin haha
 		sdio_release_host(sdio_func);
 
 		err_ret = mmc_cmd.error? mmc_cmd.error : mmc_dat.error;
