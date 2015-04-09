@@ -702,13 +702,6 @@ static int dhd_wifi_platform_load_sdio(void)
 			adapter->bus_type, adapter->bus_num, adapter->slot_num));
 
 		do {
-			sema_init(&dhd_chipup_sem, 0);
-			err = dhd_bus_reg_sdio_notify(&dhd_chipup_sem);
-			if (err) {
-				DHD_ERROR(("%s dhd_bus_reg_sdio_notify fail(%d)\n\n",
-					__FUNCTION__, err));
-				return err;
-			}
 			err = wifi_platform_set_power(adapter, TRUE, WIFI_TURNON_DELAY);
 			if (err) {
 				/* WL_REG_ON state unknown, Power off forcely */
@@ -718,7 +711,13 @@ static int dhd_wifi_platform_load_sdio(void)
 				wifi_platform_bus_enumerate(adapter, TRUE);
 				err = 0;
 			}
-
+			sema_init(&dhd_chipup_sem, 0);
+			err = dhd_bus_reg_sdio_notify(&dhd_chipup_sem);
+			if (err) {
+				DHD_ERROR(("%s dhd_bus_reg_sdio_notify fail(%d)\n\n",
+					__FUNCTION__, err));
+				return err;
+			}
 			if (down_timeout(&dhd_chipup_sem, msecs_to_jiffies(POWERUP_WAIT_MS)) == 0) {
 				dhd_bus_unreg_sdio_notify();
 				chip_up = TRUE;

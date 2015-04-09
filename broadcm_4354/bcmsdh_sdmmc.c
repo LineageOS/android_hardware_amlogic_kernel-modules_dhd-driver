@@ -59,7 +59,7 @@ static void IRQHandler(struct sdio_func *func);
 static void IRQHandlerF2(struct sdio_func *func);
 #endif /* !defined(OOB_INTR_ONLY) */
 static int sdioh_sdmmc_get_cisaddr(sdioh_info_t *sd, uint32 regaddr);
-#if defined(CUSTOMER_HW_AMLOGIC)
+#if 0//defined(CUSTOMER_HW_AMLOGIC)
 int sdio_reset_comm(struct mmc_card *card)
 {
 	return 0;
@@ -1066,9 +1066,8 @@ sdioh_request_packet_chain(sdioh_info_t *sd, uint fix_inc, uint write, uint func
 			addr += ttl_len;
 
 		sdio_claim_host(sdio_func);
-		//mmc_set_data_timeout(&mmc_dat, sdio_func->card);
-		//mmc_wait_for_req(host, &mmc_req);
-                //tustin haha
+		mmc_set_data_timeout(&mmc_dat, sdio_func->card);
+		mmc_wait_for_req(host, &mmc_req);
 		sdio_release_host(sdio_func);
 
 		err_ret = mmc_cmd.error? mmc_cmd.error : mmc_dat.error;

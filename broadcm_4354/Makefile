@@ -14,8 +14,9 @@ DHDCFLAGS = -Wall -Wstrict-prototypes -Dlinux -DBCMDRIVER                \
 	-DMIRACAST_AMPDU_SIZE=8                                               \
 	-DSDTEST -DBDC -DDHD_BCMEVENTS -DPROP_TXSTATUS -DPROP_TXSTATUS_VSDB   \
 	-DWL_SUPPORT_BACKPORTED_KPATCHES -DDHDTCPACK_SUPPRESS                 \
-	-I../hardware/wifi/broadcom/drivers/ap6xxx/broadcm_4354/ -I../hardware/wifi/broadcom/drivers/ap6xxx/broadcm_4354/include
-       
+	-I$(src) -I$(src)/include
+	#-I/mnt/nfsroot/jiamin.miao/amlogic/ap6xxx/broadcm_4354 -I/mnt/nfsroot/jiamin.miao/amlogic/ap6xxx/broadcm_4354/include
+
 
 DHDCFLAGS += \
 	-DMMC_SDIO_ABORT -DBCMSDIO -DBCMLXSDMMC -DSDIO_CRC_ERROR_FIX          \
@@ -29,9 +30,12 @@ DHDOFILES = aiutils.o siutils.o sbutils.o bcmutils.o bcmwifi_channels.o \
 
 DHDOFILES += bcmsdh.o bcmsdh_linux.o bcmsdh_sdmmc.o bcmsdh_sdmmc_linux.o \
 	dhd_sdio.o dhd_cdc.o dhd_wlfc.o
+export CONFIG_BCMDHD_4354_AMPAK = m
+export CONFIG_BCMDHD_4354_OOB = y
 
-obj-$(CONFIG_BCMDHD_4354_AMPAK) += bcmdhd.o
-bcmdhd-objs += $(DHDOFILES)
+obj-$(CONFIG_BCMDHD_4354_AMPAK) += dhd.o
+#obj-m += bcmdhd.o
+dhd-objs += $(DHDOFILES)
 
 #ifeq ($(CONFIG_MACH_ODROID_4210),y)
 DHDOFILES += dhd_gpio.o
@@ -58,11 +62,11 @@ DHDCFLAGS += -DSTATIC_WL_PRIV_STRUCT
 endif
 
 ifneq ($(CONFIG_WIRELESS_EXT),)
-bcmdhd-objs += wl_iw.o
+dhd-objs += wl_iw.o
 DHDCFLAGS += -DSOFTAP -DWL_WIRELESS_EXT -DUSE_IW
 endif
 ifneq ($(CONFIG_CFG80211),)
-bcmdhd-objs += wl_cfg80211.o wl_cfgp2p.o wl_linux_mon.o dhd_cfg80211.o wl_cfg_btcoex.o
+dhd-objs += wl_cfg80211.o wl_cfgp2p.o wl_linux_mon.o dhd_cfg80211.o wl_cfg_btcoex.o dhd_cfg_vendor.o
 DHDCFLAGS += -DWL_CFG80211 -DWLP2P -DWL_CFG80211_STA_EVENT -DWL_ENABLE_P2P_IF
 DHDCFLAGS += -DWL_IFACE_COMB_NUM_CHANNELS
 DHDCFLAGS += -DCUSTOM_ROAM_TRIGGER_SETTING=-65
@@ -78,3 +82,18 @@ EXTRA_CFLAGS = $(DHDCFLAGS)
 ifeq ($(CONFIG_BCMDHD_4354_AMPAK),m)
 EXTRA_LDFLAGS += --strip-debug
 endif
+
+
+ARCH ?= arm
+CROSS_COMPILE ?=arm-linux-gnueabihf-
+KDIR ?=../../../../../../out/target/product/m201/obj/KERNEL_OBJ/
+
+dhd:
+	$(MAKE) -C $(KDIR) M=$(PWD) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) modules
+
+
+clean:
+	$(MAKE) -C $(KDIR) M=$(PWD) ARCH=$(ARCH) clean
+	$(RM) Module.markers
+	$(RM) modules.order
+

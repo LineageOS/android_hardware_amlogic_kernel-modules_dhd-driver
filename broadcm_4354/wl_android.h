@@ -105,9 +105,9 @@ int wl_android_set_ap_mac_list(struct net_device *dev, int macmode, struct macli
  * RSSAVG: Average RSSI of BSS list
  * RSSIOFFSET: RSSI offset
  */
-#define BSSCACHE
-#define RSSIAVG
-#define RSSIOFFSET
+//#define BSSCACHE
+//#define RSSIAVG
+//#define RSSIOFFSET
 //#define RSSIOFFSET_NEW
 
 #define RSSI_MAXVAL -2

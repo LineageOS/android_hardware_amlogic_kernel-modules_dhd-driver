@@ -30,6 +30,9 @@ struct resource dhd_wlan_resources = {0};
 struct wifi_platform_data dhd_wlan_control = {0};
 
 #ifdef CUSTOMER_OOB
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0))
+extern int wifi_irq_num(void);
+#endif
 uint bcm_wlan_get_oob_irq(void)
 {
 	uint host_oob_irq = 0;
@@ -40,7 +43,11 @@ uint bcm_wlan_get_oob_irq(void)
 	gpio_direction_input(EXYNOS4_GPX0(7));
 #endif
 #ifdef CUSTOMER_HW_AMLOGIC
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0))
 	host_oob_irq = INT_GPIO_4;
+#else
+	host_oob_irq = wifi_irq_num();
+#endif
 #endif
 	printk("host_oob_irq: %d \r\n", host_oob_irq);
 
@@ -79,7 +86,7 @@ int bcm_wlan_set_power(bool on)
 		mdelay(200);
 		extern_wifi_set_enable(1);
 		mdelay(200);
-		sdio_reinit();
+		//sdio_reinit();
 #endif
 	} else {
 		printk("======== PULL WL_REG_ON LOW! ========\n");
@@ -87,8 +94,8 @@ int bcm_wlan_set_power(bool on)
 		err = gpio_set_value(EXYNOS4_GPK1(0), 0);
 #endif
 #ifdef CUSTOMER_HW_AMLOGIC
-//		extern_wifi_set_enable(0);
-//		mdelay(200);
+		extern_wifi_set_enable(0);
+		mdelay(200);
 #endif
 	}
 
@@ -101,6 +108,7 @@ int bcm_wlan_set_carddetect(bool present)
 
 	if (present) {
 		printk("======== Card detection to detect SDIO card! ========\n");
+		sdio_reinit();
 #ifdef CONFIG_MACH_ODROID_4210
 		err = sdhci_s3c_force_presence_change(&sdmmc_channel, 1);
 #endif

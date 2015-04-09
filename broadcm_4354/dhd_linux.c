@@ -7023,8 +7023,12 @@ dhd_module_init(void)
 		}
 	} while (retry--);
 
-	if (err)
+	if (err) {
+#ifdef CUSTOMER_HW_AMLOGIC
+		wifi_teardown_dt();
+#endif
 		DHD_ERROR(("%s: Failed to load driver max retry reached**\n", __FUNCTION__));
+	}
 
 	printk("%s: Exit err=%d\n", __FUNCTION__, err);
 	return err;

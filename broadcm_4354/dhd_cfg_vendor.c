@@ -17,6 +17,7 @@
 #include <dhd.h>
 #include <dhdioctl.h>
 #include <brcm_nl80211.h>
+#include <linux/vmalloc.h>
 
 #ifdef VENDOR_EXT_SUPPORT
 static int dhd_cfgvendor_priv_string_handler(struct wiphy *wiphy,
@@ -34,7 +35,6 @@ static int dhd_cfgvendor_priv_string_handler(struct wiphy *wiphy,
 	int8 index;
 
 	WL_TRACE(("entry: cmd = %d\n", nlioc->cmd));
-	DHD_ERROR(("entry: cmd = %d\n", nlioc->cmd));
 
 	cfg = wiphy_priv(wiphy);
 	dhd = cfg->pub;
