@@ -86,7 +86,7 @@ int bcm_wlan_set_power(bool on)
 		mdelay(200);
 		extern_wifi_set_enable(1);
 		mdelay(200);
-		//sdio_reinit();
+//		sdio_reinit();
 #endif
 	} else {
 		printk("======== PULL WL_REG_ON LOW! ========\n");
@@ -94,8 +94,8 @@ int bcm_wlan_set_power(bool on)
 		err = gpio_set_value(EXYNOS4_GPK1(0), 0);
 #endif
 #ifdef CUSTOMER_HW_AMLOGIC
-		extern_wifi_set_enable(0);
-		mdelay(200);
+//		extern_wifi_set_enable(0);
+//		mdelay(200);
 #endif
 	}
 
@@ -114,6 +114,10 @@ int bcm_wlan_set_carddetect(bool present)
 #endif
 	} else {
 		printk("======== Card detection to remove SDIO card! ========\n");
+#ifdef CUSTOMER_HW_AMLOGIC
+		extern_wifi_set_enable(0);
+		mdelay(200);
+#endif
 #ifdef CONFIG_MACH_ODROID_4210
 		err = sdhci_s3c_force_presence_change(&sdmmc_channel, 0);
 #endif
