@@ -195,7 +195,7 @@ dhd_conf_get_mac(dhd_pub_t *dhd, bcmsdh_info_t *sdh, uint8 *mac)
 			printf("%s: value:", __FUNCTION__);
 			for (i=0; i<tpl_link-1; i++) {
 				printf("%02x ", ptr[i+1]);
-				if ((i+1)%16==0)
+				if ((i+1)%16 == 0)
 					printf("\n");
 			}
 			printf("\n");
@@ -258,7 +258,7 @@ dhd_conf_set_fw_name_by_mac(dhd_pub_t *dhd, bcmsdh_info_t *sdh, char *fw_path)
 
 	/* find out the last '/' */
 	i = strlen(fw_path);
-	while (i>0){
+	while (i>0) {
 		if (fw_path[i] == '/') break;
 		i--;
 	}
@@ -318,7 +318,7 @@ dhd_conf_set_nv_name_by_mac(dhd_pub_t *dhd, bcmsdh_info_t *sdh, char *nv_path)
 
 	/* find out the last '/' */
 	i = strlen(nv_path);
-	while (i>0){
+	while (i>0) {
 		if (nv_path[i] == '/') break;
 		i--;
 	}
@@ -367,7 +367,7 @@ dhd_conf_set_fw_name_by_chip(dhd_pub_t *dhd, char *fw_path)
 
 	/* find out the last '/' */
 	i = strlen(fw_path);
-	while (i>0){
+	while (i>0) {
 		if (fw_path[i] == '/') break;
 		i--;
 	}
@@ -433,6 +433,34 @@ dhd_conf_set_fw_name_by_chip(dhd_pub_t *dhd, char *fw_path)
 	}
 
 	printf("%s: firmware_path=%s\n", __FUNCTION__, fw_path);
+}
+
+void
+dhd_conf_set_conf_path_by_nv_path(dhd_pub_t *dhd, char *conf_path, char *nv_path)
+{
+	int i;
+
+	if (nv_path[0] == '\0') {
+#ifdef CONFIG_BCMDHD_NVRAM_PATH
+		bcm_strncpy_s(conf_path, MOD_PARAM_PATHLEN-1, CONFIG_BCMDHD_NVRAM_PATH, MOD_PARAM_PATHLEN-1);
+		if (nv_path[0] == '\0')
+#endif
+		{
+			printf("nvram path is null\n");
+			return;
+		}
+	} else
+		strcpy(conf_path, nv_path);
+
+	/* find out the last '/' */
+	i = strlen(conf_path);
+	while (i>0) {
+		if (conf_path[i] == '/') break;
+		i--;
+	}
+	strcpy(&conf_path[i+1], "config.txt");
+
+	printf("%s: config_path=%s\n", __FUNCTION__, conf_path);
 }
 
 #if defined(HW_OOB)
@@ -551,7 +579,7 @@ dhd_conf_fix_country(dhd_pub_t *dhd)
 
 	band = dhd_conf_get_band(dhd);
 
-	if (bcmerror || ((band==WLC_BAND_AUTO || band==WLC_BAND_2G) &&
+	if (bcmerror || ((band == WLC_BAND_AUTO || band == WLC_BAND_2G) &&
 			dtoh32(list->count)<11)) {
 		CONFIG_ERROR(("%s: bcmerror=%d, # of channels %d\n",
 			__FUNCTION__, bcmerror, dtoh32(list->count)));
@@ -680,22 +708,22 @@ dhd_conf_get_wme(dhd_pub_t *dhd, edcf_acparam_t *acp)
 	CONFIG_TRACE(("%s: BK: aci %d aifsn %d ecwmin %d ecwmax %d size %d\n", __FUNCTION__,
 		acparam->ACI, acparam->ACI&EDCF_AIFSN_MASK,
 		acparam->ECW&EDCF_ECWMIN_MASK, (acparam->ECW&EDCF_ECWMAX_MASK)>>EDCF_ECWMAX_SHIFT,
-		sizeof(acp)));
+		(int)sizeof(acp)));
 	acparam = &acp[AC_BE];
 	CONFIG_TRACE(("%s: BE: aci %d aifsn %d ecwmin %d ecwmax %d size %d\n", __FUNCTION__,
 		acparam->ACI, acparam->ACI&EDCF_AIFSN_MASK,
 		acparam->ECW&EDCF_ECWMIN_MASK, (acparam->ECW&EDCF_ECWMAX_MASK)>>EDCF_ECWMAX_SHIFT,
-		sizeof(acp)));
+		(int)sizeof(acp)));
 	acparam = &acp[AC_VI];
 	CONFIG_TRACE(("%s: VI: aci %d aifsn %d ecwmin %d ecwmax %d size %d\n", __FUNCTION__,
 		acparam->ACI, acparam->ACI&EDCF_AIFSN_MASK,
 		acparam->ECW&EDCF_ECWMIN_MASK, (acparam->ECW&EDCF_ECWMAX_MASK)>>EDCF_ECWMAX_SHIFT,
-		sizeof(acp)));
+		(int)sizeof(acp)));
 	acparam = &acp[AC_VO];
 	CONFIG_TRACE(("%s: VO: aci %d aifsn %d ecwmin %d ecwmax %d size %d\n", __FUNCTION__,
 		acparam->ACI, acparam->ACI&EDCF_AIFSN_MASK,
 		acparam->ECW&EDCF_ECWMIN_MASK, (acparam->ECW&EDCF_ECWMAX_MASK)>>EDCF_ECWMAX_SHIFT,
-		sizeof(acp)));
+		(int)sizeof(acp)));
 
 	return;
 }
@@ -731,7 +759,7 @@ dhd_conf_update_wme(dhd_pub_t *dhd, edcf_acparam_t *acparam_cur, int aci)
 	CONFIG_TRACE(("%s: mod aci %d aifsn %d ecwmin %d ecwmax %d size %d\n", __FUNCTION__,
 		acp->ACI, acp->ACI&EDCF_AIFSN_MASK,
 		acp->ECW&EDCF_ECWMIN_MASK, (acp->ECW&EDCF_ECWMAX_MASK)>>EDCF_ECWMAX_SHIFT,
-		sizeof(edcf_acparam_t)));
+		(int)sizeof(edcf_acparam_t)));
 
 	/*
 	* Now use buf as an output buffer.
@@ -823,7 +851,7 @@ dhd_conf_add_pkt_filter(dhd_pub_t *dhd)
 	All pkt: pkt_filter_add=99 0 0 0 0x000000000000 0xFFFFFFFFFFFF
 	Netbios pkt: 120 0 0 12 0xFFFF000000000000000000FF000000000000000000000000FFFF 0x0800000000000000000000110000000000000000000000000089
 	*/
-	for(i=0; i<dhd->conf->pkt_filter_add.count; i++) {
+	for (i = 0; i < dhd->conf->pkt_filter_add.count; i++) {
 		dhd->pktfilter[i+dhd->pktfilter_count] = dhd->conf->pkt_filter_add.filter[i];
 		printf("%s: %s\n", __FUNCTION__, dhd->pktfilter[i+dhd->pktfilter_count]);
 	}
@@ -835,7 +863,7 @@ dhd_conf_del_pkt_filter(dhd_pub_t *dhd, uint32 id)
 {
 	int i;
 
-	for(i=0; i<dhd->conf->pkt_filter_del.count; i++) {
+	for (i = 0; i < dhd->conf->pkt_filter_del.count; i++) {
 		if (id == dhd->conf->pkt_filter_del.id[i]) {
 			printf("%s: %d\n", __FUNCTION__, dhd->conf->pkt_filter_del.id[i]);
 			return true;
@@ -985,13 +1013,13 @@ process_config_vars(char *varbuf, unsigned int len, char *pickbuf, char *param)
 			changenewline = FALSE;
 			continue;
 		}
-		if (!memcmp(&varbuf[n], param, strlen(param)) && column==0) {
+		if (!memcmp(&varbuf[n], param, strlen(param)) && column == 0) {
 			pick = TRUE;
 			column = strlen(param);
 			n += column;
 			pick_column = 0;
 		} else {
-			if (pick && column==0)
+			if (pick && column == 0)
 				pick = FALSE;
 			else
 				column++;
@@ -999,7 +1027,7 @@ process_config_vars(char *varbuf, unsigned int len, char *pickbuf, char *param)
 		if (pick) {
 			if (varbuf[n] == 0x9)
 				continue;
-			if (pick_column>0 && pickbuf[pick_column-1]==' ' && varbuf[n]==' ')
+			if (pick_column > 0 && pickbuf[pick_column-1] == ' ' && varbuf[n] == ' ')
 				continue;
 			pickbuf[pick_column] = varbuf[n];
 			pick_column++;
@@ -1102,7 +1130,7 @@ dhd_conf_read_config(dhd_pub_t *dhd)
 	wl_mac_range_t *mac_range;
 	struct dhd_conf *conf = dhd->conf;
 	pick = kmalloc(MAXSZ_BUF, GFP_KERNEL);
-	if(!pick){
+	if (!pick) {
 		printk("kmalloc pick error \n");
 		goto err;
 	}
@@ -1573,7 +1601,7 @@ dhd_conf_read_config(dhd_pub_t *dhd)
 			conf->spect = (int)simple_strtol(pick, NULL, 10);
 			printf("%s: spect = %d\n", __FUNCTION__, conf->spect);
 		}
- 
+
 		bcmerror = 0;
 	} else {
 		CONFIG_ERROR(("%s: error reading config file: %d\n", __FUNCTION__, len));
@@ -1586,7 +1614,7 @@ err:
 
 	if (image)
 		dhd_os_close_image(image);
-	if(pick)
+	if (pick)
 		kfree(pick);
 	return bcmerror;
 }

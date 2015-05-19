@@ -848,7 +848,7 @@ dhdsdio_clk_kso_enab(dhd_bus_t *bus, bool on)
 	int err = 0;
 	int try_cnt = 0;
 
-	//if (!bus->dhd->conf->kso_enable) //add by tustin 2014/11/04
+	if (!bus->dhd->conf->kso_enable) //add by tustin 2014/11/04
 		return 0;
 
 	KSO_DBG(("%s> op:%s\n", __FUNCTION__, (on ? "KSO_SET" : "KSO_CLR")));

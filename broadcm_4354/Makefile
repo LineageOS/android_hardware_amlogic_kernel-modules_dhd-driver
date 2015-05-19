@@ -84,8 +84,8 @@ EXTRA_LDFLAGS += --strip-debug
 endif
 
 
-ARCH ?= arm
-CROSS_COMPILE ?=arm-linux-gnueabihf-
+ARCH ?= arm64
+CROSS_COMPILE ?=aarch64-linux-gnu-
 KDIR ?=../../../../../../out/target/product/m201/obj/KERNEL_OBJ/
 
 dhd:

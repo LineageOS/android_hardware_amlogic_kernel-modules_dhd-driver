@@ -110,6 +110,7 @@ void dhd_conf_set_hw_oob_intr(bcmsdh_info_t *sdh, uint chip);
 #endif
 void dhd_conf_set_fw_path(dhd_pub_t *dhd, char *fw_path);
 void dhd_conf_set_nv_path(dhd_pub_t *dhd, char *nv_path);
+void dhd_conf_set_conf_path_by_nv_path(dhd_pub_t *dhd, char *conf_path, char *nv_path);
 int dhd_conf_set_band(dhd_pub_t *dhd);
 uint dhd_conf_get_band(dhd_pub_t *dhd);
 int dhd_conf_set_country(dhd_pub_t *dhd);

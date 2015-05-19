@@ -4838,8 +4838,7 @@ bool dhd_update_fw_nv_path(dhd_info_t *dhdinfo)
 		return FALSE;
 	}
 	if (dhdinfo->conf_path[0] == '\0') {
-		DHD_ERROR(("config path not found\n"));
-		return FALSE;
+		dhd_conf_set_conf_path_by_nv_path(&dhdinfo->pub, dhdinfo->conf_path, dhdinfo->nv_path);
 	}
 #endif /* BCMEMBEDIMAGE */
 
