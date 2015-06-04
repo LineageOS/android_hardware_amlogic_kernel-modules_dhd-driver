@@ -1992,7 +1992,8 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 	conf->disable_proptx = 0;
 	conf->bus_txglom = 0;
 	conf->use_rxchain = 1;
-	conf->bus_rxglom = TRUE;
+	conf->bus_rxglom = FALSE;
+	conf->use_rxchain = 0;
 	conf->txglomsize = -1;
 	conf->ampdu_ba_wsize = 0;
 	conf->dpc_cpucore = 0;
