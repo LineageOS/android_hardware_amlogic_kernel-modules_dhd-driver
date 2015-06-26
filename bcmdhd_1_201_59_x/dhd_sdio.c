@@ -367,6 +367,8 @@ typedef struct dhd_bus {
 #ifdef DHDENABLE_TAILPAD
 	void		*pad_pkt;
 #endif /* DHDENABLE_TAILPAD */
+	uint        txglomframes;	/* Number of tx glom frames (superframes) */
+	uint        txglompkts;		/* Number of packets from tx glom frames */
 } dhd_bus_t;
 
 /* clkstate */
@@ -2119,8 +2121,11 @@ dhdsdio_sendfromq(dhd_bus_t *bus, uint maxframes)
 			break;
 		if (dhdsdio_txpkt(bus, SDPCM_DATA_CHANNEL, pkts, i, TRUE) != BCME_OK)
 			dhd->tx_errors++;
-		else
+		else {
 			dhd->dstats.tx_bytes += datalen;
+			bus->txglomframes++;
+			bus->txglompkts += num_pkt;
+		}
 		cnt += i;
 
 		/* In poll mode, need to check for other events */
@@ -2620,6 +2625,11 @@ dhd_bus_dump(dhd_pub_t *dhdp, struct bcmstrbuf *strbuf)
 #endif /* DHD_DEBUG */
 	bcm_bprintf(strbuf, "clkstate %d activity %d idletime %d idlecount %d sleeping %d\n",
 	            bus->clkstate, bus->activity, bus->idletime, bus->idlecount, bus->sleeping);
+	dhd_dump_pct(strbuf, "Tx: glom pct", (100 * bus->txglompkts), bus->dhd->tx_packets);
+	dhd_dump_pct(strbuf, ", pkts/glom", bus->txglompkts, bus->txglomframes);
+	bcm_bprintf(strbuf, "\n");
+	bcm_bprintf(strbuf, "txglomframes %u, txglompkts %u\n", bus->txglomframes, bus->txglompkts);
+	bcm_bprintf(strbuf, "\n");
 }
 
 void
@@ -2636,6 +2646,7 @@ dhd_bus_clearcounts(dhd_pub_t *dhdp)
 	bus->tx_sderrs = bus->fc_rcvd = bus->fc_xoff = bus->fc_xon = 0;
 	bus->rxglomfail = bus->rxglomframes = bus->rxglompkts = 0;
 	bus->f2rxhdrs = bus->f2rxdata = bus->f2txdata = bus->f1regdata = 0;
+	bus->txglomframes = bus->txglompkts = 0;
 }
 
 #ifdef SDTEST
