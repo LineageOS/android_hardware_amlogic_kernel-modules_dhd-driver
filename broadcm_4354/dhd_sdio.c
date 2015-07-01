@@ -7794,7 +7794,7 @@ dhdsdio_suspend(void *context)
 	}
 
 	ret = dhd_os_check_wakelock(bus->dhd);
-	if ((!ret) && (bus->dhd->up)) {
+	if (SLPAUTO_ENAB(bus) && (!ret) && (bus->dhd->up)) {
 		if (wait_event_timeout(bus->bus_sleep, bus->sleeping, wait_time) == 0) {
 			if (!bus->sleeping) {
 				return 1;
