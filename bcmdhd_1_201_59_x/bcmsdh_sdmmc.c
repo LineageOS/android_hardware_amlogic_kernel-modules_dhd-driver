@@ -712,7 +712,11 @@ sdioh_enable_hw_oob_intr(sdioh_info_t *sd, bool enable)
 	uint8 data;
 
 	if (enable)
+#ifdef HW_OOB_LOW_LEVEL
+		data = SDIO_SEPINT_MASK | SDIO_SEPINT_OE;
+#else
 		data = SDIO_SEPINT_MASK | SDIO_SEPINT_OE | SDIO_SEPINT_ACT_HI;
+#endif
 	else
 		data = SDIO_SEPINT_ACT_HI;	/* disable hw oob interrupt */
 
