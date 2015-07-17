@@ -718,6 +718,7 @@ dhdsdio_sr_cap(dhd_bus_t *bus)
 		(bus->sih->chip == BCM4354_CHIP_ID) ||
 		(bus->sih->chip == BCM4356_CHIP_ID) ||
 		(bus->sih->chip == BCM4358_CHIP_ID) ||
+		(bus->sih->chip == BCM4371_CHIP_ID) ||
 		(BCM4349_CHIP(bus->sih->chip))		||
 		(bus->sih->chip == BCM4350_CHIP_ID)) {
 		core_capext = TRUE;
@@ -738,6 +739,7 @@ dhdsdio_sr_cap(dhd_bus_t *bus)
 		(bus->sih->chip == BCM4354_CHIP_ID) ||
 		(bus->sih->chip == BCM4356_CHIP_ID) ||
 		(bus->sih->chip == BCM4358_CHIP_ID) ||
+		(bus->sih->chip == BCM4371_CHIP_ID) ||
 		(bus->sih->chip == BCM4350_CHIP_ID)) {
 		uint32 enabval = 0;
 		addr = SI_ENUM_BASE + OFFSETOF(chipcregs_t, chipcontrol_addr);
@@ -749,7 +751,8 @@ dhdsdio_sr_cap(dhd_bus_t *bus)
 			(bus->sih->chip == BCM4345_CHIP_ID) ||
 			(bus->sih->chip == BCM4354_CHIP_ID) ||
 			(bus->sih->chip == BCM4356_CHIP_ID) ||
-			(bus->sih->chip == BCM4358_CHIP_ID))
+			(bus->sih->chip == BCM4358_CHIP_ID) ||
+			(bus->sih->chip == BCM4371_CHIP_ID))
 			enabval &= CC_CHIPCTRL3_SR_ENG_ENABLE;
 
 		if (enabval)
@@ -5660,6 +5663,15 @@ deliver:
 		dhd_os_sdunlock(bus->dhd);
 		dhd_rx_frame(bus->dhd, ifidx, pkt, pkt_count, chan);
 		dhd_os_sdlock(bus->dhd);
+#if defined(SDIO_ISR_THREAD)
+		/* terence 20150615: fix for below error due to bussleep in watchdog after dhd_os_sdunlock here,
+		  * so call BUS_WAKE to wake up bus again
+		  * dhd_bcmsdh_recv_buf: Device asleep
+		  * dhdsdio_readframes: RXHEADER FAILED: -40
+		  * dhdsdio_rxfail: abort command, terminate frame, send NAK
+		*/
+		BUS_WAKE(bus);
+#endif
 	}
 	rxcount = maxframes - rxleft;
 #ifdef DHD_DEBUG
@@ -6752,6 +6764,8 @@ dhdsdio_chipmatch(uint16 chipid)
 		return TRUE;
 	if (chipid == BCM4358_CHIP_ID)
 		return TRUE;
+	if (chipid == BCM4371_CHIP_ID)
+		return TRUE;
 	if (chipid == BCM43430_CHIP_ID)
 		return TRUE;
 	if (BCM4349_CHIP(chipid))
@@ -7399,6 +7413,7 @@ dhdsdio_probe_attach(struct dhd_bus *bus, osl_t *osh, void *sdh, void *regsva,
 			case BCM4354_CHIP_ID:
 			case BCM4356_CHIP_ID:
 			case BCM4358_CHIP_ID:
+			case BCM4371_CHIP_ID:
 				bus->dongle_ram_base = CR4_4350_RAM_BASE;
 				break;
 			case BCM4360_CHIP_ID:

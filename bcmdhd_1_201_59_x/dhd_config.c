@@ -1693,7 +1693,9 @@ dhd_conf_read_config(dhd_pub_t *dhd, char *conf_path)
 			printf("%s: dhd_master_mode = %d\n", __FUNCTION__, dhd_master_mode);
 		}
 
-		/* Process pkt_filter_add */
+		/* Process pkt_filter_add:
+		 * All pkt: pkt_filter_add=99 0 0 0 0x000000000000 0x000000000000
+		 */
 		memset(pick, 0, MAXSZ_BUF);
 		len_val = process_config_vars(bufp, len, pick, "pkt_filter_add=");
 		pick_tmp = pick;
@@ -1768,7 +1770,7 @@ dhd_conf_read_config(dhd_pub_t *dhd, char *conf_path)
 			printf("%s: ampdu_ba_wsize = %d\n", __FUNCTION__, conf->ampdu_ba_wsize);
 		}
 
-		/* Process kso parameters */
+		/* Process kso_enable parameters */
 		memset(pick, 0, MAXSZ_BUF);
 		len_val = process_config_vars(bufp, len, pick, "kso_enable=");
 		if (len_val) {
@@ -1939,7 +1941,8 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 		strcpy(conf->cspec.ccode, "ALL");
 		conf->cspec.rev = 0;
 	} else if (conf->chip == BCM4335_CHIP_ID || conf->chip == BCM4339_CHIP_ID ||
-			conf->chip == BCM4354_CHIP_ID) {
+			conf->chip == BCM4354_CHIP_ID || conf->chip == BCM4356_CHIP_ID ||
+			conf->chip == BCM4345_CHIP_ID) {
 		strcpy(conf->cspec.country_abbrev, "CN");
 		strcpy(conf->cspec.ccode, "CN");
 		conf->cspec.rev = 38;
@@ -2001,6 +2004,10 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 	conf->pm = -1;
 	if ((conf->chip == BCM43362_CHIP_ID) || (conf->chip == BCM4330_CHIP_ID)) {
 		conf->disable_proptx = 1;
+		conf->use_rxchain = 0;
+	}
+	if (conf->chip == BCM43430_CHIP_ID) {
+		conf->bus_rxglom = FALSE;
 		conf->use_rxchain = 0;
 	}
 	if (conf->chip == BCM4339_CHIP_ID) {
