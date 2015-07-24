@@ -43,6 +43,7 @@
 #include <dngl_stats.h>
 #include <dhd.h>
 
+#include <linux/amlogic/aml_gpio_consumer.h>
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && defined(CONFIG_PM_SLEEP)
 #include <linux/suspend.h>
 extern volatile bool dhd_mmc_suspend;
@@ -704,19 +705,19 @@ exit:
 }
 
 #if defined(OOB_INTR_ONLY) && defined(HW_OOB)
-
+extern int wifi_irq_trigger_level(void);
 SDIOH_API_RC
 sdioh_enable_hw_oob_intr(sdioh_info_t *sd, bool enable)
 {
 	SDIOH_API_RC status;
 	uint8 data;
 
-	if (enable)
-#ifdef HW_OOB_LOW_LEVEL
-		data = SDIO_SEPINT_MASK | SDIO_SEPINT_OE;
-#else
-		data = SDIO_SEPINT_MASK | SDIO_SEPINT_OE | SDIO_SEPINT_ACT_HI;
-#endif
+	if (enable) {
+		if (wifi_irq_trigger_level() == GPIO_IRQ_LOW)
+			data = SDIO_SEPINT_MASK | SDIO_SEPINT_OE;
+		else
+			data = SDIO_SEPINT_MASK | SDIO_SEPINT_OE | SDIO_SEPINT_ACT_HI;
+	}
 	else
 		data = SDIO_SEPINT_ACT_HI;	/* disable hw oob interrupt */
 
