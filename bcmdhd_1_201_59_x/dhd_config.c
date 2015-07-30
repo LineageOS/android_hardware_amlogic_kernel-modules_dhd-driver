@@ -168,14 +168,18 @@ const static char *bcm4356a2_pcie_ag_fw_name[] = {
 void
 dhd_conf_free_mac_list(wl_mac_list_ctrl_t *mac_list)
 {
+	int i;
+
 	CONFIG_TRACE(("%s called\n", __FUNCTION__));
 
 	if (mac_list->m_mac_list_head) {
-		CONFIG_TRACE(("%s Free %p\n", __FUNCTION__, mac_list->m_mac_list_head));
-		if (mac_list->m_mac_list_head->mac) {
-			CONFIG_TRACE(("%s Free %p\n", __FUNCTION__, mac_list->m_mac_list_head->mac));
-			kfree(mac_list->m_mac_list_head->mac);
+		for (i = 0; i < mac_list->count; i++) {
+			if (mac_list->m_mac_list_head[i].mac) {
+				CONFIG_TRACE(("%s Free mac %p\n", __FUNCTION__, mac_list->m_mac_list_head[i].mac));
+				kfree(mac_list->m_mac_list_head[i].mac);
+			}
 		}
+		CONFIG_TRACE(("%s Free m_mac_list_head %p\n", __FUNCTION__, mac_list->m_mac_list_head));
 		kfree(mac_list->m_mac_list_head);
 	}
 	mac_list->count = 0;
@@ -1455,7 +1459,7 @@ dhd_conf_read_config(dhd_pub_t *dhd, char *conf_path)
 	conf_file_exists = ((conf_path != NULL) && (conf_path[0] != '\0'));
 	if (!conf_file_exists) {
 		printk("%s: config path %s\n", __FUNCTION__, conf_path);
-		return (0);
+		goto err;
 	}
 
 	if (conf_file_exists) {
