@@ -2659,7 +2659,7 @@ wl_cfgp2p_register_ndev(struct bcm_cfg80211 *cfg)
 #endif /* WL_NEWCFG_PRIVCMD_SUPPORT */
 	cfg->p2p_net = net;
 
-	printk("%s: P2P Interface Registered\n", net->name);
+	printf("%s: P2P Interface Registered\n", net->name);
 
 	return ret;
 }

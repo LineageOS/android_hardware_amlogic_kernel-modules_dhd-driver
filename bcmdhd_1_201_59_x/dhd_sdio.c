@@ -4314,7 +4314,7 @@ dhd_txglom_enable(dhd_pub_t *dhdp, bool enable)
 	} else
 #endif /* BCMSDIOH_TXGLOM */
 		bus->txglom_enable = FALSE;
-	printk("%s: enable %d\n",  __FUNCTION__, bus->txglom_enable);
+	printf("%s: enable %d\n",  __FUNCTION__, bus->txglom_enable);
 }
 
 int
@@ -7663,9 +7663,9 @@ dhdsdio_download_firmware(struct dhd_bus *bus, osl_t *osh, void *sdh)
 	dhd_conf_set_fw_name_by_mac(bus->dhd, bus->sdh, bus->fw_path);
 	dhd_conf_set_nv_name_by_mac(bus->dhd, bus->sdh, bus->nv_path);
 
-	printk("Final fw_path=%s\n", bus->fw_path);
-	printk("Final nv_path=%s\n", bus->nv_path);
-	printk("Final conf_path=%s\n", bus->dhd->conf_path);
+	printf("Final fw_path=%s\n", bus->fw_path);
+	printf("Final nv_path=%s\n", bus->nv_path);
+	printf("Final conf_path=%s\n", bus->dhd->conf_path);
 
 	ret = _dhdsdio_download_firmware(bus);
 
@@ -7996,7 +7996,7 @@ dhdsdio_download_code_file(struct dhd_bus *bus, char *pfw_path)
 
 	image = dhd_os_open_image(pfw_path);
 	if (image == NULL) {
-		printk("%s: Open firmware file failed %s\n", __FUNCTION__, pfw_path);
+		printf("%s: Open firmware file failed %s\n", __FUNCTION__, pfw_path);
 		goto err;
 	}
 
@@ -8118,7 +8118,7 @@ dhdsdio_download_nvram(struct dhd_bus *bus)
 	if (nvram_file_exists) {
 		image = dhd_os_open_image(pnv_path);
 		if (image == NULL) {
-			printk("%s: Open nvram file failed %s\n", __FUNCTION__, pnv_path);
+			printf("%s: Open nvram file failed %s\n", __FUNCTION__, pnv_path);
 			goto err;
 		}
 	}
@@ -8396,14 +8396,14 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 			dhd_txglom_enable(dhdp, FALSE);
 			dhd_os_sdunlock(dhdp);
 
-			printk("%s:  WLAN OFF DONE\n", __FUNCTION__);
+			printf("%s:  WLAN OFF DONE\n", __FUNCTION__);
 			/* App can now remove power from device */
 		} else
 			bcmerror = BCME_SDIO_ERROR;
 	} else {
 		/* App must have restored power to device before calling */
 
-		printk("\n\n%s: == WLAN ON ==\n", __FUNCTION__);
+		printf("\n\n%s: == WLAN ON ==\n", __FUNCTION__);
 
 		if (bus->dhd->dongle_reset) {
 			/* Turn on WLAN */
@@ -8452,9 +8452,9 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 				dhd_os_sdunlock(dhdp);
 		} else {
 			bcmerror = BCME_SDIO_ERROR;
-			printk("%s called when dongle is not in reset\n",
+			printf("%s called when dongle is not in reset\n",
 				__FUNCTION__);
-			printk("Will call dhd_bus_start instead\n");
+			printf("Will call dhd_bus_start instead\n");
 			dhd_bus_resume(dhdp, 1);
 #if defined(HW_OOB)
 			dhd_conf_set_hw_oob_intr(bus->sdh, bus->sih->chip); // terence 20120615: fix for OOB initial issue

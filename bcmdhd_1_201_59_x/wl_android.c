@@ -924,9 +924,9 @@ int wl_android_wifi_on(struct net_device *dev)
 		return -EINVAL;
 	}
 
-	printk("%s in 1\n", __FUNCTION__);
+	printf("%s in 1\n", __FUNCTION__);
 	dhd_net_if_lock(dev);
-	printk("%s in 2: g_wifi_on=%d\n", __FUNCTION__, g_wifi_on);
+	printf("%s in 2: g_wifi_on=%d\n", __FUNCTION__, g_wifi_on);
 	if (!g_wifi_on) {
 		do {
 			dhd_net_wifi_platform_set_power(dev, TRUE, WIFI_TURNON_DELAY);
@@ -968,7 +968,7 @@ int wl_android_wifi_on(struct net_device *dev)
 	}
 
 exit:
-	printk("%s: Success\n", __FUNCTION__);
+	printf("%s: Success\n", __FUNCTION__);
 	dhd_net_if_unlock(dev);
 	return ret;
 
@@ -977,7 +977,7 @@ err:
 	dhd_net_bus_devreset(dev, TRUE);
 	dhd_net_bus_suspend(dev);
 	dhd_net_wifi_platform_set_power(dev, FALSE, WIFI_TURNOFF_DELAY);
-	printk("%s: Failed\n", __FUNCTION__);
+	printf("%s: Failed\n", __FUNCTION__);
 	dhd_net_if_unlock(dev);
 	return ret;
 #endif
@@ -992,9 +992,9 @@ int wl_android_wifi_off(struct net_device *dev)
 		return -EINVAL;
 	}
 
-	printk("%s in 1\n", __FUNCTION__);
+	printf("%s in 1\n", __FUNCTION__);
 	dhd_net_if_lock(dev);
-	printk("%s in 2: g_wifi_on=%d\n", __FUNCTION__, g_wifi_on);
+	printf("%s in 2: g_wifi_on=%d\n", __FUNCTION__, g_wifi_on);
 	if (g_wifi_on) {
 #if defined(BCMSDIO) || defined(BCMPCIE)
 		ret = dhd_net_bus_devreset(dev, TRUE);
@@ -1005,7 +1005,7 @@ int wl_android_wifi_off(struct net_device *dev)
 		dhd_net_wifi_platform_set_power(dev, FALSE, WIFI_TURNOFF_DELAY);
 		g_wifi_on = FALSE;
 	}
-	printk("%s out\n", __FUNCTION__);
+	printf("%s out\n", __FUNCTION__);
 	dhd_net_if_unlock(dev);
 
 	return ret;

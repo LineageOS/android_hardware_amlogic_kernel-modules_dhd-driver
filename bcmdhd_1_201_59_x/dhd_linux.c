@@ -4227,7 +4227,7 @@ dhd_stop(struct net_device *net)
 	dhd_info_t *dhd = DHD_DEV_INFO(net);
 	DHD_OS_WAKE_LOCK(&dhd->pub);
 	DHD_PERIM_LOCK(&dhd->pub);
-	printk("%s: Enter %p\n", __FUNCTION__, net);
+	printf("%s: Enter %p\n", __FUNCTION__, net);
 	if (dhd->pub.up == 0) {
 		goto exit;
 	}
@@ -4290,7 +4290,7 @@ exit:
 		dhd->pub.dhd_cspec.ccode[0] = 0x00;
 	}
 
-	printk("%s: Exit\n", __FUNCTION__);
+	printf("%s: Exit\n", __FUNCTION__);
 	DHD_PERIM_UNLOCK(&dhd->pub);
 	DHD_OS_WAKE_UNLOCK(&dhd->pub);
 	return 0;
@@ -4336,7 +4336,7 @@ dhd_open(struct net_device *net)
 	int ifidx;
 	int32 ret = 0;
 
-	printk("%s: Enter %p\n", __FUNCTION__, net);
+	printf("%s: Enter %p\n", __FUNCTION__, net);
 #if defined(MULTIPLE_SUPPLICANT)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)) && 1
 	if (mutex_is_locked(&_dhd_sdio_mutex_lock_) != 0) {
@@ -4457,7 +4457,7 @@ exit:
 #endif
 #endif /* MULTIPLE_SUPPLICANT */
 
-	printk("%s: Exit ret=%d\n", __FUNCTION__, ret);
+	printf("%s: Exit ret=%d\n", __FUNCTION__, ret);
 	return ret;
 }
 
@@ -6094,6 +6094,8 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 	DHD_TRACE(("Enter %s\n", __FUNCTION__));
 
 	dhd_conf_set_band(dhd);
+	printf("%s: Set tcpack_sup_mode %d\n", __FUNCTION__, dhd->conf->tcpack_sup_mode);
+	dhd_tcpack_suppress_set(dhd, dhd->conf->tcpack_sup_mode);
 
 	dhd->op_mode = 0;
 	if ((!op_mode && dhd_get_fw_mode(dhd->info) == DHD_FLAG_MFG_MODE) ||
@@ -6114,7 +6116,8 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 		bcm_mkiovar("cur_etheraddr", (void *)&ea_addr, ETHER_ADDR_LEN, buf, sizeof(buf));
 		ret = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, buf, sizeof(buf), TRUE, 0);
 		if (ret < 0) {
-			DHD_ERROR(("%s: can't set MAC address , error=%d\n", __FUNCTION__, ret));
+			DHD_ERROR(("%s: can't set MAC address MAC="MACDBG", error=%d\n",
+				__FUNCTION__, MAC2STRDBG(ea_addr.octet), ret));
 			ret = BCME_NOTUP;
 			goto done;
 		}
@@ -6590,7 +6593,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 	setbit(eventmask, WLC_E_TXFAIL);
 #endif
 	setbit(eventmask, WLC_E_JOIN_START);
-	setbit(eventmask, WLC_E_SCAN_COMPLETE);
+//	setbit(eventmask, WLC_E_SCAN_COMPLETE); // terence 20150628: remove redundant event
 #ifdef WLMEDIA_HTSF
 	setbit(eventmask, WLC_E_HTSFSYNC);
 #endif /* WLMEDIA_HTSF */
@@ -7595,7 +7598,7 @@ dhd_clear(dhd_pub_t *dhdp)
 static void
 dhd_module_cleanup(void)
 {
-	printk("%s: Enter\n", __FUNCTION__);
+	printf("%s: Enter\n", __FUNCTION__);
 
 	dhd_bus_unregister();
 
@@ -7605,7 +7608,7 @@ dhd_module_cleanup(void)
 #ifdef CUSTOMER_HW_AMLOGIC
 	wifi_teardown_dt();
 #endif
-	printk("%s: Exit\n", __FUNCTION__);
+	printf("%s: Exit\n", __FUNCTION__);
 }
 
 static void __exit
@@ -7621,10 +7624,10 @@ dhd_module_init(void)
 	int err;
 	int retry = POWERUP_MAX_RETRY;
 
-	printk("%s: in\n", __FUNCTION__);
+	printf("%s: in\n", __FUNCTION__);
 #ifdef CUSTOMER_HW_AMLOGIC
 	if (wifi_setup_dt()) {
-		printk("wifi_dt : fail to setup dt\n");
+		printf("wifi_dt : fail to setup dt\n");
 	}
 #endif
 
@@ -7663,7 +7666,7 @@ dhd_module_init(void)
 		DHD_ERROR(("%s: Failed to load driver max retry reached**\n", __FUNCTION__));
 	}
 
-	printk("%s: Exit err=%d\n", __FUNCTION__, err);
+	printf("%s: Exit err=%d\n", __FUNCTION__, err);
 	return err;
 }
 

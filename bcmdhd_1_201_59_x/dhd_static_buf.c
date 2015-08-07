@@ -15,7 +15,8 @@
 #define WLAN_STATIC_SCAN_BUF0		5
 #define WLAN_STATIC_SCAN_BUF1		6
 #define WLAN_STATIC_DHD_INFO		7
-#define PREALLOC_WLAN_SEC_NUM		5
+#define WLAN_STATIC_DHD_WLFC_INFO		8
+#define PREALLOC_WLAN_SEC_NUM		6
 #define PREALLOC_WLAN_BUF_NUM		160
 #define PREALLOC_WLAN_SECTION_HEADER	24
 
@@ -24,6 +25,7 @@
 #define WLAN_SECTION_SIZE_2	(PREALLOC_WLAN_BUF_NUM * 512)
 #define WLAN_SECTION_SIZE_3	(PREALLOC_WLAN_BUF_NUM * 1024)
 #define WLAN_SECTION_SIZE_7	(PREALLOC_WLAN_BUF_NUM * 128)
+#define WLAN_SECTION_SIZE_8	(PREALLOC_WLAN_BUF_NUM * 512)
 
 #define DHD_SKB_HDRSIZE			336
 #define DHD_SKB_1PAGE_BUFSIZE	((PAGE_SIZE*1)-DHD_SKB_HDRSIZE)
@@ -44,7 +46,8 @@ static struct wlan_mem_prealloc wlan_mem_array[PREALLOC_WLAN_SEC_NUM] = {
 	{NULL, (WLAN_SECTION_SIZE_1 + PREALLOC_WLAN_SECTION_HEADER)},
 	{NULL, (WLAN_SECTION_SIZE_2 + PREALLOC_WLAN_SECTION_HEADER)},
 	{NULL, (WLAN_SECTION_SIZE_3 + PREALLOC_WLAN_SECTION_HEADER)},
-	{NULL, (WLAN_SECTION_SIZE_7 + PREALLOC_WLAN_SECTION_HEADER)}
+	{NULL, (WLAN_SECTION_SIZE_7 + PREALLOC_WLAN_SECTION_HEADER)},
+	{NULL, (WLAN_SECTION_SIZE_8 + PREALLOC_WLAN_SECTION_HEADER)}
 };
 
 void *wlan_static_scan_buf0;
@@ -71,17 +74,22 @@ void *bcmdhd_mem_prealloc(int section, unsigned long size)
 			__FUNCTION__, section, wlan_mem_array[4].mem_ptr);
 		return wlan_mem_array[4].mem_ptr;
 	}
+	if (section == WLAN_STATIC_DHD_WLFC_INFO) {
+		printk("5 %s: section=%d, wlan_mem_array[5]=%p\n",
+			__FUNCTION__, section, wlan_mem_array[5].mem_ptr);
+		return wlan_mem_array[5].mem_ptr;
+	}
 	if ((section < 0) || (section > PREALLOC_WLAN_SEC_NUM)) {
-		printk("5 %s: out of section %d\n", __FUNCTION__, section);
+		printk("6 %s: out of section %d\n", __FUNCTION__, section);
 		return NULL;
 	}
 
 	if (wlan_mem_array[section].size < size) {
-		printk("6 %s: wlan_mem_array[section].size=%lu, size=%lu\n",
+		printk("7 %s: wlan_mem_array[section].size=%lu, size=%lu\n",
 			__FUNCTION__, wlan_mem_array[section].size, size);
 		return NULL;
 	}
-	printk("7 %s: wlan_mem_array[section].mem_ptr=%p, size=%lu\n",
+	printk("8 %s: wlan_mem_array[section].mem_ptr=%p, size=%lu\n",
 		__FUNCTION__, &wlan_mem_array[section], size);
 
 	return wlan_mem_array[section].mem_ptr;
