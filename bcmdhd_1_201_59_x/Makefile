@@ -68,6 +68,7 @@ endif
 ifeq ($(CONFIG_DHD_USE_STATIC_BUF),y)
 # add dhd_static_buf to kernel image build
 #obj-y += dhd_static_buf.o
+DHDCFLAGS += -DCONFIG_DHD_USE_STATIC_BUF
 DHDCFLAGS += -DSTATIC_WL_PRIV_STRUCT -DENHANCED_STATIC_BUF
 endif
 

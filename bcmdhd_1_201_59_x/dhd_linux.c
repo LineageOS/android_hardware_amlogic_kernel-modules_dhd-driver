@@ -7606,7 +7606,9 @@ dhd_module_cleanup(void)
 
 	dhd_wifi_platform_unregister_drv();
 #ifdef CUSTOMER_HW_AMLOGIC
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0))
 	wifi_teardown_dt();
+#endif
 #endif
 	printf("%s: Exit\n", __FUNCTION__);
 }
@@ -7626,9 +7628,11 @@ dhd_module_init(void)
 
 	printf("%s: in\n", __FUNCTION__);
 #ifdef CUSTOMER_HW_AMLOGIC
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0))
 	if (wifi_setup_dt()) {
 		printf("wifi_dt : fail to setup dt\n");
 	}
+#endif
 #endif
 
 	DHD_PERIM_RADIO_INIT();
@@ -7661,7 +7665,9 @@ dhd_module_init(void)
 
 	if (err) {
 #ifdef CUSTOMER_HW_AMLOGIC
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0))
 		wifi_teardown_dt();
+#endif
 #endif
 		DHD_ERROR(("%s: Failed to load driver max retry reached**\n", __FUNCTION__));
 	}
