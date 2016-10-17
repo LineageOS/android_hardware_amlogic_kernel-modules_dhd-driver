@@ -1477,7 +1477,7 @@ dbus_usbos_suspend(struct usb_interface *intf,
             pm_message_t message)
 {	
 	printk("AP6269: dbus_usbos_suspend enter, calling disconnect\n");
-	//dbus_usbos_disconnect(intf);
+	dbus_usbos_disconnect(intf);
 	return 0;
 }
 
