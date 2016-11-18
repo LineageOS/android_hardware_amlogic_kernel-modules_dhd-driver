@@ -76,7 +76,7 @@ int get_scheduler_policy(struct task_struct *p);
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0) && LINUX_VERSION_CODE < \
 	KERNEL_VERSION(3, 18, 0) || defined(CONFIG_BCMDHD_VENDOR_EXT))
-#define WL_VENDOR_EXT_SUPPORT
+//#define WL_VENDOR_EXT_SUPPORT
 #endif /* 3.13.0 <= LINUX_KERNEL_VERSION < 3.18.0 || CONFIG_BCMDHD_VENDOR_EXT */
 #if defined(CONFIG_ANDROID) && defined(WL_VENDOR_EXT_SUPPORT)
 #if !defined(GSCAN_SUPPORT)

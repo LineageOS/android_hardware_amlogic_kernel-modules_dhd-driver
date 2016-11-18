@@ -51,7 +51,7 @@ DHDOFILES += dhd_pcie.o dhd_pcie_linux.o pcie_core.o dhd_flowring.o \
 	dhd_msgbuf.o
 endif
 
-obj-$(CONFIG_BCMDHD) += dhd.o
+obj-m += dhd.o
 dhd-objs += $(DHDOFILES)
 
 #ifeq ($(CONFIG_MACH_ODROID_4210),y)
