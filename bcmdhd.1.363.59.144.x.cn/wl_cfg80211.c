@@ -8938,23 +8938,8 @@ WL_CFG80211_REG_NOTIFIER()
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0))
 static const struct wiphy_wowlan_support brcm_wowlan_support = {
 	.flags = WIPHY_WOWLAN_ANY,
-	.n_patterns = WL_WOWLAN_MAX_PATTERNS,
-	.pattern_min_len = WL_WOWLAN_MIN_PATTERN_LEN,
-	.pattern_max_len = WL_WOWLAN_MAX_PATTERN_LEN,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0))
-	.max_pkt_offset = WL_WOWLAN_MAX_PATTERN_LEN,
-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0) */
 };
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0) */
-
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0))
-static struct cfg80211_wowlan brcm_wowlan_config = {
-	.disconnect = true,
-	.gtk_rekey_failure = true,
-	.eap_identity_req = true,
-	.four_way_handshake = true,
-};
-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0) */
 #endif /* CONFIG_PM */
 
 static s32 wl_setup_wiphy(struct wireless_dev *wdev, struct device *sdiofunc_dev, dhd_pub_t *context)
@@ -9093,10 +9078,6 @@ static s32 wl_setup_wiphy(struct wireless_dev *wdev, struct device *sdiofunc_dev
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0))
 	wdev->wiphy->wowlan = &brcm_wowlan_support;
-	/* If this is not provided cfg stack will get disconnect
-	 * during suspend.
-	 */
-	wdev->wiphy->wowlan_config = &brcm_wowlan_config;
 #else
 	wdev->wiphy->wowlan.flags = WIPHY_WOWLAN_ANY;
 	wdev->wiphy->wowlan.n_patterns = WL_WOWLAN_MAX_PATTERNS;
