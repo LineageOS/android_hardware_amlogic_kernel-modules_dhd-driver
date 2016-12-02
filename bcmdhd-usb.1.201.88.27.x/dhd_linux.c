@@ -139,6 +139,7 @@ typedef struct histo_ {
 	uint32 bin[NUMBIN];
 } histo_t;
 
+
 #if !ISPOWEROF2(DHD_SDALIGN)
 #error DHD_SDALIGN is not a power of 2!
 #endif
@@ -174,7 +175,7 @@ static void dhd_adjust_tcp_winsize(int op_mode, struct sk_buff *skb);
 extern bool ap_cfg_running;
 extern bool ap_fw_loaded;
 #endif
-
+extern void extern_wifi_set_enable(int is_on);
 
 #ifdef ENABLE_ADAPTIVE_SCHED
 #define DEFAULT_CPUFREQ_THRESH		1000000	/* threshold frequency : 1000000 = 1GHz */
@@ -8421,6 +8422,7 @@ dhd_module_exit(void)
 {
 	dhd_module_cleanup();
 	unregister_reboot_notifier(&dhd_reboot_notifier);
+	extern_wifi_set_enable(0);
 }
 
 static int __init
@@ -8430,7 +8432,7 @@ dhd_module_init(void)
 	int retry = POWERUP_MAX_RETRY;
 
 	printf("%s: in\n", __FUNCTION__);
-
+	extern_wifi_set_enable(1);
 	DHD_PERIM_RADIO_INIT();
 
 	if (firmware_path[0] != '\0') {
