@@ -823,7 +823,7 @@ sdioh_request_byte(sdioh_info_t *sd, uint rw, uint func, uint regaddr, uint8 *by
 #endif
 	struct timespec now, before;
 
-	if (sd_msglevel && SDH_COST_VAL)
+	if (sd_msglevel & SDH_COST_VAL)
 		getnstimeofday(&before);
 
 	sd_info(("%s: rw=%d, func=%d, addr=0x%05x\n", __FUNCTION__, rw, func, regaddr));
@@ -917,7 +917,7 @@ sdioh_request_byte(sdioh_info_t *sd, uint rw, uint func, uint regaddr, uint8 *by
 		}
 	}
 
-	if (sd_msglevel && SDH_COST_VAL)
+	if (sd_msglevel & SDH_COST_VAL)
 		getnstimeofday(&now);
 	sd_cost(("%s: rw=%d len=1 cost=%lds %luus\n", __FUNCTION__,
 		rw, now.tv_sec-before.tv_sec, now.tv_nsec/1000-before.tv_nsec/1000));
@@ -1330,7 +1330,7 @@ sdioh_request_word(sdioh_info_t *sd, uint cmd_type, uint rw, uint func, uint add
 #endif
 	struct timespec now, before;
 
-	if (sd_msglevel && SDH_COST_VAL)
+	if (sd_msglevel & SDH_COST_VAL)
 		getnstimeofday(&before);
 
 	if (func == 0) {
@@ -1393,7 +1393,7 @@ sdioh_request_word(sdioh_info_t *sd, uint cmd_type, uint rw, uint func, uint add
 		}
 	}
 
-	if (sd_msglevel && SDH_COST_VAL)
+	if (sd_msglevel & SDH_COST_VAL)
 		getnstimeofday(&now);
 	sd_cost(("%s: rw=%d, len=%d cost=%lds %luus\n", __FUNCTION__,
 		rw, nbytes, now.tv_sec-before.tv_sec, now.tv_nsec/1000 - before.tv_nsec/1000));
@@ -1431,7 +1431,7 @@ sdioh_request_packet_chain(sdioh_info_t *sd, uint fix_inc, uint write, uint func
 	DHD_PM_RESUME_WAIT(sdioh_request_packet_wait);
 	DHD_PM_RESUME_RETURN_ERROR(SDIOH_API_RC_FAIL);
 
-	if (sd_msglevel && SDH_COST_VAL)
+	if (sd_msglevel & SDH_COST_VAL)
 		getnstimeofday(&before);
 
 	blk_size = sd->client_block_size[func];
@@ -1473,7 +1473,7 @@ sdioh_request_packet_chain(sdioh_info_t *sd, uint fix_inc, uint write, uint func
 			 * a restriction on max tx/glom count (based on host->max_segs).
 			 */
 			if (sg_count >= ARRAYSIZE(sd->sg_list)) {
-				sd_err(("%s: sg list entries exceed limit\n", __FUNCTION__));
+				sd_err(("%s: sg list entries exceed limit, sg_count=%d(%lu)\n", __FUNCTION__, sg_count, ARRAYSIZE(sd->sg_list)));
 				return (SDIOH_API_RC_FAIL);
 			}
 			pdata += pkt_offset;
@@ -1609,7 +1609,7 @@ txglomfail:
 		MFREE(sd->osh, localbuf, ttl_len);
 #endif /* BCMSDIOH_TXGLOM */
 
-	if (sd_msglevel && SDH_COST_VAL)
+	if (sd_msglevel & SDH_COST_VAL)
 		getnstimeofday(&now);
 	sd_cost(("%s: rw=%d, cost=%lds %luus\n", __FUNCTION__,
 		write, now.tv_sec-before.tv_sec, now.tv_nsec/1000-before.tv_nsec/1000));
@@ -1629,7 +1629,7 @@ sdioh_buffer_tofrom_bus(sdioh_info_t *sd, uint fix_inc, uint write, uint func,
 	sd_trace(("%s: Enter\n", __FUNCTION__));
 	ASSERT(buf);
 
-	if (sd_msglevel && SDH_COST_VAL)
+	if (sd_msglevel & SDH_COST_VAL)
 		getnstimeofday(&before);
 
 	/* NOTE:
@@ -1663,7 +1663,7 @@ sdioh_buffer_tofrom_bus(sdioh_info_t *sd, uint fix_inc, uint write, uint func,
 
 	sd_trace(("%s: Exit\n", __FUNCTION__));
 
-	if (sd_msglevel && SDH_COST_VAL)
+	if (sd_msglevel & SDH_COST_VAL)
 		getnstimeofday(&now);
 	sd_cost(("%s: rw=%d, len=%d cost=%lds %luus\n", __FUNCTION__,
 		write, len, now.tv_sec-before.tv_sec, now.tv_nsec/1000 - before.tv_nsec/1000));
@@ -1694,7 +1694,7 @@ sdioh_request_buffer(sdioh_info_t *sd, uint pio_dma, uint fix_inc, uint write, u
 	DHD_PM_RESUME_WAIT(sdioh_request_buffer_wait);
 	DHD_PM_RESUME_RETURN_ERROR(SDIOH_API_RC_FAIL);
 
-	if (sd_msglevel && SDH_COST_VAL)
+	if (sd_msglevel & SDH_COST_VAL)
 		getnstimeofday(&before);
 
 	if (pkt) {
@@ -1738,7 +1738,7 @@ sdioh_request_buffer(sdioh_info_t *sd, uint pio_dma, uint fix_inc, uint write, u
 
 	PKTFREE_STATIC(sd->osh, tmppkt, write ? TRUE : FALSE);
 
-	if (sd_msglevel && SDH_COST_VAL)
+	if (sd_msglevel & SDH_COST_VAL)
 		getnstimeofday(&now);
 	sd_cost(("%s: len=%d cost=%lds %luus\n", __FUNCTION__,
 		buf_len, now.tv_sec-before.tv_sec, now.tv_nsec/1000 - before.tv_nsec/1000));

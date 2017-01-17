@@ -92,11 +92,11 @@ extern bool  bcmsdh_fatal_error(void *sdh);
 #define TXRETRIES	2	/* # of retries for tx frames */
 #define READ_FRM_CNT_RETRIES	3
 #ifndef DHD_RXBOUND
-#define DHD_RXBOUND	50	/* Default for max rx frames in one scheduling */
+#define DHD_RXBOUND	64	/* Default for max rx frames in one scheduling */
 #endif
 
 #ifndef DHD_TXBOUND
-#define DHD_TXBOUND	20	/* Default for max tx frames in one scheduling */
+#define DHD_TXBOUND	64	/* Default for max tx frames in one scheduling */
 #endif
 
 #define DHD_TXMINMAX	1	/* Max tx frames if rx still pending */
@@ -920,8 +920,10 @@ dhdsdio_clk_kso_enab(dhd_bus_t *bus, bool on)
 	uint8 wr_val = 0, rd_val, cmp_val, bmask;
 	int err = 0;
 	int try_cnt = 0;
+
 	if (!bus->dhd->conf->kso_enable)
 		return 0;
+
 	KSO_DBG(("%s> op:%s\n", __FUNCTION__, (on ? "KSO_SET" : "KSO_CLR")));
 
 	wr_val |= (on << SBSDIO_FUNC1_SLEEPCSR_KSO_SHIFT);
@@ -2656,16 +2658,11 @@ dhdsdio_sendfromq_swtxglom(dhd_bus_t *bus, uint maxframes)
 			datalen = 0;
 
 #ifdef PKT_STATICS
-			if (txglom_cnt < 2)
-				tx_statics.glom_1_count++;
-			else if (txglom_cnt < 3)
-				tx_statics.glom_3_count++;
-			else if (txglom_cnt < 8)
-				tx_statics.glom_3_8_count++;
-			else
-				tx_statics.glom_8_count++;
-			if (txglom_cnt > tx_statics.glom_max)
-				tx_statics.glom_max = txglom_cnt;
+			if (txglom_cnt) {
+				tx_statics.glom_cnt[txglom_cnt-1]++;
+				if (txglom_cnt > tx_statics.glom_max)
+					tx_statics.glom_max = txglom_cnt;
+			}
 #endif
 			for (i = 0; i < txglom_cnt; i++) {
 				uint datalen_tmp = 0;
@@ -2916,6 +2913,7 @@ dhdsdio_sendfromq(dhd_bus_t *bus, uint maxframes)
 			num_pkt = MIN(num_pkt, ARRAYSIZE(pkts));
 		}
 		num_pkt = MIN(num_pkt, pktq_mlen(&bus->txq, tx_prec_map));
+
 		for (i = 0; i < num_pkt; i++) {
 			pkts[i] = pktq_mdeq(&bus->txq, tx_prec_map, &prec_out);
 			if (!pkts[i]) {
@@ -2940,16 +2938,11 @@ dhdsdio_sendfromq(dhd_bus_t *bus, uint maxframes)
 		}
 		cnt += i;
 #ifdef PKT_STATICS
-		if (num_pkt < 2)
-			tx_statics.glom_1_count++;
-		else if (num_pkt < 3)
-			tx_statics.glom_3_count++;
-		else if (num_pkt < 8)
-			tx_statics.glom_3_8_count++;
-		else
-			tx_statics.glom_8_count++;
-		if (num_pkt > tx_statics.glom_max)
-			tx_statics.glom_max = num_pkt;
+		if (num_pkt) {
+			tx_statics.glom_cnt[num_pkt-1]++;
+			if (num_pkt > tx_statics.glom_max)
+				tx_statics.glom_max = num_pkt;
+		}
 #endif
 
 		/* In poll mode, need to check for other events */
@@ -6925,6 +6918,7 @@ dhdsdio_dpc(dhd_bus_t *bus)
 	bus->intstatus = intstatus;
 
 clkwait:
+#if 0
 	/* Re-enable interrupts to detect new device events (mailbox, rx frame)
 	 * or clock availability.  (Allows tx loop to check ipend if desired.)
 	 * (Unless register access seems hosed, as we may not be able to ACK...)
@@ -6938,6 +6932,7 @@ clkwait:
 #endif /* defined(OOB_INTR_ONLY) */
 		bcmsdh_intr_enable(sdh);
 	}
+#endif
 
 #if defined(OOB_INTR_ONLY) && !defined(HW_OOB)
 	/* In case of SW-OOB(using edge trigger),
@@ -6959,13 +6954,12 @@ clkwait:
 	dhd_wlfc_commit_packets(bus->dhd, (f_commitpkt_t)dhd_bus_txdata, (void *)bus, NULL, FALSE);
 #endif
 
-	if (TXCTLOK(bus) && bus->ctrl_frame_stat && (bus->clkstate == CLK_AVAIL))
+	if (TXCTLOK(bus) && bus->ctrl_frame_stat && (bus->clkstate == CLK_AVAIL)) {
 		dhdsdio_sendpendctl(bus);
-
-	/* Send queued frames (limit 1 if rx may still be pending) */
-	else if ((bus->clkstate == CLK_AVAIL) && !bus->fcstate &&
+	} else if ((bus->clkstate == CLK_AVAIL) && !bus->fcstate &&
 	    pktq_mlen(&bus->txq, ~bus->flowcontrol) && txlimit && DATAOK(bus)) {
-		framecnt = rxdone ? txlimit : MIN(txlimit, dhd_txminmax);
+		/* Send queued frames (limit 1 if rx may still be pending) */
+		framecnt = rxdone ? txlimit : MIN(txlimit, DATABUFCNT(bus));
 #if defined(SWTXGLOM)
 		if (bus->dhd->conf->swtxglom)
 			framecnt = dhdsdio_sendfromq_swtxglom(bus, framecnt);
@@ -6974,6 +6968,26 @@ clkwait:
 		framecnt = dhdsdio_sendfromq(bus, framecnt);
 		txlimit -= framecnt;
 	}
+#if 0 
+	else {
+		if (pktq_mlen(&bus->txq, ~bus->flowcontrol)) {
+			DHD_ERROR(("%s: cannot do tx due to:\n", __FUNCTION__));
+			DHD_ERROR(("%s: pkq_mlen = %d, bus->flowcontrol=%x\n", __FUNCTION__,
+				pktq_mlen(&bus->txq, ~bus->flowcontrol), bus->flowcontrol));
+
+			if (bus->clkstate != CLK_AVAIL)
+				DHD_ERROR(("%s: bus->clkstate = %d\n", __FUNCTION__, bus->clkstate));
+			if (bus->fcstate)
+				DHD_ERROR(("%s: bus->fcstate = %d\n", __FUNCTION__, bus->fcstate));
+			if (!txlimit)
+				DHD_ERROR(("%s: txlimit = %d\n", __FUNCTION__, txlimit));
+			if (!DATAOK(bus))
+				DHD_ERROR(("%s: bus->tx_max = %d, bus->tx_seq = %d\n", __FUNCTION__,
+					bus->tx_max, bus->tx_seq));
+		}
+	}
+#endif
+
 	/* Resched the DPC if ctrl cmd is pending on bus credit */
 	if (bus->ctrl_frame_stat) {
 		if (bus->dhd->conf->txctl_tmo_fix) {
@@ -7017,14 +7031,31 @@ clkwait:
 
 exit:
 
-	if (!resched && dhd_dpcpoll) {
-		if (dhdsdio_readframes(bus, dhd_rxbound, &rxdone) != 0) {
-			resched = TRUE;
-#ifdef DEBUG_DPC_THREAD_WATCHDOG
-			is_resched_by_readframe = TRUE;
-#endif /* DEBUG_DPC_THREAD_WATCHDOG */
+	if (!resched) {
+#if 1
+		/* Re-enable interrupts to detect new device events (mailbox, rx frame)
+	 	 * or clock availability.  (Allows tx loop to check ipend if desired.)
+	 	 * (Unless register access seems hosed, as we may not be able to ACK...)
+	 	 */
+		if (bus->intr && bus->intdis && !bcmsdh_regfail(sdh)) {
+			DHD_INTR(("%s: enable SDIO interrupts, rxdone %d framecnt %d\n",
+		        	__FUNCTION__, rxdone, framecnt));
+			bus->intdis = FALSE;
+#if defined(OOB_INTR_ONLY)
+			bcmsdh_oob_intr_set(bus->sdh, TRUE);
+#endif /* defined(OOB_INTR_ONLY) */
+			bcmsdh_intr_enable(sdh);
 		}
-	}
+#endif
+ 		if(dhd_dpcpoll) {
+			if (dhdsdio_readframes(bus, dhd_rxbound, &rxdone) != 0) {
+				resched = TRUE;
+#ifdef DEBUG_DPC_THREAD_WATCHDOG
+				is_resched_by_readframe = TRUE;
+#endif /* DEBUG_DPC_THREAD_WATCHDOG */
+			}
+		}
+	}	
 
 	dhd_os_sdunlock(bus->dhd);
 #ifdef DEBUG_DPC_THREAD_WATCHDOG
@@ -7120,20 +7151,22 @@ dhdsdio_isr(void *arg)
 #ifdef PKT_STATICS
 void dhdsdio_txpktstatics(void)
 {
-	uint total, f1, f2, f3, f4;
+	uint i, total = 0;
+
 	printf("Randy: TYPE EVENT: %d pkts (size=%d) transfered\n", tx_statics.event_count, tx_statics.event_size);
 	printf("Randy: TYPE CTRL:  %d pkts (size=%d) transfered\n", tx_statics.ctrl_count, tx_statics.ctrl_size);
 	printf("Randy: TYPE DATA:  %d pkts (size=%d) transfered\n", tx_statics.data_count, tx_statics.data_size);
-	if(tx_statics.glom_1_count || tx_statics.glom_3_count || tx_statics.glom_3_8_count || tx_statics.glom_8_count) {
-		total = tx_statics.glom_1_count + tx_statics.glom_3_count + tx_statics.glom_3_8_count + tx_statics.glom_8_count;
-		f1 = (tx_statics.glom_1_count*100) / total;
-		f2 = (tx_statics.glom_3_count*100) / total;
-		f3 = (tx_statics.glom_3_8_count*100) / total;
-		f4 = (tx_statics.glom_8_count*100) / total;
-		printf("Randy: glomsize==1: %d(%d), tglomsize==2: %d(%d), pkts 3<=glomsize<8: %d(%d), pkts glomszie>=8: %d(%d)\n",
-			tx_statics.glom_1_count, f1, tx_statics.glom_3_count, f2, tx_statics.glom_3_8_count, f3, tx_statics.glom_8_count, f4);
-		printf("Randy: data/glom=%d, glom_max=%d\n", tx_statics.data_count/total, tx_statics.glom_max);
+	printf("Glom size distribution:\n");
+	for (i=0;i<CUSTOM_MAX_TXGLOM_SIZE;i++) {
+		printf("%d: %d", i+1, tx_statics.glom_cnt[i]);
+		if (i%8) 
+			printf(", ");
+		else
+			printf("\n");
+		total += tx_statics.glom_cnt[i];
 	}
+	printf("\n");
+	printf("Randy: data/glom=%d, glom_max=%d\n", tx_statics.data_count/total, tx_statics.glom_max);
 	printf("Randy: TYPE RX GLOM: %d pkts (size=%d) transfered\n", tx_statics.glom_count, tx_statics.glom_size);
 	printf("Randy: TYPE TEST: %d pkts (size=%d) transfered\n\n\n", tx_statics.test_count, tx_statics.test_size);
 }

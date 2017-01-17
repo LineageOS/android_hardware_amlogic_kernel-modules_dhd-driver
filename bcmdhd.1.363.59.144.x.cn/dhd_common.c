@@ -703,6 +703,10 @@ dhd_doiovar(dhd_pub_t *dhd_pub, const bcm_iovar_t *vi, uint32 actionid, const ch
 	case IOV_GVAL(IOV_MSGLEVEL):
 		int_val = (int32)dhd_msg_level;
 		bcopy(&int_val, arg, val_size);
+
+#ifdef PKT_STATICS
+		dhdsdio_txpktstatics();
+#endif
 		break;
 
 	case IOV_SVAL(IOV_MSGLEVEL):

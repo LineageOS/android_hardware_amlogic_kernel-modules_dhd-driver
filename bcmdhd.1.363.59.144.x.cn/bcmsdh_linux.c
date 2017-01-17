@@ -52,6 +52,8 @@ extern void dhdsdio_isr(void * args);
 #endif /* defined(CONFIG_ARCH_ODIN) */
 #include <dhd_linux.h>
 
+#include <linux/interrupt.h>
+
 /* driver info, initialized when bcmsdh_register is called */
 static bcmsdh_driver_t drvinfo = {NULL, NULL, NULL, NULL};
 
@@ -345,8 +347,13 @@ int bcmsdh_oob_intr_register(bcmsdh_info_t *bcmsdh, bcmsdh_cb_fn_t oob_irq_handl
 #else
 	printf("%s: SW_OOB enabled\n", __FUNCTION__);
 #endif
-	SDLX_MSG(("%s OOB irq=%d flags=0x%X\n", __FUNCTION__,
-		(int)bcmsdh_osinfo->oob_irq_num, (int)bcmsdh_osinfo->oob_irq_flags));
+	printf("%s OOB irq=%d flags=0x%X\n", __FUNCTION__,
+		(int)bcmsdh_osinfo->oob_irq_num, (int)bcmsdh_osinfo->oob_irq_flags);
+	// anthony: test begin
+	bcmsdh_osinfo->oob_irq_flags &= IRQF_TRIGGER_MASK;
+	printf("%s change flags to 0x%X\n", __FUNCTION__, (int)bcmsdh_osinfo->oob_irq_flags);
+	// anthony: test end	
+
 	bcmsdh_osinfo->oob_irq_handler = oob_irq_handler;
 	bcmsdh_osinfo->oob_irq_handler_context = oob_irq_handler_context;
 	bcmsdh_osinfo->oob_irq_enabled = TRUE;
@@ -364,6 +371,10 @@ int bcmsdh_oob_intr_register(bcmsdh_info_t *bcmsdh, bcmsdh_cb_fn_t oob_irq_handl
 		SDLX_MSG(("%s: request_irq failed with %d\n", __FUNCTION__, err));
 		return err;
 	}
+
+#ifdef CUSTOM_DPC_CPUCORE
+	irq_set_affinity(bcmsdh_osinfo->oob_irq_num, cpumask_of(CUSTOM_DPC_CPUCORE));
+#endif
 
 #if defined(DISABLE_WOWLAN)
 	SDLX_MSG(("%s: disable_irq_wake\n", __FUNCTION__));

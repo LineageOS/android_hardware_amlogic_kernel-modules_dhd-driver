@@ -1184,10 +1184,7 @@ typedef struct pkt_statics {
 	uint32	ctrl_size;
 	uint32	data_count;
 	uint32	data_size;
-	uint16	glom_1_count;
-	uint16	glom_3_count;
-	uint16	glom_3_8_count;
-	uint16	glom_8_count;
+	uint32	glom_cnt[CUSTOM_MAX_TXGLOM_SIZE];
 	uint16	glom_max;
 	uint16	glom_count;
 	uint32	glom_size;

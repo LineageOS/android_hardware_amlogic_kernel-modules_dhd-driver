@@ -818,11 +818,11 @@ module_param(dhd_watchdog_prio, int, 0);
 
 /* DPC thread priority */
 int dhd_dpc_prio = CUSTOM_DPC_PRIO_SETTING;
-module_param(dhd_dpc_prio, int, 0);
+module_param(dhd_dpc_prio, int, 0644);
 
 /* RX frame thread priority */
 int dhd_rxf_prio = CUSTOM_RXF_PRIO_SETTING;
-module_param(dhd_rxf_prio, int, 0);
+module_param(dhd_rxf_prio, int, 0644);
 
 int passive_channel_skip = 0;
 module_param(passive_channel_skip, int, (S_IRUSR|S_IWUSR));
@@ -4240,6 +4240,7 @@ dhd_txflowcontrol(dhd_pub_t *dhdp, int ifidx, bool state)
 	int i;
 
 	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
+	//DHD_ERROR(("%s: Enter, state=%d\n", __FUNCTION__, state));
 
 	ASSERT(dhd);
 
@@ -5005,6 +5006,10 @@ dhd_rxf_thread(void *data)
 
 	DAEMONIZE("dhd_rxf");
 	/* DHD_OS_WAKE_LOCK is called in dhd_sched_dpc[dhd_linux.c] down below  */
+
+#ifdef CUSTOM_RXF_CPUCORE
+	set_cpus_allowed_ptr(current, cpumask_of(CUSTOM_RXF_CPUCORE));
+#endif
 
 	/*  signal: thread has started */
 	complete(&tsk->completed);
@@ -8128,7 +8133,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 #else
 	uint32 frameburst = 1;
 #endif /* BCMSDIO */
-	int maxtxpktglom = 0;
+
 #ifdef DHD_ENABLE_LPC
 	uint32 lpc = 1;
 #endif /* DHD_ENABLE_LPC */
@@ -8746,15 +8751,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 			__FUNCTION__, ret));
 	}
 #endif
-/* Tune txpkt glom*/
-	maxtxpktglom = 32;
-	bcm_mkiovar("bus:maxtxpktglom", (char *)&maxtxpktglom, 4,
-						iovbuf, sizeof(iovbuf));
-	if ((ret = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf,
-										sizeof(iovbuf), TRUE, 0)) < 0) {
-		DHD_ERROR(("failed to set maxtxpktglom (%d)\n", ret));
-	}
-/* End of Tune txpkt glom*/
+
 	bcm_mkiovar("buf_key_b4_m4", (char *)&buf_key_b4_m4, 4, iovbuf, sizeof(iovbuf));
 	if ((ret = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf,
 		sizeof(iovbuf), TRUE, 0)) < 0) {

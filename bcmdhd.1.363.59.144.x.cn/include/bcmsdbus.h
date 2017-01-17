@@ -53,7 +53,7 @@
 #ifdef CUSTOM_MAX_TXGLOM_SIZE
 #define SDPCM_MAXGLOM_SIZE  CUSTOM_MAX_TXGLOM_SIZE
 #else
-#define SDPCM_MAXGLOM_SIZE	40
+#define SDPCM_MAXGLOM_SIZE	32
 #endif /* CUSTOM_MAX_TXGLOM_SIZE */
 
 #define SDPCM_TXGLOM_CPY 0			/* SDIO 2.0 should use copy mode */
