@@ -27,6 +27,7 @@ extern int wifi_irq_num(void);
 #endif
 #endif
 
+extern u8 *wifi_get_mac(void);
 #ifndef CUSTOMER_HW_AMLOGIC
 #define WL_REG_ON 0 // WL_REG_ON is the input pin of WLAN module
 #define WL_HOST_WAKE 0 // WL_HOST_WAKE is output pin of WLAN module
@@ -185,7 +186,11 @@ int bcm_wlan_get_mac_address(unsigned char *buf)
 		bcopy((char *)&ea_example, buf, sizeof(struct ether_addr));
 	}
 #endif /* EXAMPLE_GET_MAC */
-
+	bcopy((char *)wifi_get_mac(), buf, sizeof(struct ether_addr));
+	if (buf[0] == 0xff) {
+		printf("custom wifi mac is not set\n");
+		err = -1;
+	}
 	return err;
 }
 
