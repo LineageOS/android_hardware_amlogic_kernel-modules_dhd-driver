@@ -47,7 +47,7 @@
 #include <bcmutils.h>
 #include <linux/delay.h>
 #include <pcicfg.h>
-#include <asm-generic/pci-dma-compat.h>
+/*#include <asm-generic/pci-dma-compat.h>*/
 
 
 #ifdef BCM_SECURE_DMA
