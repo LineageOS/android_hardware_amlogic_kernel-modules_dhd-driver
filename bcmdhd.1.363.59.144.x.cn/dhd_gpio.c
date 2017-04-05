@@ -18,9 +18,10 @@
 #include <linux/mmc/sdio_func.h>
 #include <linux/gpio.h>
 #endif
-
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0))
 #include <linux/amlogic/aml_gpio_consumer.h>
 extern int wifi_irq_trigger_level(void);
+#endif
 #ifdef CUSTOMER_HW_AMLOGIC
 extern  void sdio_reinit(void);
 extern void extern_wifi_set_enable(int is_on);
@@ -83,11 +84,18 @@ uint bcm_wlan_get_oob_irq_flags(void)
 	uint host_oob_irq_flags = 0;
 
 #ifdef HW_OOB
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0))
 	if (wifi_irq_trigger_level() == GPIO_IRQ_LOW)
 		host_oob_irq_flags = IORESOURCE_IRQ | IORESOURCE_IRQ_LOWLEVEL | IORESOURCE_IRQ_SHAREABLE;
 	else
 		host_oob_irq_flags = IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHLEVEL | IORESOURCE_IRQ_SHAREABLE;
-
+#else
+#ifdef HW_OOB_LOW_LEVEL
+	host_oob_irq_flags = IORESOURCE_IRQ | IORESOURCE_IRQ_LOWLEVEL | IORESOURCE_IRQ_SHAREABLE;
+#else
+	host_oob_irq_flags = IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHLEVEL | IORESOURCE_IRQ_SHAREABLE;
+#endif
+#endif
 #else
 	host_oob_irq_flags = IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHEDGE | IORESOURCE_IRQ_SHAREABLE;
 #endif
