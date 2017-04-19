@@ -324,9 +324,7 @@ static irqreturn_t wlan_oob_irq(int irq, void *dev_id)
 {
 	bcmsdh_info_t *bcmsdh = (bcmsdh_info_t *)dev_id;
 	bcmsdh_os_info_t *bcmsdh_osinfo = bcmsdh->os_cxt;
-#if (LINUX_VERSION_CODE <= KERNEL_VERSION(4, 8, 0))
 	bcmsdh_oob_intr_set(bcmsdh, FALSE);
-#endif
 	bcmsdh_osinfo->oob_irq_handler(bcmsdh_osinfo->oob_irq_handler_context);
 
 	return IRQ_HANDLED;
