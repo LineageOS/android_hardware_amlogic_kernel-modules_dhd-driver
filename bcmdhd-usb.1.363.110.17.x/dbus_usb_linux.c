@@ -122,7 +122,7 @@
  */
 #if ((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 21)) && defined(CONFIG_USB_SUSPEND)) \
 	|| ((LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)) && defined(CONFIG_PM_RUNTIME))
-/* For USB power management support, see Linux kernel: Documentation/usb/power-management.txt */
+/*For USB power management support, see Linux kernel: Documentation/usb/power-management.txt */
 #define USB_SUSPEND_AVAILABLE
 #endif
 
@@ -169,21 +169,21 @@ static inline int usb_submit_urb_linux(struct urb *urb)
 #define USB_ENABLE_AUTOSUSPEND(udev)		usb_enable_autosuspend(udev)
 #define USB_DISABLE_AUTOSUSPEND(udev)       usb_disable_autosuspend(udev)
 #endif  /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33))  */
-
+#endif
 #define USB_AUTOPM_GET_INTERFACE(intf)		usb_autopm_get_interface(intf)
 #define USB_AUTOPM_PUT_INTERFACE(intf)		usb_autopm_put_interface(intf)
 #define USB_AUTOPM_GET_INTERFACE_ASYNC(intf)	usb_autopm_get_interface_async(intf)
 #define USB_AUTOPM_PUT_INTERFACE_ASYNC(intf)	usb_autopm_put_interface_async(intf)
 #define USB_MARK_LAST_BUSY(dev)			usb_mark_last_busy(dev)
 
-#else /* USB_SUSPEND_AVAILABLE */
+//#else /* USB_SUSPEND_AVAILABLE */
 
-#define USB_AUTOPM_GET_INTERFACE(intf)		do {} while (0)
+/*#define USB_AUTOPM_GET_INTERFACE(intf)		do {} while (0)
 #define USB_AUTOPM_PUT_INTERFACE(intf)		do {} while (0)
 #define USB_AUTOPM_GET_INTERFACE_ASYNC(intf)	do {} while (0)
 #define USB_AUTOPM_PUT_INTERFACE_ASYNC(intf)	do {} while (0)
 #define USB_MARK_LAST_BUSY(dev)			do {} while (0)
-#endif /* USB_SUSPEND_AVAILABLE */
+#endif  USB_SUSPEND_AVAILABLE */
 
 #define USB_CONTROL_MSG(dev, pipe, request, requesttype, value, index, data, size, timeout) \
 	usb_control_msg((dev), (pipe), (request), (requesttype), (value), (index), \
@@ -418,12 +418,12 @@ static void dbusos_stop(usbos_info_t *usbos_info);
 #ifdef KERNEL26
 static int dbus_usbos_probe(struct usb_interface *intf, const struct usb_device_id *id);
 static void dbus_usbos_disconnect(struct usb_interface *intf);
-#if defined(USB_SUSPEND_AVAILABLE)
+//#if defined(USB_SUSPEND_AVAILABLE)
 static int dbus_usbos_resume(struct usb_interface *intf);
 static int dbus_usbos_suspend(struct usb_interface *intf, pm_message_t message);
 /* at the moment, used for full dongle host driver only */
 static int dbus_usbos_reset_resume(struct usb_interface *intf);
-#endif /* USB_SUSPEND_AVAILABLE */
+//#endif /* USB_SUSPEND_AVAILABLE */
 #else /* KERNEL26 */
 static void *dbus_usbos_probe(struct usb_device *usb, unsigned int ifnum,
 	const struct usb_device_id *id);
@@ -476,10 +476,11 @@ static struct usb_driver dbus_usbdev = {
 	probe:          dbus_usbos_probe,
 	disconnect:     dbus_usbos_disconnect,
 	id_table:       devid_table,
-#if defined(USB_SUSPEND_AVAILABLE)
+//#if defined(USB_SUSPEND_AVAILABLE)
 	suspend:        dbus_usbos_suspend,
 	resume:         dbus_usbos_resume,
 	reset_resume:	dbus_usbos_reset_resume,
+#if defined(USB_SUSPEND_AVAILABLE)
 	/* Linux USB core will allow autosuspend for devices bound to this driver */
 	supports_autosuspend: 1
 #endif /* USB_SUSPEND_AVAILABLE */
@@ -1216,7 +1217,7 @@ dbusos_stop(usbos_info_t *usbos_info)
 
 } /* dbusos_stop */
 
-#if defined(USB_SUSPEND_AVAILABLE)
+//#if defined(USB_SUSPEND_AVAILABLE)
 
 /**
  * Linux kernel sports a 'USB auto suspend' feature. See: http://lwn.net/Articles/373550/
@@ -1265,7 +1266,7 @@ static int dbus_usbos_reset_resume(struct usb_interface *intf)
 	return 0;
 }
 
-#endif /* USB_SUSPEND_AVAILABLE */
+//#endif /* USB_SUSPEND_AVAILABLE */
 
 /**
  * Called by Linux kernel at initialization time, kernel wants to know if our driver will accept the
