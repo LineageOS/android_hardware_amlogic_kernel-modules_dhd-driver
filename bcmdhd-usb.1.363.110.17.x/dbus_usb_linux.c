@@ -422,8 +422,9 @@ static void dbus_usbos_disconnect(struct usb_interface *intf);
 static int dbus_usbos_resume(struct usb_interface *intf);
 static int dbus_usbos_suspend(struct usb_interface *intf, pm_message_t message);
 /* at the moment, used for full dongle host driver only */
+#if defined(USB_SUSPEND_AVAILABLE)
 static int dbus_usbos_reset_resume(struct usb_interface *intf);
-//#endif /* USB_SUSPEND_AVAILABLE */
+#endif /* USB_SUSPEND_AVAILABLE */
 #else /* KERNEL26 */
 static void *dbus_usbos_probe(struct usb_device *usb, unsigned int ifnum,
 	const struct usb_device_id *id);
@@ -479,8 +480,8 @@ static struct usb_driver dbus_usbdev = {
 //#if defined(USB_SUSPEND_AVAILABLE)
 	suspend:        dbus_usbos_suspend,
 	resume:         dbus_usbos_resume,
-	reset_resume:	dbus_usbos_reset_resume,
 #if defined(USB_SUSPEND_AVAILABLE)
+	reset_resume:	dbus_usbos_reset_resume,
 	/* Linux USB core will allow autosuspend for devices bound to this driver */
 	supports_autosuspend: 1
 #endif /* USB_SUSPEND_AVAILABLE */
@@ -1256,6 +1257,7 @@ static int dbus_usbos_resume(struct usb_interface *intf)
 * This function is directly called by the Linux kernel, when the suspended device has been reset
 * instead of being resumed
 */
+#if defined(USB_SUSPEND_AVAILABLE)
 static int dbus_usbos_reset_resume(struct usb_interface *intf)
 {
 	DBUSERR(("%s Device reset resumed\n", __FUNCTION__));
@@ -1266,7 +1268,7 @@ static int dbus_usbos_reset_resume(struct usb_interface *intf)
 	return 0;
 }
 
-//#endif /* USB_SUSPEND_AVAILABLE */
+#endif /* USB_SUSPEND_AVAILABLE */
 
 /**
  * Called by Linux kernel at initialization time, kernel wants to know if our driver will accept the

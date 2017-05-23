@@ -34,7 +34,7 @@ DHDOFILES += dhd_gpio.o
 DHDCFLAGS += -DCUSTOMER_HW -DDHD_OF_SUPPORT
 
 ifeq ($(CONFIG_DHD_USE_STATIC_BUF),y)
-obj-m += dhd_static_buf.o
+#obj-m += dhd_static_buf.o
 DHDCFLAGS += -DSTATIC_WL_PRIV_STRUCT -DENHANCED_STATIC_BUF -DCONFIG_DHD_USE_STATIC_BUF
 endif
 

@@ -21,6 +21,22 @@ static int dhd_wlan_get_mac_addr(unsigned char *buf)
 
 	return err;
 }
+#ifdef CONFIG_DHD_USE_STATIC_BUF
+extern void *bcmdhd_mem_prealloc(int section, unsigned long size);
+void* dhd_wlan_mem_prealloc(int section, unsigned long size)
+{
+	void *alloc_ptr = NULL;
+	alloc_ptr = bcmdhd_mem_prealloc(section, size);
+	if (alloc_ptr) {
+		printf("success alloc section %d, size %ld\n", section, size);
+		if (size != 0L)
+			bzero(alloc_ptr, size);
+		return alloc_ptr;
+	}
+	printf("can't alloc section %d\n", section);
+	return NULL;
+}
+#endif
 
 #if !defined(WL_WIRELESS_EXT)
 struct cntry_locales_custom {
