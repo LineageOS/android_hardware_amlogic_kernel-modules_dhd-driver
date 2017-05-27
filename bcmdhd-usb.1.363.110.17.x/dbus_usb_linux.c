@@ -1148,7 +1148,8 @@ dbus_usbos_cancel_all_urbs(usbos_info_t *usbos_info)
 	int rxposted, txposted;
 
 	DBUSTRACE(("%s: unlink all URBs\n", __FUNCTION__));
-
+	if (usbos_info == NULL)
+		return ;
 #ifdef USBOS_TX_THREAD
 	usbos_info->ctl_state = USBOS_REQUEST_STATE_UNSCHEDULED;
 
