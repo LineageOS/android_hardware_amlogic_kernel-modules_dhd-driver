@@ -18,7 +18,6 @@ extern int wifi_irq_num(void);
 #endif
 #endif
 
-extern u8 *wifi_get_mac(void);
 struct wifi_platform_data dhd_wlan_control = {0};
 
 #ifdef CUSTOMER_OOB
@@ -129,11 +128,7 @@ int bcm_wlan_get_mac_address(unsigned char *buf)
 		bcopy((char *)&ea_example, buf, sizeof(struct ether_addr));
 	}
 #endif /* EXAMPLE_GET_MAC */
-	bcopy((char *)wifi_get_mac(), buf, sizeof(struct ether_addr));
-	if (buf[0] == 0xff) {
-		printf("custom wifi mac is not set\n");
-		err = -1;
-	}
+
 	return err;
 }
 

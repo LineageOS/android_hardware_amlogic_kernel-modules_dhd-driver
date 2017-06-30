@@ -749,7 +749,6 @@ dhdsdio_sr_cap(dhd_bus_t *bus)
 		(bus->sih->chip == BCM4354_CHIP_ID) ||
 		(bus->sih->chip == BCM4356_CHIP_ID) ||
 		(bus->sih->chip == BCM4358_CHIP_ID) ||
-		(bus->sih->chip == BCM43569_CHIP_ID) ||
 		(bus->sih->chip == BCM4371_CHIP_ID) ||
 		(BCM4349_CHIP(bus->sih->chip))		||
 		(bus->sih->chip == BCM4350_CHIP_ID)) {
@@ -773,7 +772,6 @@ dhdsdio_sr_cap(dhd_bus_t *bus)
 		(bus->sih->chip == BCM4356_CHIP_ID) ||
 		(bus->sih->chip == BCM4358_CHIP_ID) ||
 		(bus->sih->chip == BCM4371_CHIP_ID) ||
-		(bus->sih->chip == BCM43569_CHIP_ID) ||
 		(bus->sih->chip == BCM4350_CHIP_ID)) {
 		uint32 enabval = 0;
 		addr = SI_ENUM_BASE + OFFSETOF(chipcregs_t, chipcontrol_addr);
@@ -787,7 +785,6 @@ dhdsdio_sr_cap(dhd_bus_t *bus)
 			(bus->sih->chip == BCM4354_CHIP_ID) ||
 			(bus->sih->chip == BCM4356_CHIP_ID) ||
 			(bus->sih->chip == BCM4358_CHIP_ID) ||
-			(bus->sih->chip == BCM43569_CHIP_ID) ||
 			(bus->sih->chip == BCM4371_CHIP_ID))
 			enabval &= CC_CHIPCTRL3_SR_ENG_ENABLE;
 
@@ -7576,8 +7573,6 @@ dhdsdio_chipmatch(uint16 chipid)
 		return TRUE;
 	if (chipid == BCM4358_CHIP_ID)
 		return TRUE;
-	if (chipid == BCM43569_CHIP_ID)
-		return TRUE;
 	if (chipid == BCM4371_CHIP_ID)
 		return TRUE;
 	if (chipid == BCM43430_CHIP_ID)
@@ -8229,7 +8224,6 @@ dhdsdio_probe_attach(struct dhd_bus *bus, osl_t *osh, void *sdh, void *regsva,
 			case BCM4354_CHIP_ID:
 			case BCM4356_CHIP_ID:
 			case BCM4358_CHIP_ID:
-			case BCM43569_CHIP_ID:
 			case BCM4371_CHIP_ID:
 				bus->dongle_ram_base = CR4_4350_RAM_BASE;
 				break;
@@ -8242,7 +8236,7 @@ dhdsdio_probe_attach(struct dhd_bus *bus, osl_t *osh, void *sdh, void *regsva,
 					? CR4_4345_LT_C0_RAM_BASE : CR4_4345_GE_C0_RAM_BASE;
 				break;
 			case BCM4349_CHIP_GRPID:
-				bus->dongle_ram_base = CR4_4349_RAM_BASE;
+				bus->dongle_ram_base = ((bus->sih->chiprev < 9) ? CR4_4349_RAM_BASE : CR4_4349_RAM_BASE_FROM_REV_9);
 				break;
 			default:
 				bus->dongle_ram_base = 0;
@@ -9276,9 +9270,9 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 					}
 				} else
 					bcmerror = BCME_SDIO_ERROR;
-			} else
+			} else {
 				bcmerror = BCME_SDIO_ERROR;
-
+			}
 				dhd_os_sdunlock(dhdp);
 		} else {
 			bcmerror = BCME_SDIO_ERROR;

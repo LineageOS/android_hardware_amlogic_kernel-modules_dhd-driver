@@ -23,7 +23,9 @@
 #include <bcmutils.h>
 #include <linux/delay.h>
 #include <pcicfg.h>
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(4, 8, 0))
 #include <asm-generic/pci-dma-compat.h>
+#endif
 
 
 
