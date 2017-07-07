@@ -2645,5 +2645,6 @@ osl_pkt_orphan_partial(struct sk_buff *skb)
 	fraction = skb->truesize * (TSQ_MULTIPLIER - 1) / TSQ_MULTIPLIER;
 	skb->truesize -= fraction;
 	atomic_sub(fraction, &skb->sk->sk_wmem_alloc);
+	skb_orphan(skb);
 }
 #endif /* LINUX_VERSION >= 3.6.0 && TSQ_MULTIPLIER */
