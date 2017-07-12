@@ -2024,9 +2024,8 @@ dhd_conf_read_config(dhd_pub_t *dhd, char *conf_path)
 				conf->kso_enable = FALSE;
 			else
 				conf->kso_enable = TRUE;
-			printf("%s: kso_enable = %d\n", __FUNCTION__, conf->kso_enable);
 		}
-
+		conf->kso_enable = FALSE;
 		/* Process bus:txglom */
 		memset(pick, 0, MAXSZ_BUF);
 		len_val = process_config_vars(bufp, len, pick, "bus:txglom=");
