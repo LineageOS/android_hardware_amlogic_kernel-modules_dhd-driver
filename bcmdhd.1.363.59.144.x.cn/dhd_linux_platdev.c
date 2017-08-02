@@ -48,12 +48,8 @@
 #endif /* CONFIG_DTS */
 
 #if defined(CUSTOMER_HW)
-#if defined(CUSTOMER_OOB)
-extern uint bcm_wlan_get_oob_irq(void);
-extern void bcm_wlan_free_oob_gpio(uint irq_num);
-extern uint bcm_wlan_get_oob_irq_flags(void);
-#endif
-extern int bcm_wlan_set_plat_data(void);
+extern int dhd_wlan_init_plat_data(void);
+extern void dhd_wlan_deinit_plat_data(wifi_adapter_info_t *adapter);
 #endif /* CUSTOMER_HW */
 
 #define WIFI_PLAT_NAME		"bcmdhd_wlan"
@@ -71,13 +67,12 @@ static bool is_power_on = FALSE;
 #if !defined(CONFIG_DTS)
 #if defined(DHD_OF_SUPPORT)
 static bool dts_enabled = TRUE;
+extern struct resource dhd_wlan_resources;
 extern struct wifi_platform_data dhd_wlan_control;
 #else
 static bool dts_enabled = FALSE;
 struct resource dhd_wlan_resources = {0};
-#ifdef CUSTOMER_HW
-struct wifi_platform_data dhd_wlan_control = {0};
-#endif
+extern struct wifi_platform_data dhd_wlan_control;
 #endif /* !defind(DHD_OF_SUPPORT) */
 #endif /* !defind(CONFIG_DTS) */
 
@@ -188,7 +183,7 @@ int wifi_platform_set_power(wifi_adapter_info_t *adapter, bool on, unsigned long
 		}
 #endif /* ENABLE_4335BT_WAR */
 
-#ifdef CUSTOMER_HW_INTEL
+#ifdef BUS_POWER_RESTORE
 		err = plat_data->set_power(on, adapter);
 #else
 		err = plat_data->set_power(on);
@@ -262,7 +257,7 @@ wifi_platform_get_country_code(wifi_adapter_info_t *adapter, char *ccode)
 		return plat_data->get_country_code(ccode);
 #endif /* CUSTOM_COUNTRY_CODE */
 	}
-#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 58)) */
+#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)) */
 
 	return NULL;
 }
@@ -439,7 +434,7 @@ static int wifi_ctrlfunc_register_drv(void)
 	adapter = kzalloc(sizeof(wifi_adapter_info_t), GFP_KERNEL);
 	if (adapter == NULL) {
 		DHD_ERROR(("%s:adapter alloc failed", __FUNCTION__));
-		return ENOMEM;
+		return -ENOMEM;
 	}
 	adapter->name = "DHD generic adapter";
 	adapter->bus_type = -1;
@@ -473,19 +468,16 @@ static int wifi_ctrlfunc_register_drv(void)
 
 #if !defined(CONFIG_DTS)
 	if (dts_enabled) {
-#ifdef CUSTOMER_HW
-		adapter->wifi_plat_data = (void *)&dhd_wlan_control;
-		bcm_wlan_set_plat_data();
-#ifdef CUSTOMER_OOB
-		adapter->irq_num = bcm_wlan_get_oob_irq();
-		adapter->intr_flags = bcm_wlan_get_oob_irq_flags();
-#endif
-#else
 		struct resource *resource;
+		adapter->wifi_plat_data = (void *)&dhd_wlan_control;
 		resource = &dhd_wlan_resources;
+#ifdef CUSTOMER_HW
+		wifi_plat_dev_probe_ret = dhd_wlan_init_plat_data();
+		if (wifi_plat_dev_probe_ret)
+			return wifi_plat_dev_probe_ret;
+#endif
 		adapter->irq_num = resource->start;
 		adapter->intr_flags = resource->flags & IRQF_TRIGGER_MASK;
-#endif
 		wifi_plat_dev_probe_ret = dhd_wifi_platform_load();
 	}
 #endif /* !defined(CONFIG_DTS) */
@@ -531,8 +523,8 @@ void wifi_ctrlfunc_unregister_drv(void)
 	}
 #endif /* !defined(CONFIG_DTS) */
 
-#if defined(CUSTOMER_HW) && defined(CUSTOMER_OOB)
-	bcm_wlan_free_oob_gpio(adapter->irq_num);
+#if defined(CUSTOMER_HW)
+	dhd_wlan_deinit_plat_data(adapter);
 #endif
 
 	kfree(dhd_wifi_platdata->adapters);

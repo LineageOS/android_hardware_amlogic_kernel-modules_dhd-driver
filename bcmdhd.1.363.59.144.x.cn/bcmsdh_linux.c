@@ -324,6 +324,7 @@ static irqreturn_t wlan_oob_irq(int irq, void *dev_id)
 {
 	bcmsdh_info_t *bcmsdh = (bcmsdh_info_t *)dev_id;
 	bcmsdh_os_info_t *bcmsdh_osinfo = bcmsdh->os_cxt;
+
 	bcmsdh_oob_intr_set(bcmsdh, FALSE);
 	bcmsdh_osinfo->oob_irq_handler(bcmsdh_osinfo->oob_irq_handler_context);
 
@@ -346,8 +347,8 @@ int bcmsdh_oob_intr_register(bcmsdh_info_t *bcmsdh, bcmsdh_cb_fn_t oob_irq_handl
 #else
 	printf("%s: SW_OOB enabled\n", __FUNCTION__);
 #endif
-	printf("%s OOB irq=%d flags=0x%X\n", __FUNCTION__,
-		(int)bcmsdh_osinfo->oob_irq_num, (int)bcmsdh_osinfo->oob_irq_flags);
+	SDLX_MSG(("%s OOB irq=%d flags=0x%X\n", __FUNCTION__,
+		(int)bcmsdh_osinfo->oob_irq_num, (int)bcmsdh_osinfo->oob_irq_flags));
 	// anthony: test begin
 	bcmsdh_osinfo->oob_irq_flags &= IRQF_TRIGGER_MASK;
 	printf("%s change flags to 0x%X\n", __FUNCTION__, (int)bcmsdh_osinfo->oob_irq_flags);

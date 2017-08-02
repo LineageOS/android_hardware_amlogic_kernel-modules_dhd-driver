@@ -128,7 +128,9 @@ enum dhd_bus_state {
 /* Download Types */
 typedef enum download_type {
 	FW,
-	NVRAM
+	NVRAM,
+	CLM_BLOB,
+	CLMINFO
 } download_type_t;
 
 
@@ -177,12 +179,20 @@ enum dhd_op_flags {
 #define POWERUP_WAIT_MS		2000 /* ms: time out in waiting wifi to come up */
 #endif
 #define MAX_NVRAMBUF_SIZE	(16 * 1024) /* max nvram buf size */
+#define MAX_CLMINFO_BUF_SIZE    (4 * 1024) /* max clminfo buf size */
+#define MAX_CLM_BUF_SIZE	(48 * 1024) /* max clm blob size */
 #ifdef DHD_DEBUG
 #define DHD_JOIN_MAX_TIME_DEFAULT 10000 /* ms: Max time out for joining AP */
 #define DHD_SCAN_DEF_TIMEOUT 10000 /* ms: Max time out for scan in progress */
 #endif
 
+#ifndef CONFIG_BCMDHD_CLM_PATH
+#define CONFIG_BCMDHD_CLM_PATH "/system/etc/wifi/bcmdhd_clm.blob"
+#endif /* CONFIG_BCMDHD_CLM_PATH */
+#define WL_CCODE_NULL_COUNTRY  "#n"
+
 #define FW_VER_STR_LEN	128
+#define CLM_VER_STR_LEN 128
 
 enum dhd_bus_wake_state {
 	WAKE_LOCK_OFF,
@@ -633,6 +643,7 @@ typedef struct dhd_pub {
 	struct dhd_log_dump_buf dld_buf;
 	unsigned int dld_enable;
 #endif /* DHD_LOG_DUMP */
+	char		*clm_path;		/* module_param: path to clm vars file */
 	char		*conf_path;		/* module_param: path to config vars file */
 	struct dhd_conf *conf;	/* Bus module handle */
 } dhd_pub_t;
@@ -969,6 +980,7 @@ extern int dhd_wakeup_ioctl_event(dhd_pub_t *pub, dhd_ioctl_recieved_status_t re
 
 
 extern int dhd_os_get_image_block(char * buf, int len, void * image);
+extern int dhd_os_get_image_size(void * image);
 extern void * dhd_os_open_image(char * filename);
 extern void dhd_os_close_image(void * image);
 extern void dhd_os_wd_timer(void *bus, uint wdtick);
@@ -1038,6 +1050,7 @@ extern int 	dhd_os_enable_packet_filter(dhd_pub_t *dhdp, int val);
 extern void dhd_enable_packet_filter(int value, dhd_pub_t *dhd);
 extern int net_os_enable_packet_filter(struct net_device *dev, int val);
 extern int net_os_rxfilter_add_remove(struct net_device *dev, int val, int num);
+extern int net_os_set_suspend_bcn_li_dtim(struct net_device *dev, int val);
 #endif /* PKT_FILTER_SUPPORT */
 
 extern int dhd_get_suspend_bcn_li_dtim(dhd_pub_t *dhd);
@@ -1176,23 +1189,6 @@ extern int wl_iw_send_priv_event(struct net_device *dev, char *flag);
 extern uint dhd_watchdog_ms;
 extern bool dhd_os_wd_timer_enabled(void *bus);
 
-#ifdef PKT_STATICS
-typedef struct pkt_statics {
-	uint16	event_count;
-	uint32	event_size;
-	uint16	ctrl_count;
-	uint32	ctrl_size;
-	uint32	data_count;
-	uint32	data_size;
-	uint32	glom_cnt[CUSTOM_MAX_TXGLOM_SIZE];
-	uint16	glom_max;
-	uint16	glom_count;
-	uint32	glom_size;
-	uint16	test_count;
-	uint32	test_size;
-} pkt_statics_t;
-#endif
-
 #ifdef DHD_PCIE_RUNTIMEPM
 extern uint dhd_runtimepm_ms;
 #endif /* DHD_PCIE_RUNTIMEPM */
@@ -1318,7 +1314,11 @@ extern uint dhd_force_tx_queueing;
 #define WIFI_TURNON_DELAY		DEFAULT_WIFI_TURNON_DELAY
 #endif /* WIFI_TURNON_DELAY */
 
+#ifdef BCMSDIO
 #define DEFAULT_DHD_WATCHDOG_INTERVAL_MS	10 /* msec */
+#else
+#define DEFAULT_DHD_WATCHDOG_INTERVAL_MS	0 /* msec */
+#endif
 #ifndef CUSTOM_DHD_WATCHDOG_MS
 #define CUSTOM_DHD_WATCHDOG_MS			DEFAULT_DHD_WATCHDOG_INTERVAL_MS
 #endif /* DEFAULT_DHD_WATCHDOG_INTERVAL_MS */
@@ -1408,7 +1408,8 @@ int dhd_ndo_remove_ip(dhd_pub_t *dhd, int idx);
 /* ioctl processing for nl80211 */
 int dhd_ioctl_process(dhd_pub_t *pub, int ifidx, struct dhd_ioctl *ioc, void *data_buf);
 
-void dhd_bus_update_fw_nv_path(struct dhd_bus *bus, char *pfw_path, char *pnv_path, char *pconf_path);
+void dhd_bus_update_fw_nv_path(struct dhd_bus *bus, char *pfw_path, char *pnv_path,
+											char *pclm_path, char *pconf_path);
 void dhd_set_bus_state(void *bus, uint32 state);
 
 /* Remove proper pkts(either one no-frag pkt or whole fragmented pkts) */
@@ -1541,6 +1542,9 @@ int dhd_get_download_buffer(dhd_pub_t	*dhd, char *file_path, download_type_t com
 
 void dhd_free_download_buffer(dhd_pub_t	*dhd, void *buffer, int length);
 
+int dhd_download_clm_blob(dhd_pub_t *dhd, unsigned char *image, uint32 len);
+
+int dhd_apply_default_clm(dhd_pub_t *dhd, char *clm_path);
 #define dhd_is_device_removed(x) FALSE
 #define dhd_os_ind_firmware_stall(x)
 

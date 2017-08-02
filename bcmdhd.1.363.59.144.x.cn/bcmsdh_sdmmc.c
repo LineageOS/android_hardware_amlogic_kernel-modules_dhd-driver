@@ -63,7 +63,7 @@ static void IRQHandler(struct sdio_func *func);
 static void IRQHandlerF2(struct sdio_func *func);
 #endif /* !defined(OOB_INTR_ONLY) */
 static int sdioh_sdmmc_get_cisaddr(sdioh_info_t *sd, uint32 regaddr);
-#if defined(ENABLE_INSMOD_NO_FW_LOAD) && !defined(CUSTOMER_HW_INTEL)
+#if defined(ENABLE_INSMOD_NO_FW_LOAD) && !defined(BUS_POWER_RESTORE)
 extern int sdio_reset_comm(struct mmc_card *card);
 #else
 int sdio_reset_comm(struct mmc_card *card)
@@ -546,7 +546,6 @@ sdioh_iovar_op(sdioh_info_t *si, const char *name,
 		/* Now set it */
 		si->client_block_size[func] = blksize;
 
-#ifdef USE_DYNAMIC_F2_BLKSIZE
 		if (si->func[func] == NULL) {
 			sd_err(("%s: SDIO Device not present\n", __FUNCTION__));
 			bcmerror = BCME_NORESOURCE;
@@ -558,7 +557,6 @@ sdioh_iovar_op(sdioh_info_t *si, const char *name,
 			sd_err(("%s: Failed to set F%d blocksize to %d(%d)\n",
 				__FUNCTION__, func, blksize, bcmerror));
 		sdio_release_host(si->func[func]);
-#endif /* USE_DYNAMIC_F2_BLKSIZE */
 		break;
 	}
 
@@ -722,7 +720,9 @@ exit:
 }
 
 #if (defined(OOB_INTR_ONLY) && defined(HW_OOB)) || defined(FORCE_WOWLAN)
+#ifdef CUSTOMER_HW_AMLOGIC
 extern int wifi_irq_trigger_level(void);
+#endif
 SDIOH_API_RC
 sdioh_enable_hw_oob_intr(sdioh_info_t *sd, bool enable)
 {
@@ -917,10 +917,11 @@ sdioh_request_byte(sdioh_info_t *sd, uint rw, uint func, uint regaddr, uint8 *by
 		}
 	}
 
-	if (sd_msglevel & SDH_COST_VAL)
+	if (sd_msglevel & SDH_COST_VAL) {
 		getnstimeofday(&now);
-//	sd_cost(("%s: rw=%d len=1 cost=%lds %luus\n", __FUNCTION__,
-//		rw, now.tv_sec-before.tv_sec, now.tv_nsec/1000-before.tv_nsec/1000));
+		sd_cost(("%s: rw=%d len=1 cost=%lds %luus\n", __FUNCTION__,
+			rw, now.tv_sec-before.tv_sec, now.tv_nsec/1000-before.tv_nsec/1000));
+	}
 
 	return ((err_ret == 0) ? SDIOH_API_RC_SUCCESS : SDIOH_API_RC_FAIL);
 }
@@ -1393,10 +1394,11 @@ sdioh_request_word(sdioh_info_t *sd, uint cmd_type, uint rw, uint func, uint add
 		}
 	}
 
-	if (sd_msglevel & SDH_COST_VAL)
+	if (sd_msglevel & SDH_COST_VAL) {
 		getnstimeofday(&now);
-//	sd_cost(("%s: rw=%d, len=%d cost=%lds %luus\n", __FUNCTION__,
-//		rw, nbytes, now.tv_sec-before.tv_sec, now.tv_nsec/1000 - before.tv_nsec/1000));
+		sd_cost(("%s: rw=%d, len=%d cost=%lds %luus\n", __FUNCTION__,
+			rw, nbytes, now.tv_sec-before.tv_sec, now.tv_nsec/1000 - before.tv_nsec/1000));
+	}
 
 	return (((err_ret == 0)&&(err_ret2 == 0)) ? SDIOH_API_RC_SUCCESS : SDIOH_API_RC_FAIL);
 }
@@ -1473,7 +1475,7 @@ sdioh_request_packet_chain(sdioh_info_t *sd, uint fix_inc, uint write, uint func
 			 * a restriction on max tx/glom count (based on host->max_segs).
 			 */
 			if (sg_count >= ARRAYSIZE(sd->sg_list)) {
-//				sd_err(("%s: sg list entries exceed limit, sg_count=%d(%lu)\n", __FUNCTION__, sg_count, ARRAYSIZE(sd->sg_list)));
+				sd_err(("%s: sg list entries exceed limit %d\n", __FUNCTION__, sg_count));
 				return (SDIOH_API_RC_FAIL);
 			}
 			pdata += pkt_offset;
@@ -1609,10 +1611,11 @@ txglomfail:
 		MFREE(sd->osh, localbuf, ttl_len);
 #endif /* BCMSDIOH_TXGLOM */
 
-	if (sd_msglevel & SDH_COST_VAL)
+	if (sd_msglevel & SDH_COST_VAL) {
 		getnstimeofday(&now);
-//	sd_cost(("%s: rw=%d, cost=%lds %luus\n", __FUNCTION__,
-//		write, now.tv_sec-before.tv_sec, now.tv_nsec/1000-before.tv_nsec/1000));
+		sd_cost(("%s: rw=%d, cost=%lds %luus\n", __FUNCTION__,
+			write, now.tv_sec-before.tv_sec, now.tv_nsec/1000-before.tv_nsec/1000));
+	}
 
 	sd_trace(("%s: Exit\n", __FUNCTION__));
 	return SDIOH_API_RC_SUCCESS;
@@ -1663,10 +1666,12 @@ sdioh_buffer_tofrom_bus(sdioh_info_t *sd, uint fix_inc, uint write, uint func,
 
 	sd_trace(("%s: Exit\n", __FUNCTION__));
 
-	if (sd_msglevel & SDH_COST_VAL)
+	if (sd_msglevel & SDH_COST_VAL) {
 		getnstimeofday(&now);
-//	sd_cost(("%s: rw=%d, len=%d cost=%lds %luus\n", __FUNCTION__,
-//		write, len, now.tv_sec-before.tv_sec, now.tv_nsec/1000 - before.tv_nsec/1000));
+		sd_cost(("%s: rw=%d, len=%d cost=%lds %luus\n", __FUNCTION__,
+			write, len, now.tv_sec-before.tv_sec, now.tv_nsec/1000 - before.tv_nsec/1000));
+	}
+
 	return ((err_ret == 0) ? SDIOH_API_RC_SUCCESS : SDIOH_API_RC_FAIL);
 }
 
@@ -1738,10 +1743,11 @@ sdioh_request_buffer(sdioh_info_t *sd, uint pio_dma, uint fix_inc, uint write, u
 
 	PKTFREE_STATIC(sd->osh, tmppkt, write ? TRUE : FALSE);
 
-	if (sd_msglevel & SDH_COST_VAL)
+	if (sd_msglevel & SDH_COST_VAL) {
 		getnstimeofday(&now);
-//	sd_cost(("%s: len=%d cost=%lds %luus\n", __FUNCTION__,
-//		buf_len, now.tv_sec-before.tv_sec, now.tv_nsec/1000 - before.tv_nsec/1000));
+		sd_cost(("%s: len=%d cost=%lds %luus\n", __FUNCTION__,
+			buf_len, now.tv_sec-before.tv_sec, now.tv_nsec/1000 - before.tv_nsec/1000));
+	}
 
 	return status;
 }

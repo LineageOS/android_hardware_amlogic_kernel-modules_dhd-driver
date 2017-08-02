@@ -813,7 +813,8 @@ dhdpcie_bus_remove_prep(dhd_bus_t *bus)
 	dhd_os_sdlock(bus->dhd);
 
 	dhdpcie_bus_intr_disable(bus);
-	if (!bus->dhd->dongle_isolation) {
+	// terence 20150406: fix for null pointer handle when doing remove driver
+	if (!bus->dhd->dongle_isolation && bus->sih) {
 		pcie_watchdog_reset(bus->osh, bus->sih, (sbpcieregs_t *)(bus->regs));
 	}
 
@@ -1182,12 +1183,14 @@ err:
 /* Download firmware image and nvram image */
 int
 dhd_bus_download_firmware(struct dhd_bus *bus, osl_t *osh,
-                          char *pfw_path, char *pnv_path, char *pconf_path)
+                          char *pfw_path, char *pnv_path,
+                          char *pclm_path, char *pconf_path)
 {
 	int ret;
 
 	bus->fw_path = pfw_path;
 	bus->nv_path = pnv_path;
+	bus->dhd->clm_path = pclm_path;
 	bus->dhd->conf_path = pconf_path;
 
 	DHD_ERROR(("%s: firmware path=%s, nvram path=%s\n",
@@ -1198,6 +1201,36 @@ dhd_bus_download_firmware(struct dhd_bus *bus, osl_t *osh,
 	ret = dhdpcie_download_firmware(bus, osh);
 
 	return ret;
+}
+
+void
+dhd_set_path_params(struct dhd_bus *bus)
+{
+	/* External conf takes precedence if specified */
+	dhd_conf_preinit(bus->dhd);
+
+	if (bus->dhd->clm_path[0] == '\0') {
+		dhd_conf_set_path(bus->dhd, "clm.blob", bus->dhd->clm_path, bus->fw_path);
+	}
+	dhd_conf_set_clm_name_by_chip(bus->dhd, bus->dhd->clm_path);
+	if (bus->dhd->conf_path[0] == '\0') {
+		dhd_conf_set_path(bus->dhd, "config.txt", bus->dhd->conf_path, bus->nv_path);
+	}
+#ifdef CONFIG_PATH_AUTO_SELECT
+	dhd_conf_set_conf_name_by_chip(bus->dhd, bus->dhd->conf_path);
+#endif
+
+	dhd_conf_read_config(bus->dhd, bus->dhd->conf_path);
+
+	dhd_conf_set_fw_name_by_chip(bus->dhd, bus->fw_path);
+	dhd_conf_set_nv_name_by_chip(bus->dhd, bus->nv_path);
+	dhd_conf_set_clm_name_by_chip(bus->dhd, bus->dhd->clm_path);
+
+	printf("Final fw_path=%s\n", bus->fw_path);
+	printf("Final nv_path=%s\n", bus->nv_path);
+	printf("Final clm_path=%s\n", bus->dhd->clm_path);
+	printf("Final conf_path=%s\n", bus->dhd->conf_path);
+
 }
 
 static int
@@ -1240,15 +1273,7 @@ dhdpcie_download_firmware(struct dhd_bus *bus, osl_t *osh)
 
 	DHD_OS_WAKE_LOCK(bus->dhd);
 
-	/* External conf takes precedence if specified */
-	dhd_conf_preinit(bus->dhd);
-	dhd_conf_read_config(bus->dhd, bus->dhd->conf_path);
-	dhd_conf_set_fw_name_by_chip(bus->dhd, bus->fw_path);
-	dhd_conf_set_nv_name_by_chip(bus->dhd, bus->nv_path);
-
-	printf("Final fw_path=%s\n", bus->fw_path);
-	printf("Final nv_path=%s\n", bus->nv_path);
-	printf("Final conf_path=%s\n", bus->dhd->conf_path);
+	dhd_set_path_params(bus);
 
 	ret = _dhdpcie_download_firmware(bus);
 
@@ -2086,7 +2111,7 @@ dhdpcie_bus_membytes(dhd_bus_t *bus, bool write, ulong address, uint8 *data, uin
 	dsize = sizeof(uint64);
 
 	/* Do the transfer(s) */
-	DHD_INFO(("%s: %s %d bytes in window 0x%08x\n",
+	DHD_INFO(("%s: %s %d bytes in window 0x%08lx\n",
 	          __FUNCTION__, (write ? "write" : "read"), size, address));
 	if (write) {
 		while (size) {
@@ -2180,7 +2205,7 @@ dhd_bus_schedule_queue(struct dhd_bus  *bus, uint16 flow_id, bool txs)
 		}
 
 		while ((txp = dhd_flow_queue_dequeue(bus->dhd, queue)) != NULL) {
-			PKTORPHAN(txp);
+			PKTORPHAN(txp, bus->dhd->conf->tsq);
 
 			/*
 			 * Modifying the packet length caused P2P cert failures.
@@ -3732,6 +3757,7 @@ dhdpcie_bus_suspend(struct dhd_bus *bus, bool state)
 	unsigned long flags;
 	int rc = 0;
 
+	printf("%s: state=%d\n", __FUNCTION__, state);
 	if (bus->dhd == NULL) {
 		DHD_ERROR(("%s: bus not inited\n", __FUNCTION__));
 		return BCME_ERROR;
