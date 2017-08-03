@@ -118,6 +118,10 @@ static uint32 dhdpcie_bus_rtcm32(dhd_bus_t *bus, ulong offset);
 static void dhdpcie_bus_wtcm64(dhd_bus_t *bus, ulong offset, uint64 data);
 static uint64 dhdpcie_bus_rtcm64(dhd_bus_t *bus, ulong offset);
 static void dhdpcie_bus_cfg_set_bar0_win(dhd_bus_t *bus, uint32 data);
+#if defined(DHD_PCIE_BAR1_WIN_BASE_FIX)
+static void dhdpcie_bus_cfg_set_bar1_win(dhd_bus_t *bus, uint32 data);
+static ulong dhd_bus_cmn_check_offset(dhd_bus_t *bus, ulong offset);
+#endif /* defined(DHD_PCIE_BAR1_WIN_BASE_FIX) */
 static void dhdpcie_bus_reg_unmap(osl_t *osh, ulong addr, int size);
 static int dhdpcie_cc_nvmshadow(dhd_bus_t *bus, struct bcmstrbuf *b);
 static void dhdpcie_send_mb_data(dhd_bus_t *bus, uint32 h2d_mb_data);
@@ -301,8 +305,13 @@ dhdpcie_bus_reg_unmap(osl_t *osh, ulong addr, int size)
  *
  * 'tcm' is the *host* virtual address at which tcm is mapped.
  */
+#if defined(DHD_PCIE_BAR1_WIN_BASE_FIX)
+dhd_bus_t* dhdpcie_bus_attach(osl_t *osh,
+	volatile char *regs, volatile char *tcm, uint32 tcm_size, void *pci_dev)
+#else
 dhd_bus_t* dhdpcie_bus_attach(osl_t *osh,
 	volatile char *regs, volatile char *tcm, void *pci_dev)
+#endif /* DHD_PCIE_BAR1_WIN_BASE_FIX */
 {
 	dhd_bus_t *bus;
 
@@ -316,6 +325,9 @@ dhd_bus_t* dhdpcie_bus_attach(osl_t *osh,
 
 		bus->regs = regs;
 		bus->tcm = tcm;
+#if defined(DHD_PCIE_BAR1_WIN_BASE_FIX)
+		bus->tcm_size = tcm_size;
+#endif /* defined(DHD_PCIE_BAR1_WIN_BASE_FIX) */
 		bus->osh = osh;
 		/* Save pci_dev into dhd_bus, as it may be needed in dhd_attach */
 		bus->dev = (struct pci_dev *)pci_dev;
@@ -573,12 +585,18 @@ dhdpcie_dongle_attach(dhd_bus_t *bus)
 	/* Set bar0 window to si_enum_base */
 	dhdpcie_bus_cfg_set_bar0_win(bus, SI_ENUM_BASE);
 
+#if defined(DHD_PCIE_BAR1_WIN_BASE_FIX)
+	/* Read bar1 window */
+	bus->bar1_win_base = OSL_PCI_READ_CONFIG(bus->osh, PCI_BAR1_WIN, 4);
+	DHD_ERROR(("%s: PCI_BAR1_WIN = %x\n", __FUNCTION__, bus->bar1_win_base));
+#else
 	/* Checking PCIe bus status with reading configuration space */
 	val = OSL_PCI_READ_CONFIG(osh, PCI_CFG_VID, sizeof(uint32));
 	if ((val & 0xFFFF) != VENDOR_BROADCOM) {
 		DHD_ERROR(("%s : failed to read PCI configuration space!\n", __FUNCTION__));
 		goto fail;
 	}
+#endif /* defined(DHD_PCIE_BAR1_WIN_BASE_FIX) */
 
 	/* si_attach() will provide an SI handle and scan the backplane */
 	if (!(bus->sih = si_attach((uint)devid, osh, regsva, PCI_BUS, bus,
@@ -594,6 +612,14 @@ dhdpcie_dongle_attach(dhd_bus_t *bus)
 	/* WAR where the BAR1 window may not be sized properly */
 	W_REG(osh, &sbpcieregs->configaddr, 0x4e0);
 	val = R_REG(osh, &sbpcieregs->configdata);
+#if defined(DHD_PCIE_BAR1_WIN_BASE_FIX)
+	/* Fix to 2M */
+	val = 22; /* 1M: 21, 2M: 22, 4M: 23 */
+	bus->bar1_win_mask = 0xffffffff - (bus->tcm_size - 1);
+	DHD_ERROR(("%s: BAR1 window val=%d, base=%d mask=%x, tcm=%x(%x)\n", __FUNCTION__, val,
+		bus->bar1_win_base, bus->bar1_win_mask,
+		bus->tcm_size, DHD_PCIE_BAR1_WIN_BASE_FIX));
+#endif /* defined(DHD_PCIE_BAR1_WIN_BASE_FIX) */
 	W_REG(osh, &sbpcieregs->configdata, val);
 
 	/* Get info on the ARM and SOCRAM cores... */
@@ -940,6 +966,14 @@ dhdpcie_bus_cfg_set_bar0_win(dhd_bus_t *bus, uint32 data)
 {
 	OSL_PCI_WRITE_CONFIG(bus->osh, PCI_BAR0_WIN, 4, data);
 }
+
+#if defined(DHD_PCIE_BAR1_WIN_BASE_FIX)
+static void
+dhdpcie_bus_cfg_set_bar1_win(dhd_bus_t *bus, uint32 data)
+{
+	OSL_PCI_WRITE_CONFIG(bus->osh, PCI_BAR1_WIN, 4, data);
+}
+#endif /* defined(DHD_PCIE_BAR1_WIN_BASE_FIX) */
 
 void
 dhdpcie_bus_dongle_setmemsize(struct dhd_bus *bus, int mem_size)
@@ -2093,6 +2127,9 @@ dhdpcie_bus_membytes(dhd_bus_t *bus, bool write, ulong address, uint8 *data, uin
 	uint dsize;
 	int detect_endian_flag = 0x01;
 	bool little_endian;
+#if defined(CONFIG_64BIT) || defined(DHD_PCIE_BAR1_WIN_BASE_FIX)
+	bool is_64bit_unaligned;
+#endif /* defined(CONFIG_64BIT) || defined(DHD_PCIE_BAR1_WIN_BASE_FIX) */
 
 	if (write && bus->is_linkdown) {
 		DHD_ERROR(("%s: PCIe link was down\n", __FUNCTION__));
@@ -2101,6 +2138,11 @@ dhdpcie_bus_membytes(dhd_bus_t *bus, bool write, ulong address, uint8 *data, uin
 
 	/* Detect endianness. */
 	little_endian = *(char *)&detect_endian_flag;
+
+#if defined(CONFIG_64BIT) || defined(DHD_PCIE_BAR1_WIN_BASE_FIX)
+	/* Check 64bit aligned or not. */
+	is_64bit_unaligned = (address & 0x7);
+#endif /* defined(CONFIG_64BIT) || defined(DHD_PCIE_BAR1_WIN_BASE_FIX) */
 
 	/* In remap mode, adjust address beyond socram and redirect
 	 * to devram at SOCDEVRAM_BP_ADDR since remap address > orig_ramsize
@@ -2111,15 +2153,22 @@ dhdpcie_bus_membytes(dhd_bus_t *bus, bool write, ulong address, uint8 *data, uin
 	dsize = sizeof(uint64);
 
 	/* Do the transfer(s) */
-	DHD_INFO(("%s: %s %d bytes in window 0x%08lx\n",
-	          __FUNCTION__, (write ? "write" : "read"), size, address));
 	if (write) {
 		while (size) {
-			if (size >= sizeof(uint64) && little_endian &&
-#ifdef CONFIG_64BIT
-				!(address % 8) &&
-#endif /* CONFIG_64BIT */
-				1) {
+			if (size >= sizeof(uint64) && little_endian) {
+#if defined(CONFIG_64BIT) || defined(DHD_PCIE_BAR1_WIN_BASE_FIX)
+				if (is_64bit_unaligned) {
+					DHD_INFO(("%s: write unaligned %lx\n",
+					    __FUNCTION__, address));
+					dhdpcie_bus_wtcm32(bus, address, *((uint32 *)data));
+					data += 4;
+					size -= 4;
+					address += 4;
+					is_64bit_unaligned = (address & 0x7);
+					continue;
+				}
+				else
+#endif
 				dhdpcie_bus_wtcm64(bus, address, *((uint64 *)data));
 			} else {
 				dsize = sizeof(uint8);
@@ -2134,11 +2183,20 @@ dhdpcie_bus_membytes(dhd_bus_t *bus, bool write, ulong address, uint8 *data, uin
 		}
 	} else {
 		while (size) {
-			if (size >= sizeof(uint64) && little_endian &&
-#ifdef CONFIG_64BIT
-				!(address % 8) &&
-#endif /* CONFIG_64BIT */
-				1) {
+			if (size >= sizeof(uint64) && little_endian) {
+#if defined(CONFIG_64BIT) || defined(DHD_PCIE_BAR1_WIN_BASE_FIX)
+				if (is_64bit_unaligned) {
+					DHD_INFO(("%s: read unaligned %lx\n",
+					    __FUNCTION__, address));
+					*(uint32 *)data = dhdpcie_bus_rtcm32(bus, address);
+					data += 4;
+					size -= 4;
+					address += 4;
+					is_64bit_unaligned = (address & 0x7);
+					continue;
+				}
+				else
+#endif
 				*(uint64 *)data = dhdpcie_bus_rtcm64(bus, address);
 			} else {
 				dsize = sizeof(uint8);
@@ -2403,11 +2461,32 @@ dhd_bus_rx_frame(struct dhd_bus *bus, void* pkt, int ifidx, uint pkt_count)
 	dhd_rx_frame(bus->dhd, ifidx, pkt, pkt_count, 0);
 }
 
+#if defined(DHD_PCIE_BAR1_WIN_BASE_FIX)
+static ulong dhd_bus_cmn_check_offset(dhd_bus_t *bus, ulong offset)
+{
+	uint new_bar1_wbase = 0;
+	ulong address = 0;
+
+	new_bar1_wbase = (uint)offset & bus->bar1_win_mask;
+	if (bus->bar1_win_base != new_bar1_wbase) {
+		bus->bar1_win_base = new_bar1_wbase;
+		dhdpcie_bus_cfg_set_bar1_win(bus, bus->bar1_win_base);
+		DHD_ERROR(("%s: offset=%lx, switch bar1_win_base to %x\n",
+		    __FUNCTION__, offset, bus->bar1_win_base));
+	}
+
+	address = offset - bus->bar1_win_base;
+	return address;
+}
+#else
+#define dhd_bus_cmn_check_offset(x, y) y
+#endif /* defined(DHD_PCIE_BAR1_WIN_BASE_FIX) */
+
 /** 'offset' is a backplane address */
 void
 dhdpcie_bus_wtcm8(dhd_bus_t *bus, ulong offset, uint8 data)
 {
-	*(volatile uint8 *)(bus->tcm + offset) = (uint8)data;
+	*(volatile uint8 *)(bus->tcm + dhd_bus_cmn_check_offset(bus, offset)) = (uint8)data;
 }
 
 uint8
@@ -2415,7 +2494,7 @@ dhdpcie_bus_rtcm8(dhd_bus_t *bus, ulong offset)
 {
 	volatile uint8 data;
 
-		data = *(volatile uint8 *)(bus->tcm + offset);
+	data = *(volatile uint8 *)(bus->tcm + dhd_bus_cmn_check_offset(bus, offset));
 
 	return data;
 }
@@ -2423,17 +2502,17 @@ dhdpcie_bus_rtcm8(dhd_bus_t *bus, ulong offset)
 void
 dhdpcie_bus_wtcm32(dhd_bus_t *bus, ulong offset, uint32 data)
 {
-	*(volatile uint32 *)(bus->tcm + offset) = (uint32)data;
+	*(volatile uint32 *)(bus->tcm + dhd_bus_cmn_check_offset(bus, offset)) = (uint32)data;
 }
 void
 dhdpcie_bus_wtcm16(dhd_bus_t *bus, ulong offset, uint16 data)
 {
-	*(volatile uint16 *)(bus->tcm + offset) = (uint16)data;
+	*(volatile uint16 *)(bus->tcm + dhd_bus_cmn_check_offset(bus, offset)) = (uint16)data;
 }
 void
 dhdpcie_bus_wtcm64(dhd_bus_t *bus, ulong offset, uint64 data)
 {
-	*(volatile uint64 *)(bus->tcm + offset) = (uint64)data;
+	*(volatile uint64 *)(bus->tcm + dhd_bus_cmn_check_offset(bus, offset)) = (uint64)data;
 }
 
 uint16
@@ -2441,7 +2520,7 @@ dhdpcie_bus_rtcm16(dhd_bus_t *bus, ulong offset)
 {
 	volatile uint16 data;
 
-		data = *(volatile uint16 *)(bus->tcm + offset);
+	data = *(volatile uint16 *)(bus->tcm + dhd_bus_cmn_check_offset(bus, offset));
 
 	return data;
 }
@@ -2451,7 +2530,7 @@ dhdpcie_bus_rtcm32(dhd_bus_t *bus, ulong offset)
 {
 	volatile uint32 data;
 
-		data = *(volatile uint32 *)(bus->tcm + offset);
+	data = *(volatile uint32 *)(bus->tcm + dhd_bus_cmn_check_offset(bus, offset));
 
 	return data;
 }
@@ -2461,7 +2540,7 @@ dhdpcie_bus_rtcm64(dhd_bus_t *bus, ulong offset)
 {
 	volatile uint64 data;
 
-		data = *(volatile uint64 *)(bus->tcm + offset);
+	data = *(volatile uint64 *)(bus->tcm + dhd_bus_cmn_check_offset(bus, offset));
 
 	return data;
 }
@@ -4210,14 +4289,14 @@ dhdpcie_bus_write_vars(dhd_bus_t *bus)
 		bzero(vbuffer, varsize);
 		bcopy(bus->vars, vbuffer, bus->varsz);
 		/* Write the vars list */
-		DHD_INFO_HW4(("%s: tcm: %p varaddr: 0x%x varsize: %d\n",
+		DHD_ERROR(("%s: tcm: %p varaddr: 0x%x varsize: %d\n",
 			__FUNCTION__, bus->tcm, varaddr, varsize));
 		bcmerror = dhdpcie_bus_membytes(bus, TRUE, varaddr, vbuffer, varsize);
 
 		/* Implement read back and verify later */
 #ifdef DHD_DEBUG
 		/* Verify NVRAM bytes */
-		DHD_INFO(("%s: Compare NVRAM dl & ul; varsize=%d\n", __FUNCTION__, varsize));
+		DHD_ERROR(("%s: Compare NVRAM dl & ul; varsize=%d\n", __FUNCTION__, varsize));
 		nvram_ularray = (uint8*)MALLOC(bus->dhd->osh, varsize);
 		if (!nvram_ularray)
 			return BCME_NOMEM;
@@ -4250,9 +4329,9 @@ dhdpcie_bus_write_vars(dhd_bus_t *bus)
 	phys_size += bus->dongle_ram_base;
 
 	/* adjust to the user specified RAM */
-	DHD_INFO(("%s: Physical memory size: %d, usable memory size: %d\n", __FUNCTION__,
+	DHD_ERROR(("%s: Physical memory size: %d, usable memory size: %d\n", __FUNCTION__,
 		phys_size, bus->ramsize));
-	DHD_INFO(("%s: Vars are at %d, orig varsize is %d\n", __FUNCTION__,
+	DHD_ERROR(("%s: Vars are at %d, orig varsize is %d\n", __FUNCTION__,
 		varaddr, varsize));
 	varsize = ((phys_size - 4) - varaddr);
 

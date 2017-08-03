@@ -615,10 +615,16 @@ dhdpcie_request_irq(dhdpcie_info_t *dhdpcie_info)
 	if (!bus->irq_registered) {
 		snprintf(dhdpcie_info->pciname, sizeof(dhdpcie_info->pciname),
 		    "dhdpcie:%s", pci_name(pdev));
+#ifdef DHD_USE_MSI
+		pci_enable_msi(pdev);
+#endif /* DHD_USE_MSI */
 		err = request_irq(pdev->irq, dhdpcie_isr, IRQF_SHARED,
 			dhdpcie_info->pciname, bus);
 		if (err) {
 			DHD_ERROR(("%s: request_irq() failed\n", __FUNCTION__));
+#ifdef DHD_USE_MSI
+			pci_disable_msi(pdev);
+#endif /* DHD_USE_MSI */
 			return -1;
 		} else {
 			bus->irq_registered = TRUE;
@@ -710,9 +716,9 @@ int dhdpcie_get_resource(dhdpcie_info_t *dhdpcie_info)
 		}
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0) */
 
-		DHD_TRACE(("%s:Phys addr : reg space = %p base addr 0x"PRINTF_RESOURCE" \n",
+		DHD_ERROR(("%s:Phys addr : reg space = %p base addr 0x"PRINTF_RESOURCE" \n",
 			__FUNCTION__, dhdpcie_info->regs, bar0_addr));
-		DHD_TRACE(("%s:Phys addr : tcm_space = %p base addr 0x"PRINTF_RESOURCE" \n",
+		DHD_ERROR(("%s:Phys addr : tcm_space = %p base addr 0x"PRINTF_RESOURCE" \n",
 			__FUNCTION__, dhdpcie_info->tcm, bar1_addr));
 
 		return 0; /* SUCCESS  */
@@ -865,7 +871,11 @@ int dhdpcie_init(struct pci_dev *pdev)
 		}
 
 		/* Bus initialization */
+#if defined(DHD_PCIE_BAR1_WIN_BASE_FIX)
+		bus = dhdpcie_bus_attach(osh, dhdpcie_info->regs, dhdpcie_info->tcm, dhdpcie_info->tcm_size, pdev);
+#else
 		bus = dhdpcie_bus_attach(osh, dhdpcie_info->regs, dhdpcie_info->tcm, pdev);
+#endif /* defined(DHD_PCIE_BAR1_WIN_BASE_FIX) */
 		if (!bus) {
 			DHD_ERROR(("%s:dhdpcie_bus_attach() failed\n", __FUNCTION__));
 			break;
@@ -1005,6 +1015,9 @@ dhdpcie_free_irq(dhd_bus_t *bus)
 		pdev = bus->dev;
 		free_irq(pdev->irq, bus);
 		bus->irq_registered = FALSE;
+#ifdef DHD_USE_MSI
+		pci_disable_msi(pdev);
+#endif /* DHD_USE_MSI */
 	} else {
 		DHD_ERROR(("%s: PCIe IRQ is not registered\n", __FUNCTION__));
 	}
@@ -1247,10 +1260,13 @@ dhdpcie_alloc_resource(dhd_bus_t *bus)
 		}
 
 		bus->tcm = dhdpcie_info->tcm;
+#if defined(DHD_PCIE_BAR1_WIN_BASE_FIX)
+		bus->tcm_size = dhdpcie_info->tcm_size;
+#endif /* defined(DHD_PCIE_BAR1_WIN_BASE_FIX) */
 
-		DHD_TRACE(("%s:Phys addr : reg space = %p base addr 0x"PRINTF_RESOURCE" \n",
+		DHD_ERROR(("%s:Phys addr : reg space = %p base addr 0x"PRINTF_RESOURCE" \n",
 			__FUNCTION__, dhdpcie_info->regs, bar0_addr));
-		DHD_TRACE(("%s:Phys addr : tcm_space = %p base addr 0x"PRINTF_RESOURCE" \n",
+		DHD_ERROR(("%s:Phys addr : tcm_space = %p base addr 0x"PRINTF_RESOURCE" \n",
 			__FUNCTION__, dhdpcie_info->tcm, bar1_addr));
 
 		return 0;

@@ -1490,9 +1490,9 @@ wl_cfg80211_add_virtual_iface(struct wiphy *wiphy,
 #ifdef PROP_TXSTATUS_VSDB
 #if defined(BCMSDIO)
 	s32 up = 1;
-	dhd_pub_t *dhd;
 	bool enabled;
 #endif 
+	dhd_pub_t *dhd;
 #endif /* PROP_TXSTATUS_VSDB */
 #if defined(SUPPORT_AP_POWERSAVE)
 	dhd_pub_t *dhd;
@@ -1502,11 +1502,7 @@ wl_cfg80211_add_virtual_iface(struct wiphy *wiphy,
 	if (!cfg)
 		return ERR_PTR(-EINVAL);
 
-#ifdef PROP_TXSTATUS_VSDB
-#if defined(BCMSDIO)
 	dhd = (dhd_pub_t *)(cfg->pub);
-#endif 
-#endif /* PROP_TXSTATUS_VSDB */
 #if defined(SUPPORT_AP_POWERSAVE)
 	dhd = (dhd_pub_t *)(cfg->pub);
 #endif /* SUPPORT_AP_POWERSAVE */

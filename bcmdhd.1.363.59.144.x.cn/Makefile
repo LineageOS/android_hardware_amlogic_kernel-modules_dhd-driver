@@ -2,10 +2,13 @@
 # 1. WL_IFACE_COMB_NUM_CHANNELS must be added if Android version is 4.4 with Kernel version 3.0~3.4,
 #    otherwise please remove it.
 
+# if not confiure pci mode, we use sdio mode as default
+ifeq ($(CONFIG_BCMDHD_PCIE),)
+$(info bcm SDIO driver configured)
 CONFIG_BCMDHD_SDIO := y
-#CONFIG_BCMDHD_PCIE := y
-CONFIG_BCMDHD_PROPTXSTATUS := y
 CONFIG_DHD_USE_STATIC_BUF :=y
+endif
+CONFIG_BCMDHD_PROPTXSTATUS := y
 
 export CONFIG_BCMDHD = m
 export CONFIG_BCMDHD_OOB = y
@@ -62,6 +65,8 @@ endif
 ifneq ($(CONFIG_BCMDHD_PCIE),)
 DHDCFLAGS += \
 	-DPCIE_FULL_DONGLE -DBCMPCIE -DCUSTOM_DPC_PRIO_SETTING=-1
+DHDCFLAGS += -DDHD_PCIE_BAR1_WIN_BASE_FIX=0x200000
+DHDCFLAGS += -DDHD_USE_MSI
 
 DHDOFILES += dhd_pcie.o dhd_pcie_linux.o pcie_core.o dhd_flowring.o \
 	dhd_msgbuf.o

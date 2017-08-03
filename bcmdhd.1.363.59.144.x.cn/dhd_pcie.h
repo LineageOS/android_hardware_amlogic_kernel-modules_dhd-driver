@@ -73,7 +73,11 @@ extern int exynos_pcie_deregister_event(struct exynos_pcie_register_event *reg);
 
 #define PCMSGBUF_HDRLEN 0
 #define DONGLE_REG_MAP_SIZE (32 * 1024)
+#if defined(DHD_PCIE_BAR1_WIN_BASE_FIX)
+#define DONGLE_TCM_MAP_SIZE DHD_PCIE_BAR1_WIN_BASE_FIX
+#else
 #define DONGLE_TCM_MAP_SIZE (4096 * 1024)
+#endif /* defined(DHD_PCIE_BAR1_WIN_BASE_FIX) */
 #define DONGLE_MIN_MEMSIZE (128 *1024)
 #ifdef DHD_DEBUG
 #define DHD_PCIE_SUCCESS 0
@@ -185,6 +189,11 @@ typedef struct dhd_bus {
 	uint32		dma_rxoffset;
 	volatile char	*regs;		/* pci device memory va */
 	volatile char	*tcm;		/* pci device memory va */
+#if defined(DHD_PCIE_BAR1_WIN_BASE_FIX)
+	uint32		tcm_size;
+	uint32		bar1_win_base;
+	uint32		bar1_win_mask;
+#endif /* defined(DHD_PCIE_BAR1_WIN_BASE_FIX) */
 	osl_t		*osh;
 	uint32		nvram_csm;	/* Nvram checksum */
 	uint16		pollrate;
@@ -254,8 +263,13 @@ extern int dhdpcie_bus_register(void);
 extern void dhdpcie_bus_unregister(void);
 extern bool dhdpcie_chipmatch(uint16 vendor, uint16 device);
 
+#if defined(DHD_PCIE_BAR1_WIN_BASE_FIX)
+extern struct dhd_bus* dhdpcie_bus_attach(osl_t *osh,
+	volatile char *regs, volatile char *tcm, uint32 tcm_size, void *pci_dev);
+#else
 extern struct dhd_bus* dhdpcie_bus_attach(osl_t *osh,
 	volatile char *regs, volatile char *tcm, void *pci_dev);
+#endif /* defined(DHD_PCIE_BAR1_WIN_BASE_FIX) */
 extern uint32 dhdpcie_bus_cfg_read_dword(struct dhd_bus *bus, uint32 addr, uint32 size);
 extern void dhdpcie_bus_cfg_write_dword(struct dhd_bus *bus, uint32 addr, uint32 size, uint32 data);
 extern void dhdpcie_bus_intr_enable(struct dhd_bus *bus);
