@@ -14495,7 +14495,12 @@ _Pragma("GCC diagnostic pop")
 	wl_destroy_event_handler(cfg);
 	mutex_lock(&cfg->usr_sync);
 	wl_flush_eq(cfg);
-	wl_link_down(cfg);
+
+	if (cfg->link_up) { //army fix wifi stop call trace issue
+		cfg80211_disconnected(ndev, 0, NULL, 0, GFP_KERNEL);
+		wl_link_down(cfg);
+	}
+
 	if (cfg->p2p_supported) {
 		if (timer_pending(&cfg->p2p->listen_timer))
 			del_timer_sync(&cfg->p2p->listen_timer);
