@@ -14497,7 +14497,7 @@ _Pragma("GCC diagnostic pop")
 	wl_flush_eq(cfg);
 
 	if (cfg->link_up) { //army fix wifi stop call trace issue
-		cfg80211_disconnected(ndev, 0, NULL, 0, GFP_KERNEL);
+		CFG80211_DISCONNECTED(ndev, 0, NULL, 0, false, GFP_KERNEL);
 		wl_link_down(cfg);
 	}
 

@@ -2518,7 +2518,7 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 #endif
 	if (conf->txglomsize > SDPCM_MAXGLOM_SIZE)
 		conf->txglomsize = SDPCM_MAXGLOM_SIZE;
-	conf->deferred_tx_len = conf->txglomsize;
+	conf->deferred_tx_len = 0;
 #endif
 
 	return 0;
