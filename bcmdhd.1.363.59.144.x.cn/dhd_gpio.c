@@ -22,6 +22,7 @@ extern int wifi_irq_trigger_level(void);
 #ifdef CUSTOMER_HW_AMLOGIC
 extern  void sdio_reinit(void);
 extern void extern_wifi_set_enable(int is_on);
+extern void pci_remove_reinit(unsigned int vid, unsigned int pid, int delBus);
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0))
 extern int wifi_irq_num(void);
 #endif
@@ -55,11 +56,13 @@ dhd_wlan_set_power(bool on
 			}
 		}
 #ifdef CUSTOMER_HW_AMLOGIC
+#ifdef BCMSDIO
 		extern_wifi_set_enable(0);
 		mdelay(200);
 		extern_wifi_set_enable(1);
 		mdelay(200);
 //		sdio_reinit();
+#endif
 #endif
 #if defined(BUS_POWER_RESTORE)
 #if defined(BCMSDIO)
@@ -138,8 +141,6 @@ static int dhd_wlan_set_carddetect(bool present)
 #ifdef CUSTOMER_HW_AMLOGIC
 		sdio_reinit();
 #endif
-#elif defined(BCMPCIE)
-		printf("======== Card detection to detect PCIE card! ========\n");
 #endif
 	} else {
 #if defined(BCMSDIO)
@@ -153,6 +154,8 @@ static int dhd_wlan_set_carddetect(bool present)
 #endif
 #elif defined(BCMPCIE)
 		printf("======== Card detection to remove PCIE card! ========\n");
+		extern_wifi_set_enable(0);
+		mdelay(200);
 #endif
 	}
 #endif /* BUS_POWER_RESTORE */
@@ -286,6 +289,10 @@ int dhd_wlan_init_gpio(void)
 	gpio_wl_host_wake = -1;
 #endif
 
+#if defined(BCMPCIE)
+	printf("======== Card detection to detect PCIE card! ========\n");
+	pci_remove_reinit(0x14e4, 0x43ec, 1);
+#endif
 	printf("%s: GPIO(WL_REG_ON) = %d\n", __FUNCTION__, gpio_wl_reg_on);
 	if (gpio_wl_reg_on >= 0) {
 		err = gpio_request(gpio_wl_reg_on, "WL_REG_ON");
