@@ -12053,12 +12053,13 @@ static void wl_deinit_priv_mem(struct bcm_cfg80211 *cfg)
 static s32 wl_create_event_handler(struct bcm_cfg80211 *cfg)
 {
 	int ret = 0;
-	WL_DBG(("Enter \n"));
 
 	/* Do not use DHD in cfg driver */
-	cfg->event_tsk.thr_pid = -1;
-
-	PROC_START(wl_event_handler, cfg, &cfg->event_tsk, 0, "wl_event_handler");
+	if (!cfg->event_tsk.thr_pid) {
+		WL_DBG(("Enter \n"));
+		cfg->event_tsk.thr_pid = -1;
+		PROC_START(wl_event_handler, cfg, &cfg->event_tsk, 0, "wl_event_handler");
+	}
 	if (cfg->event_tsk.thr_pid < 0)
 		ret = -ENOMEM;
 	return ret;
@@ -12066,8 +12067,10 @@ static s32 wl_create_event_handler(struct bcm_cfg80211 *cfg)
 
 static void wl_destroy_event_handler(struct bcm_cfg80211 *cfg)
 {
-	if (cfg->event_tsk.thr_pid >= 0)
+	if (cfg->event_tsk.thr_pid >= 0) {
+		WL_DBG(("Enter \n"));
 		PROC_STOP(&cfg->event_tsk);
+	}
 }
 
 void wl_terminate_event_handler(void)
