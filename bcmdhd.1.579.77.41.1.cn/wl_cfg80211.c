@@ -6316,8 +6316,8 @@ wl_cfg80211_get_station(struct wiphy *wiphy, struct net_device *dev,
 				(uint32)dtoh64(if_stats->txrunt) +
 				(uint32)dtoh64(if_stats->txfail);
 		} else {
-			WL_ERR(("%s: if_counters not supported ret=%d\n",
-				__FUNCTION__, err));
+		//	WL_ERR(("%s: if_counters not supported ret=%d\n",
+		//		__FUNCTION__, err));
 #endif /* DHD_SUPPORT_IF_CNTS */
 
 			err = wldev_ioctl_get(dev, WLC_GET_PKTCNTS, &pktcnt,
