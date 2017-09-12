@@ -19117,9 +19117,8 @@ static void dhd_sysfs_exit(dhd_info_t *dhd)
 		DHD_ERROR(("%s(): dhd is NULL \r\n", __FUNCTION__));
 		return;
 	}
-
-	/* Releae the kobject */
-	kobject_put(&dhd->dhd_kobj);
+	if (&dhd->dhd_kobj != NULL)
+		kobject_put(&dhd->dhd_kobj);
 }
 
 #ifdef DHD_DEBUG_UART

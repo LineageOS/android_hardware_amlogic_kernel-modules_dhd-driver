@@ -1169,12 +1169,15 @@ dhd_dbg_trace_evnt_handler(dhd_pub_t *dhdp, void *event_data,
 #endif /* MACOSX_DHD */
 static int
 dhd_dbg_ring_init(dhd_pub_t *dhdp, dhd_dbg_ring_t *ring, uint16 id, uint8 *name,
-		uint32 ring_sz)
+		uint32 ring_sz, int section)
 {
 	void *buf;
 	unsigned long flags;
-
+#ifdef CONFIG_DHD_USE_STATIC_BUF
+	buf = bcm_wlan_prealloc(section, ring_sz);
+#else
 	buf = MALLOCZ(dhdp->osh, ring_sz);
+#endif
 	if (!buf)
 		return BCME_NOMEM;
 
@@ -1220,8 +1223,9 @@ dhd_dbg_ring_deinit(dhd_pub_t *dhdp, dhd_dbg_ring_t *ring)
 	dhd_os_spin_unlock(ring->lock, flags);
 
 	dhd_os_spin_lock_deinit(dhdp->osh, ring->lock);
-
+#ifndef CONFIG_DHD_USE_STATIC_BUF
 	MFREE(dhdp->osh, buf, ring_sz);
+#endif
 }
 
 uint8
@@ -2264,22 +2268,22 @@ dhd_dbg_attach(dhd_pub_t *dhdp, dbg_pullreq_t os_pullreq,
 		return BCME_NOMEM;
 
 	ret = dhd_dbg_ring_init(dhdp, &dbg->dbg_rings[FW_VERBOSE_RING_ID], FW_VERBOSE_RING_ID,
-			(uint8 *)FW_VERBOSE_RING_NAME, FW_VERBOSE_RING_SIZE);
+			(uint8 *)FW_VERBOSE_RING_NAME, FW_VERBOSE_RING_SIZE, DHD_PREALLOC_FW_VERBOSE_RING);
 	if (ret)
 		goto error;
 
 	ret = dhd_dbg_ring_init(dhdp, &dbg->dbg_rings[FW_EVENT_RING_ID], FW_EVENT_RING_ID,
-			(uint8 *)FW_EVENT_RING_NAME, FW_EVENT_RING_SIZE);
+			(uint8 *)FW_EVENT_RING_NAME, FW_EVENT_RING_SIZE, DHD_PREALLOC_FW_EVENT_RING);
 	if (ret)
 		goto error;
 
 	ret = dhd_dbg_ring_init(dhdp, &dbg->dbg_rings[DHD_EVENT_RING_ID], DHD_EVENT_RING_ID,
-			(uint8 *)DHD_EVENT_RING_NAME, DHD_EVENT_RING_SIZE);
+			(uint8 *)DHD_EVENT_RING_NAME, DHD_EVENT_RING_SIZE, DHD_PREALLOC_DHD_EVENT_RING);
 	if (ret)
 		goto error;
 
 	ret = dhd_dbg_ring_init(dhdp, &dbg->dbg_rings[NAN_EVENT_RING_ID], NAN_EVENT_RING_ID,
-			(uint8 *)NAN_EVENT_RING_NAME, NAN_EVENT_RING_SIZE);
+			(uint8 *)NAN_EVENT_RING_NAME, NAN_EVENT_RING_SIZE, DHD_PREALLOC_NAN_EVENT_RING);
 	if (ret)
 		goto error;
 

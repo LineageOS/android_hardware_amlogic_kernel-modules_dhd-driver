@@ -67,7 +67,9 @@ typedef void  (*osl_wreg_fn_t)(void *ctx, volatile void *reg, unsigned int val, 
 #ifndef OR_REG
 #define OR_REG(osh, r, v)		W_REG(osh, (r), R_REG(osh, r) | (v))
 #endif   /* !OR_REG */
-
+#ifdef CONFIG_DHD_USE_STATIC_BUF
+void* bcm_wlan_prealloc(int section, unsigned long size);
+#endif
 #if !defined(OSL_SYSUPTIME)
 #define OSL_SYSUPTIME() (0)
 #define OSL_SYSUPTIME_SUPPORT FALSE
