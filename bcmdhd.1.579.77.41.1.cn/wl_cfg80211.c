@@ -14085,10 +14085,10 @@ static void wl_scan_timeout(unsigned long data)
 	struct wl_bss_info *bi = NULL;
 	s32 i;
 	u32 channel;
-#if defined(DHD_DEBUG) && defined(DHD_FW_COREDUMP)
+/*#if defined(DHD_DEBUG) && defined(DHD_FW_COREDUMP)
 	dhd_pub_t *dhdp = (dhd_pub_t *)(cfg->pub);
 	uint32 prev_memdump_mode = dhdp->memdump_enabled;
-#endif /* DHD_DEBUG && DHD_FW_COREDUMP */
+#endif*/ /* DHD_DEBUG && DHD_FW_COREDUMP */
 
 	if (!(cfg->scan_request)) {
 		WL_ERR(("timer expired but no scan request\n"));
@@ -14122,14 +14122,15 @@ static void wl_scan_timeout(unsigned long data)
 
 	bzero(&msg, sizeof(wl_event_msg_t));
 	WL_ERR(("timer expired\n"));
-#if defined(DHD_DEBUG) && defined(DHD_FW_COREDUMP)
+/*#if defined(DHD_DEBUG) && defined(DHD_FW_COREDUMP)
 	if (dhdp->memdump_enabled) {
 		dhdp->memdump_enabled = DUMP_MEMFILE;
 		dhdp->memdump_type = DUMP_TYPE_SCAN_TIMEOUT;
 		dhd_bus_mem_dump(dhdp);
 		dhdp->memdump_enabled = prev_memdump_mode;
 	}
-#endif /* DHD_DEBUG && DHD_FW_COREDUMP */
+#endif*/
+ /* DHD_DEBUG && DHD_FW_COREDUMP */
 	msg.event_type = hton32(WLC_E_ESCAN_RESULT);
 	msg.status = hton32(WLC_E_STATUS_TIMEOUT);
 	msg.reason = 0xFFFFFFFF;
@@ -16931,8 +16932,10 @@ static void wl_link_down(struct bcm_cfg80211 *cfg)
 
 	WL_DBG(("In\n"));
 	cfg->link_up = false;
-	conn_info->req_ie_len = 0;
-	conn_info->resp_ie_len = 0;
+	if (conn_info) {
+		conn_info->req_ie_len = 0;
+		conn_info->resp_ie_len = 0;
+	}
 }
 
 static unsigned long wl_lock_eq(struct bcm_cfg80211 *cfg)

@@ -3,6 +3,7 @@
 #    otherwise please remove it.
 
 CONFIG_BCMDHD := m
+CONFIG_DHD_USE_STATIC_BUF := y
 
 DHDCFLAGS = -Wall -Wstrict-prototypes -Dlinux -DBCMDRIVER                \
 	-DBCMDONGLEHOST -DUNRELEASEDCHIP -DBCMDMA32 -DBCMFILEIMAGE            \

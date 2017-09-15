@@ -112,7 +112,9 @@ MAKE_PREFETCH_RANGE_FN(PREF_STORE_RETAINED)
 #ifndef OR_REG
 #define OR_REG(osh, r, v)		W_REG(osh, (r), R_REG(osh, r) | (v))
 #endif   /* !OR_REG */
-
+#ifdef CONFIG_DHD_USE_STATIC_BUF
+void* dhd_wlan_mem_prealloc(int section, unsigned long size);
+#endif
 #if !defined(OSL_SYSUPTIME)
 #define OSL_SYSUPTIME() (0)
 #define OSL_SYSUPTIME_SUPPORT FALSE
