@@ -5758,13 +5758,15 @@ dhd_ioctl_entry(struct net_device *net, struct ifreq *ifr, int cmd)
 	if (is_compat_task())
 #endif
 	{
+
 		compat_wl_ioctl_t compat_ioc;
 		if (copy_from_user(&compat_ioc, ifr->ifr_data, sizeof(compat_wl_ioctl_t))) {
 			ret = BCME_BADADDR;
 			goto done;
 		}
+
 		ioc.cmd = compat_ioc.cmd;
-		ioc.buf = compat_ptr(compat_ioc.buf);
+		ioc.buf = (uint64 *)compat_ioc.buf;
 		ioc.len = compat_ioc.len;
 		ioc.set = compat_ioc.set;
 		ioc.used = compat_ioc.used;
