@@ -1178,13 +1178,11 @@ wl_chspec_from_legacy(chanspec_t legacy_chspec)
 			chspec |= WL_CHANSPEC_CTL_SB_U;
 		}
 	}
-
 	if (wf_chspec_malformed(chspec)) {
 		WL_ERR(("wl_chspec_from_legacy: output chanspec (0x%04X) malformed\n",
 		        chspec));
 		return INVCHANSPEC;
 	}
-
 	return chspec;
 }
 
@@ -1288,7 +1286,6 @@ wl_chspec_driver_to_host(chanspec_t chanspec)
 	if (ioctl_version == 1) {
 		chanspec = wl_chspec_from_legacy(chanspec);
 	}
-
 	return chanspec;
 }
 
@@ -14089,7 +14086,6 @@ static void wl_scan_timeout(unsigned long data)
 	dhd_pub_t *dhdp = (dhd_pub_t *)(cfg->pub);
 	uint32 prev_memdump_mode = dhdp->memdump_enabled;
 #endif*/ /* DHD_DEBUG && DHD_FW_COREDUMP */
-
 	if (!(cfg->scan_request)) {
 		WL_ERR(("timer expired but no scan request\n"));
 		return;
@@ -14100,26 +14096,33 @@ static void wl_scan_timeout(unsigned long data)
 		WL_ERR(("bss_list is null. Didn't receive any partial scan results\n"));
 	} else {
 		WL_ERR(("scanned AP count (%d)\n", bss_list->count));
-
 		bi = next_bss(bss_list, bi);
 		for_each_bss(bss_list, bi, i) {
-			channel = wf_chspec_ctlchan(wl_chspec_driver_to_host(bi->chanspec));
-			WL_ERR(("SSID :%s  Channel :%d\n", bi->SSID, channel));
+			if (bi != NULL && &(bi->chanspec) != NULL && (bi->SSID)) {
+				channel = wf_chspec_ctlchan(wl_chspec_driver_to_host(bi->chanspec));
+				WL_ERR(("SSID :%s  SSID_LEN :%d  Channel :%d\n", bi->SSID, bi->SSID_len, channel));
+				if (bi->SSID[0] == '\0') {
+					WL_ERR(("SSID :%s is null ssid_len:%d  ,need return\n",	bi->SSID, bi->SSID_len));
+					return;
+				}
+			} else {
+				WL_ERR(("SSID or Channel is null\n"));
+				return;
+			}
 		}
 	}
-
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0))
 	if (cfg->scan_request->dev)
 		wdev = cfg->scan_request->dev->ieee80211_ptr;
 #else
-	wdev = cfg->scan_request->wdev;
+	if (cfg->scan_request)
+		wdev = cfg->scan_request->wdev;
 #endif /* LINUX_VERSION < KERNEL_VERSION(3, 6, 0) */
 	if (!wdev) {
 		WL_ERR(("No wireless_dev present\n"));
 		return;
 	}
 	ndev = wdev_to_wlc_ndev(wdev, cfg);
-
 	bzero(&msg, sizeof(wl_event_msg_t));
 	WL_ERR(("timer expired\n"));
 /*#if defined(DHD_DEBUG) && defined(DHD_FW_COREDUMP)
@@ -14139,7 +14142,6 @@ static void wl_scan_timeout(unsigned long data)
 	if (!wl_scan_timeout_dbg_enabled)
 		wl_scan_timeout_dbg_set();
 #endif /* CUSTOMER_HW4_DEBUG */
-
 	// terence 20130729: workaround to fix out of memory in firmware
 //	if (dhd_conf_get_chip(dhd_get_pub(ndev)) == BCM43362_CHIP_ID) {
 //		WL_ERR(("Send hang event\n"));
