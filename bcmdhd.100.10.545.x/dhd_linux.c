@@ -6878,6 +6878,7 @@ dhd_open(struct net_device *net)
 #if defined(WL_EXT_IAPSTA) && defined(ISAM_PREINIT)
 	int bytes_written = 0;
 #endif
+	int retry;
 
 	mutex_lock(&dhd->pub.ndev_op_sync);
 
@@ -6888,11 +6889,17 @@ dhd_open(struct net_device *net)
 		return BCME_OK;
 	}
 
-	if (!dhd_download_fw_on_driverload) {
-		if (!dhd_driver_init_done) {
+	for (retry = 0; ++retry; ) {
+		if (!dhd_download_fw_on_driverload && !dhd_driver_init_done) {
 			DHD_ERROR(("%s: WLAN driver is not initialized\n", __FUNCTION__));
-			mutex_unlock(&dhd->pub.ndev_op_sync);
-			return -1;
+			if (retry > 3) {
+				mutex_unlock(&dhd->pub.ndev_op_sync);
+				return -1;
+			} else {
+				OSL_SLEEP(1000);
+			}
+		} else {
+			break;
 		}
 	}
 
