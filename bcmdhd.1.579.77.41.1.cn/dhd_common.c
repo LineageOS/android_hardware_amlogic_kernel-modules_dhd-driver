@@ -207,7 +207,7 @@ bool ap_fw_loaded = FALSE;
 #if defined(DHD_DEBUG)
 const char dhd_version[] = "Dongle Host Driver, version " EPI_VERSION_STR;
 #else
-const char dhd_version[] = "\nDongle Host Driver, version " EPI_VERSION_STR "\nCompiled from ";
+const char dhd_version[] = "\nDongle Host Driver, version " EPI_VERSION_STR;
 #endif 
 char fw_version[FW_VER_STR_LEN] = "\0";
 char clm_version[CLM_VER_STR_LEN] = "\0";
@@ -1171,6 +1171,7 @@ dhd_mw_list_delete(dhd_pub_t *dhd, dll_t *list_head)
 extern pkt_statics_t tx_statics;
 extern void dhdsdio_txpktstatics(void);
 #endif
+
 static int
 dhd_doiovar(dhd_pub_t *dhd_pub, const bcm_iovar_t *vi, uint32 actionid, const char *name,
             void *params, int plen, void *arg, int len, int val_size)
@@ -2319,13 +2320,14 @@ dhd_ioctl(dhd_pub_t * dhd_pub, dhd_ioctl_t *ioc, void *buf, uint buflen)
 						bcmstricmp((char *)buf, "pciecfgreg") &&
 						bcmstricmp((char *)buf, "devreset") &&
 						bcmstricmp((char *)buf, "sdio_suspend") &&
-						bcmstricmp((char *)buf, "control_signal")) {
+						bcmstricmp((char *)buf, "control_signal"))
 #else
 					if (bcmstricmp((char *)buf, "pcie_suspend") &&
 					    bcmstricmp((char *)buf, "pciecfgreg") &&
 					    bcmstricmp((char *)buf, "devreset") &&
-					    bcmstricmp((char *)buf, "sdio_suspend")) {
+					    bcmstricmp((char *)buf, "sdio_suspend"))
 #endif /* DHD_EFI */
+					{
 						DHD_ERROR(("%s: bus is in suspend(%d)"
 							"or suspending(0x%x) state\n",
 							__FUNCTION__, dhd_pub->busstate,
@@ -3855,6 +3857,7 @@ dhd_ndo_add_ip(dhd_pub_t *dhd, char* ipv6addr, int idx)
 
 	return retcode;
 }
+
 /*
  * Neighbor Discover Offload: enable NDO feature
  * Called  by ipv6 event handler when interface goes down
@@ -5828,6 +5831,7 @@ fail:
 	}
 
 }
+
 #ifdef PCIE_FULL_DONGLE
 int
 dhd_event_logtrace_infobuf_pkt_process(dhd_pub_t *dhdp, void *pktbuf,

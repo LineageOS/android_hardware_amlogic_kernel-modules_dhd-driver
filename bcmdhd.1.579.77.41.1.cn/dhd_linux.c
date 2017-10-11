@@ -3559,10 +3559,11 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 			}
 #endif /* NDO_CONFIG_SUPPORT */
 #ifndef APF
-			if (FW_SUPPORTED(dhd, ndoe)) {
+			if (FW_SUPPORTED(dhd, ndoe))
 #else
-			if (FW_SUPPORTED(dhd, ndoe) && !FW_SUPPORTED(dhd, apf)) {
+			if (FW_SUPPORTED(dhd, ndoe) && !FW_SUPPORTED(dhd, apf))
 #endif /* APF */
+			{
 				/* enable IPv6 RA filter in  firmware during suspend */
 				nd_ra_filter = 1;
 				ret = dhd_iovar(dhd, 0, "nd_ra_filter_enable",
@@ -3643,8 +3644,11 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 #endif /* PASS_ALL_MCAST_PKTS */
 #if defined(BCMPCIE)
 			/* restore pre-suspend setting */
-			dhd_iovar(dhd, 0, "bcn_li_dtim", (char *)&bcn_li_dtim,
+			ret = dhd_iovar(dhd, 0, "bcn_li_dtim", (char *)&bcn_li_dtim,
 					sizeof(bcn_li_dtim), NULL, 0, TRUE);
+			if (ret < 0) {
+				DHD_ERROR(("%s:bcn_li_ditm fail:%d\n", __FUNCTION__, ret));
+			}
 
 			dhd_iovar(dhd, 0, "lpas", (char *)&lpas, sizeof(lpas), NULL, 0,
 					TRUE);
@@ -3695,10 +3699,11 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 			}
 #endif /* NDO_CONFIG_SUPPORT */
 #ifndef APF
-			if (FW_SUPPORTED(dhd, ndoe)) {
+			if (FW_SUPPORTED(dhd, ndoe))
 #else
-			if (FW_SUPPORTED(dhd, ndoe) && !FW_SUPPORTED(dhd, apf)) {
+			if (FW_SUPPORTED(dhd, ndoe) && !FW_SUPPORTED(dhd, apf))
 #endif /* APF */
+			{
 				/* disable IPv6 RA filter in  firmware during suspend */
 				nd_ra_filter = 0;
 				ret = dhd_iovar(dhd, 0, "nd_ra_filter_enable",
@@ -5062,7 +5067,7 @@ dhd_start_xmit(struct sk_buff *skb, struct net_device *net)
 			__FUNCTION__, dhd->pub.up, dhd->pub.busstate));
 		netif_stop_queue(net);
 		/* Send Event when bus down detected during data session */
-		if (dhd->pub.up && !dhd->pub.hang_was_sent) {
+		if (dhd->pub.up && !dhd->pub.hang_was_sent && !DHD_BUS_CHECK_REMOVE(&dhd->pub)) {
 			DHD_ERROR(("%s: Event HANG sent up\n", __FUNCTION__));
 			dhd->pub.hang_reason = HANG_REASON_BUS_DOWN;
 			net_os_send_hang_message(net);
@@ -6016,11 +6021,12 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 			ASSERT(ifidx < DHD_MAX_IFS && dhd->iflist[ifidx]);
 			ifp = dhd->iflist[ifidx];
 #ifndef PROP_TXSTATUS_VSDB
-			if (!(ifp && ifp->net && (ifp->net->reg_state == NETREG_REGISTERED))) {
+			if (!(ifp && ifp->net && (ifp->net->reg_state == NETREG_REGISTERED)))
 #else
 			if (!(ifp && ifp->net && (ifp->net->reg_state == NETREG_REGISTERED) &&
-				dhd->pub.up)) {
+				dhd->pub.up))
 #endif /* PROP_TXSTATUS_VSDB */
+			{
 				DHD_ERROR(("%s: net device is NOT registered. drop event packet\n",
 				__FUNCTION__));
 #ifdef DHD_USE_STATIC_CTRLBUF
@@ -8280,12 +8286,23 @@ dhd_open(struct net_device *net)
 			DHD_ERROR(("%s: WLAN driver is not initialized\n", __FUNCTION__));
 			return -1;
 		}
-		/* Init wakelock */
+	}
+
+	printf("%s: Enter %p\n", __FUNCTION__, net);
+#if defined(MULTIPLE_SUPPLICANT)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)) && 1
+	if (mutex_is_locked(&_dhd_sdio_mutex_lock_) != 0) {
+		DHD_ERROR(("%s : dhd_open: call dev open before insmod complete!\n", __FUNCTION__));
+	}
+	mutex_lock(&_dhd_sdio_mutex_lock_);
+#endif
+#endif /* MULTIPLE_SUPPLICANT */
+	/* Init wakelock */
+	if (!dhd_download_fw_on_driverload) {
 		if (!(dhd->dhd_state & DHD_ATTACH_STATE_WAKELOCKS_INIT)) {
 			DHD_OS_WAKE_LOCK_INIT(dhd);
 			dhd->dhd_state |= DHD_ATTACH_STATE_WAKELOCKS_INIT;
 		}
-
 #ifdef SHOW_LOGTRACE
 		skb_queue_head_init(&dhd->evt_trace_queue);
 
@@ -8300,15 +8317,6 @@ dhd_open(struct net_device *net)
 			}
 		}
 #endif /* SHOW_LOGTRACE */
-	printf("%s: Enter %p\n", __FUNCTION__, net);
-#if defined(MULTIPLE_SUPPLICANT)
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)) && 1
-	if (mutex_is_locked(&_dhd_sdio_mutex_lock_) != 0) {
-		DHD_ERROR(("%s : dhd_open: call dev open before insmod complete!\n", __FUNCTION__));
-	}
-	mutex_lock(&_dhd_sdio_mutex_lock_);
-#endif
-#endif /* MULTIPLE_SUPPLICANT */
 	}
 
 #if defined(PREVENT_REOPEN_DURING_HANG)
@@ -9387,7 +9395,7 @@ dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen)
 		dhd_state |= DHD_ATTACH_STATE_WL_ATTACH;
 	}
 #ifdef WL_ESCAN
-	wl_escan_attach(net, (void *)&dhd->pub);
+	wl_escan_attach(net, &dhd->pub);
 #endif /* WL_ESCAN */
 #endif /* defined(WL_WIRELESS_EXT) */
 
@@ -12635,7 +12643,7 @@ void dhd_detach(dhd_pub_t *dhdp)
 		wl_iw_detach();
 	}
 #ifdef WL_ESCAN
-	wl_escan_detach();
+	wl_escan_detach(dhdp);
 #endif /* WL_ESCAN */
 #endif /* defined(WL_WIRELESS_EXT) */
 
@@ -13301,6 +13309,7 @@ dhd_os_d3ack_wake(dhd_pub_t *pub)
 	wake_up(&dhd->d3ack_wait);
 	return 0;
 }
+
 int
 dhd_os_busbusy_wait_negation(dhd_pub_t *pub, uint *condition)
 {
@@ -13493,6 +13502,8 @@ dhd_os_open_image(char *filename)
 		 fp = NULL;
 		 goto err;
 	 }
+
+	 DHD_ERROR(("%s: %s (%d bytes) open success\n", __FUNCTION__, filename, size));
 
 err:
 	 return fp;
@@ -14187,6 +14198,7 @@ dhd_dev_get_feature_set_matrix(struct net_device *dev, int num)
 
 	return ret;
 }
+
 #ifdef CUSTOM_FORCE_NODFS_FLAG
 int
 dhd_dev_set_nodfs(struct net_device *dev, u32 nodfs)
@@ -14448,6 +14460,7 @@ dhd_dev_pno_stop_for_ssid(struct net_device *dev)
 
 	return (dhd_pno_stop_for_ssid(&dhd->pub));
 }
+
 /* Linux wrapper to call common dhd_pno_set_for_ssid */
 int
 dhd_dev_pno_set_for_ssid(struct net_device *dev, wlc_ssid_ext_t* ssids_local, int nssid,
@@ -14483,6 +14496,7 @@ dhd_dev_pno_stop_for_batch(struct net_device *dev)
 	dhd_info_t *dhd = DHD_DEV_INFO(dev);
 	return (dhd_pno_stop_for_batch(&dhd->pub));
 }
+
 /* Linux wrapper to call common dhd_dev_pno_set_for_batch */
 int
 dhd_dev_pno_set_for_batch(struct net_device *dev, struct dhd_pno_batch_params *batch_params)
@@ -14490,6 +14504,7 @@ dhd_dev_pno_set_for_batch(struct net_device *dev, struct dhd_pno_batch_params *b
 	dhd_info_t *dhd = DHD_DEV_INFO(dev);
 	return (dhd_pno_set_for_batch(&dhd->pub, batch_params));
 }
+
 /* Linux wrapper to call common dhd_dev_pno_get_for_batch */
 int
 dhd_dev_pno_get_for_batch(struct net_device *dev, char *buf, int bufsize)
@@ -14628,6 +14643,7 @@ dhd_dev_retrieve_batch_scan(struct net_device *dev)
 
 	return (dhd_retreive_batch_scan_results(&dhd->pub));
 }
+
 /* Linux wrapper to call common dhd_pno_process_epno_result */
 void * dhd_dev_process_epno_result(struct net_device *dev,
 	const void  *data, uint32 event, int *send_evt_bytes)
@@ -14695,6 +14711,7 @@ dhd_dev_lazy_roam_enable(struct net_device *dev, uint32 enable)
 	}
 	return err;
 }
+
 int
 dhd_dev_set_lazy_roam_bssid_pref(struct net_device *dev,
        wl_bssid_pref_cfg_t *bssid_pref, uint32 flush)
@@ -14715,6 +14732,7 @@ dhd_dev_set_lazy_roam_bssid_pref(struct net_device *dev,
 	}
 	return err;
 }
+
 int
 dhd_dev_set_blacklist_bssid(struct net_device *dev, maclist_t *blacklist,
     uint32 len, uint32 flush)
@@ -14740,6 +14758,7 @@ dhd_dev_set_blacklist_bssid(struct net_device *dev, maclist_t *blacklist,
 	}
 	return err;
 }
+
 int
 dhd_dev_set_whitelist_ssid(struct net_device *dev, wl_ssid_whitelist_t *ssid_whitelist,
     uint32 len, uint32 flush)
@@ -14767,6 +14786,7 @@ dhd_dev_set_whitelist_ssid(struct net_device *dev, wl_ssid_whitelist_t *ssid_whi
 	return err;
 }
 #endif /* GSCAN_SUPPORT */
+
 #if defined(GSCAN_SUPPORT) || defined(DHD_GET_VALID_CHANNELS)
 /* Linux wrapper to call common dhd_pno_get_gscan */
 void *
@@ -17475,23 +17495,21 @@ int dhd_set_ap_isolate(dhd_pub_t *dhdp, uint32 idx, int val)
 #elif (defined(BOARD_PANDA) || defined(__ARM_ARCH_7A__))
 #define MEMDUMPINFO "/data/misc/wifi/.memdump.info"
 #else
-#if defined(CONFIG_X86)
-#define MEMDUMPINFO MEMDUMPINFO_LIVE
-#endif
+#define MEMDUMPINFO "/data/misc/wifi/.memdump.info"
 #endif /* CUSTOMER_HW4_DEBUG */
 
 void dhd_get_memdump_info(dhd_pub_t *dhd)
 {
-	uint32 mem_val = DUMP_MEMFILE_MAX;
-#if defined(CONFIG_X86)
-	int ret = 0;
 	struct file *fp = NULL;
+	uint32 mem_val = DUMP_MEMFILE_MAX;
+	int ret = 0;
 	char *filepath = MEMDUMPINFO;
+
 	/* Read memdump info from the file */
 	fp = filp_open(filepath, O_RDONLY, 0);
-
 	if (IS_ERR(fp)) {
 		DHD_ERROR(("%s: File [%s] doesn't exist\n", __FUNCTION__, filepath));
+#if defined(CONFIG_X86)
 		/* Check if it is Live Brix Image */
 		if (strcmp(filepath, MEMDUMPINFO_LIVE) != 0) {
 			goto done;
@@ -17507,7 +17525,6 @@ void dhd_get_memdump_info(dhd_pub_t *dhd)
 #else /* Non Brix Android platform */
 		goto done;
 #endif /* CONFIG_X86 && OEM_ANDROID */
-#if defined(CONFIG_X86)
 	}
 
 	/* Handle success case */
@@ -17521,7 +17538,7 @@ void dhd_get_memdump_info(dhd_pub_t *dhd)
 	mem_val = bcm_atoi((char *)&mem_val);
 
 	filp_close(fp, NULL);
-#endif
+
 #ifdef DHD_INIT_DEFAULT_MEMDUMP
 	if (mem_val == 0 || mem_val == DUMP_MEMFILE_MAX)
 		mem_val = DUMP_MEMFILE_BUGON;
@@ -17531,7 +17548,7 @@ done:
 #ifdef CUSTOMER_HW4_DEBUG
 	dhd->memdump_enabled = (mem_val < DUMP_MEMFILE_MAX) ? mem_val : DUMP_DISABLED;
 #else
-	dhd->memdump_enabled = (mem_val < DUMP_MEMFILE_MAX) ? mem_val : DUMP_MEMFILE_BUGON;
+	dhd->memdump_enabled = (mem_val < DUMP_MEMFILE_MAX) ? mem_val : DUMP_MEMFILE;
 #endif /* CUSTOMER_HW4_DEBUG */
 
 	DHD_ERROR(("%s: MEMDUMP ENABLED = %d\n", __FUNCTION__, dhd->memdump_enabled));
@@ -17567,6 +17584,7 @@ void dhd_schedule_memdump(dhd_pub_t *dhdp, uint8 *buf, uint32 size)
 	dhd_deferred_schedule_work(dhdp->info->dhd_deferred_wq, (void *)dump,
 		DHD_WQ_WORK_SOC_RAM_DUMP, dhd_mem_dump, DHD_WQ_WORK_PRIORITY_HIGH);
 }
+
 static void
 dhd_mem_dump(void *handle, void *event_info, u8 event)
 {

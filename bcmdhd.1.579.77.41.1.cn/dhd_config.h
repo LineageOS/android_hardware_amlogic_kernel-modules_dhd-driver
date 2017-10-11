@@ -149,7 +149,7 @@ typedef struct dhd_conf {
 	int tx_max_offset;
 	uint txglomsize;
 	int dhd_poll;
-	bool txctl_tmo_fix;
+	int txctl_tmo_fix;
 	bool tx_in_rx;
 	bool txglom_mode;
 	uint deferred_tx_len;
@@ -211,6 +211,7 @@ void dhd_conf_set_nv_name_by_mac(dhd_pub_t *dhd, bcmsdh_info_t *sdh, char *nv_pa
 void dhd_conf_set_hw_oob_intr(bcmsdh_info_t *sdh, uint chip);
 #endif
 void dhd_conf_set_txglom_params(dhd_pub_t *dhd, bool enable);
+int dhd_conf_set_blksize(bcmsdh_info_t *sdh);
 #endif
 void dhd_conf_set_fw_name_by_chip(dhd_pub_t *dhd, char *fw_path);
 void dhd_conf_set_clm_name_by_chip(dhd_pub_t *dhd, char *clm_path);
@@ -244,7 +245,6 @@ int dhd_conf_get_disable_proptx(dhd_pub_t *dhd);
 #endif
 int dhd_conf_get_ap_mode_in_suspend(dhd_pub_t *dhd);
 int dhd_conf_set_ap_in_suspend(dhd_pub_t *dhd, int suspend);
-int dhd_conf_set_blksize(bcmsdh_info_t *sdh);
 int dhd_conf_preinit(dhd_pub_t *dhd);
 int dhd_conf_reset(dhd_pub_t *dhd);
 int dhd_conf_attach(dhd_pub_t *dhd);

@@ -492,8 +492,11 @@ dhd_conf_set_fw_name_by_chip(dhd_pub_t *dhd, char *fw_path)
 			if (chiprev == BCM4339A0_CHIP_REV)
 				strcpy(&fw_path[i+1], FW_BCM4339A0);
 			break;
-		case BCM4345_CHIP_ID:
 		case BCM43454_CHIP_ID:
+			if (chiprev == BCM43455C0_CHIP_REV)
+				strcpy(&fw_path[i+1], FW_BCM43455C0);
+			break;
+		case BCM4345_CHIP_ID:
 			if (chiprev == BCM43455C0_CHIP_REV)
 				strcpy(&fw_path[i+1], FW_BCM43455C0);
 			else if (chiprev == BCM43455C5_CHIP_REV)
@@ -1934,7 +1937,7 @@ dhd_conf_read_sdio_params(dhd_pub_t *dhd, char *full_param, uint len_param)
 		printf("%s: dhd_slpauto = %d\n", __FUNCTION__, dhd_slpauto);
 	}
 	else if (!strncmp("kso_enable=", full_param, len_param)) {
-		if (!strncmp(data, "1", 1))
+		if (!strncmp(data, "0", 1))
 			dhd_slpauto = FALSE;
 		else
 			dhd_slpauto = TRUE;
@@ -2016,10 +2019,7 @@ dhd_conf_read_sdio_params(dhd_pub_t *dhd, char *full_param, uint len_param)
 		printf("%s: deferred_tx_len = %d\n", __FUNCTION__, conf->deferred_tx_len);
 	}
 	else if (!strncmp("txctl_tmo_fix=", full_param, len_param)) {
-		if (!strncmp(data, "0", 1))
-			conf->txctl_tmo_fix = FALSE;
-		else
-			conf->txctl_tmo_fix = TRUE;
+		conf->txctl_tmo_fix = (int)simple_strtol(data, NULL, 10);
 		printf("%s: txctl_tmo_fix = %d\n", __FUNCTION__, conf->txctl_tmo_fix);
 	}
 	else if (!strncmp("tx_in_rx=", full_param, len_param)) {
@@ -2503,7 +2503,7 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 #endif
 	conf->srl = -1;
 	conf->lrl = -1;
-	conf->bcn_timeout = 15;
+	conf->bcn_timeout = 16;
 	conf->spect = -1;
 	conf->txbf = -1;
 	conf->lpc = -1;
@@ -2516,7 +2516,7 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 	conf->tx_max_offset = 0;
 	conf->txglomsize = SDPCM_DEFGLOM_SIZE;
 	conf->dhd_poll = -1;
-	conf->txctl_tmo_fix = TRUE;
+	conf->txctl_tmo_fix = 5;
 	conf->tx_in_rx = TRUE;
 	conf->txglom_mode = SDPCM_TXGLOM_MDESC;
 	conf->deferred_tx_len = 0;
@@ -2541,7 +2541,7 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 	conf->dhcpc_enable = -1;
 	conf->dhcpd_enable = -1;
 #endif
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0))
 	conf->tsq = 10;
 #else
 	conf->tsq = 0;
@@ -2574,7 +2574,7 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 #ifdef BCMSDIO
 		conf->dhd_txminmax = -1;
 		conf->txinrx_thres = 128;
-		conf->sd_f2_blocksize = 256;
+		conf->sd_f2_blocksize = CUSTOM_SDIO_F2_BLKSIZE;
 		conf->oob_enabled_later = TRUE;
 #ifdef CUSTOMER_HW_AMLOGIC
 		conf->rxf_cpucore = 2;
@@ -2606,7 +2606,7 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 #endif
 	if (conf->txglomsize > SDPCM_MAXGLOM_SIZE)
 		conf->txglomsize = SDPCM_MAXGLOM_SIZE;
-	conf->deferred_tx_len = conf->txglomsize;
+	conf->deferred_tx_len = 0;
 #endif
 
 	return 0;

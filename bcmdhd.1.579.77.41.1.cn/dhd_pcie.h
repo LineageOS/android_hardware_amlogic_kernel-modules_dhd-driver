@@ -509,8 +509,6 @@ extern void dhd_os_ib_set_device_wake(struct dhd_bus *bus, bool val);
 #elif defined(CONFIG_ARCH_TEGRA)
 #define PCIE_RC_VENDOR_ID TEGRA_PCIE_VENDOR_ID
 #define PCIE_RC_DEVICE_ID TEGRA_PCIE_DEVICE_ID
-#else
-#error "Not supported platform"
 #endif /* CONFIG_ARCH_EXYNOS */
 
 #ifdef USE_EXYNOS_PCIE_RC_PMPATCH

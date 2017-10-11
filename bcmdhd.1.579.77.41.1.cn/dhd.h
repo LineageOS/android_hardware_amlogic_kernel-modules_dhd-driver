@@ -85,6 +85,10 @@ int get_scheduler_policy(struct task_struct *p);
 #define WL_VENDOR_EXT_SUPPORT
 #endif /* 3.18 > KERNEL_VER >= 3.14 || defined(CONFIG_BCMDHD_VENDOR_EXT) */
 
+/*#if !defined(WL_VENDOR_EXT_SUPPORT)
+#undef GSCAN_SUPPORT
+#endif
+*/
 #if defined(KEEP_ALIVE)
 /* Default KEEP_ALIVE Period is 55 sec to prevent AP from sending Keep Alive probe frame */
 #define KEEP_ALIVE_PERIOD 55000
@@ -106,6 +110,7 @@ enum dhd_bus_state {
 	DHD_BUS_DATA,		/* Ready for frame transfers */
 	DHD_BUS_SUSPEND,	/* Bus has been suspended */
 	DHD_BUS_DOWN_IN_PROGRESS,	/* Bus going Down */
+	DHD_BUS_REMOVE,	/* Bus has been removed */
 };
 
 /*
@@ -217,7 +222,11 @@ enum dhd_bus_state {
 		 DHD_BUS_BUSY_CHECK_RPM_SUSPEND_IN_PROGRESS(dhdp))
 
 #define DHD_BUS_CHECK_DOWN_OR_DOWN_IN_PROGRESS(dhdp) \
-		((dhdp)->busstate == DHD_BUS_DOWN || (dhdp)->busstate == DHD_BUS_DOWN_IN_PROGRESS)
+		((dhdp)->busstate == DHD_BUS_DOWN || (dhdp)->busstate == DHD_BUS_DOWN_IN_PROGRESS || \
+		(dhdp)->busstate == DHD_BUS_REMOVE)
+
+#define DHD_BUS_CHECK_REMOVE(dhdp) \
+		((dhdp)->busstate == DHD_BUS_REMOVE)
 
 /* Macro to print Ethernet Address as String
  * expects both arguements as (char *)
@@ -1949,7 +1958,11 @@ extern uint dhd_force_tx_queueing;
 #define WIFI_TURNON_DELAY		DEFAULT_WIFI_TURNON_DELAY
 #endif /* WIFI_TURNON_DELAY */
 
+#ifdef BCMSDIO
 #define DEFAULT_DHD_WATCHDOG_INTERVAL_MS	10 /* msec */
+#else
+#define DEFAULT_DHD_WATCHDOG_INTERVAL_MS	0 /* msec */
+#endif
 #ifndef CUSTOM_DHD_WATCHDOG_MS
 #define CUSTOM_DHD_WATCHDOG_MS			DEFAULT_DHD_WATCHDOG_INTERVAL_MS
 #endif /* DEFAULT_DHD_WATCHDOG_INTERVAL_MS */

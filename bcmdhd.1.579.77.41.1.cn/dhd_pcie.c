@@ -1117,6 +1117,27 @@ dhdpcie_advertise_bus_cleanup(dhd_pub_t	 *dhdp)
 }
 
 static void
+dhdpcie_advertise_bus_remove(dhd_pub_t	 *dhdp)
+{
+	unsigned long flags;
+	int timeleft;
+
+	DHD_GENERAL_LOCK(dhdp, flags);
+	dhdp->busstate = DHD_BUS_REMOVE;
+	DHD_GENERAL_UNLOCK(dhdp, flags);
+
+	timeleft = dhd_os_busbusy_wait_negation(dhdp, &dhdp->dhd_bus_busy_state);
+	if ((timeleft == 0) || (timeleft == 1)) {
+		DHD_ERROR(("%s : Timeout due to dhd_bus_busy_state=0x%x\n",
+				__FUNCTION__, dhdp->dhd_bus_busy_state));
+		ASSERT(0);
+	}
+
+	return;
+}
+
+
+static void
 dhdpcie_bus_remove_prep(dhd_bus_t *bus)
 {
 	unsigned long flags;
@@ -1169,7 +1190,7 @@ dhdpcie_bus_release(dhd_bus_t *bus)
 		ASSERT(osh);
 
 		if (bus->dhd) {
-			dhdpcie_advertise_bus_cleanup(bus->dhd);
+			dhdpcie_advertise_bus_remove(bus->dhd);
 			dongle_isolation = bus->dhd->dongle_isolation;
 			bus->dhd->is_pcie_watchdog_reset = FALSE;
 			dhdpcie_bus_remove_prep(bus);
@@ -1763,9 +1784,10 @@ dhdpcie_download_code_file(struct dhd_bus *bus, char *pfw_path)
 err:
 	if (memblock) {
 		MFREE(bus->dhd->osh, memblock, MEMBLOCK + DHD_SDALIGN);
-	if (dhd_msg_level & DHD_TRACE_VAL) {
-		if (memptr_tmp)
-			MFREE(bus->dhd->osh, memptr_tmp, MEMBLOCK + DHD_SDALIGN);
+		if (dhd_msg_level & DHD_TRACE_VAL) {
+			if (memptr_tmp)
+				MFREE(bus->dhd->osh, memptr_tmp, MEMBLOCK + DHD_SDALIGN);
+		}
 	}
 
 	if (imgbuf) {
@@ -3937,6 +3959,7 @@ done:
 
 	return bcmerror;
 }
+
 static int
 dhdpcie_bus_doiovar(dhd_bus_t *bus, const bcm_iovar_t *vi, uint32 actionid, const char *name,
                 void *params, int plen, void *arg, int len, int val_size)

@@ -678,6 +678,7 @@ static int dhdpcie_suspend_host_dev(dhd_bus_t *bus)
 	return bcmerror;
 }
 
+#if defined(PCIE_RC_VENDOR_ID) && defined(PCIE_RC_DEVICE_ID)
 uint32
 dhdpcie_rc_config_read(dhd_bus_t *bus, uint offset)
 {
@@ -784,6 +785,7 @@ uint32 dhd_debug_get_rc_linkcap(dhd_bus_t *bus)
 	linkcap &= PCIE_CAP_LINKCAP_LNKSPEED_MASK;
 	return linkcap;
 }
+#endif
 
 int dhdpcie_pci_suspend_resume(dhd_bus_t *bus, bool state)
 {
@@ -808,10 +810,11 @@ int dhdpcie_pci_suspend_resume(dhd_bus_t *bus, bool state)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
 #if defined(DHD_HANG_SEND_UP_TEST)
 		if (bus->is_linkdown ||
-			bus->dhd->req_hang_type == HANG_REASON_PCIE_RC_LINK_UP_FAIL) {
+			bus->dhd->req_hang_type == HANG_REASON_PCIE_RC_LINK_UP_FAIL)
 #else /* DHD_HANG_SEND_UP_TEST */
-		if (bus->is_linkdown) {
+		if (bus->is_linkdown)
 #endif /* DHD_HANG_SEND_UP_TEST */
+		{
 			bus->dhd->hang_reason = HANG_REASON_PCIE_RC_LINK_UP_FAIL;
 			dhd_os_send_hang_message(bus->dhd);
 		}
@@ -1346,7 +1349,11 @@ int dhdpcie_init(struct pci_dev *pdev)
 		bus->is_linkdown = 0;
 
 		/* Get RC Device Handle */
+#if defined(PCIE_RC_VENDOR_ID) && defined(PCIE_RC_DEVICE_ID)
 		bus->rc_dev = pci_get_device(PCIE_RC_VENDOR_ID, PCIE_RC_DEVICE_ID, NULL);
+#else
+		bus->rc_dev = NULL;
+#endif
 
 #if defined(BCMPCIE_OOB_HOST_WAKE) && defined(CUSTOMER_HW2) && \
 	defined(CONFIG_ARCH_APQ8084)

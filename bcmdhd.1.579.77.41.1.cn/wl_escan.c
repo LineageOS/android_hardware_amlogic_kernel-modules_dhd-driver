@@ -4,6 +4,9 @@
 #include <typedefs.h>
 #include <linuxver.h>
 #include <osl.h>
+#include <dngl_stats.h>
+#include <dhd.h>
+
 #include <bcmutils.h>
 #include <bcmendian.h>
 #include <ethernet.h>
@@ -1393,7 +1396,7 @@ err:
 	return err;
 }
 
-void wl_escan_detach(void)
+void wl_escan_detach(dhd_pub_t *dhdp)
 {
 	struct wl_escan_info *escan = g_escan;
 
@@ -1410,14 +1413,12 @@ void wl_escan_detach(void)
 		kfree(escan->escan_ioctl_buf);
 		escan->escan_ioctl_buf = NULL;
 	}
-#ifndef CONFIG_DHD_USE_STATIC_BUF
-	kfree(escan);
-#endif
+	DHD_OS_PREFREE(dhdp, escan, sizeof(struct wl_escan_info));
 	g_escan = NULL;
 }
 
 int
-wl_escan_attach(struct net_device *dev, void * dhdp)
+wl_escan_attach(struct net_device *dev, dhd_pub_t *dhdp)
 {
 	struct wl_escan_info *escan = NULL;
 
@@ -1425,11 +1426,7 @@ wl_escan_attach(struct net_device *dev, void * dhdp)
 
 	if (!dev)
 		return 0;
-#ifdef CONFIG_DHD_USE_STATIC_BUF
-	escan = bcm_wlan_prealloc(DHD_PREALLOC_WL_ESCAN_INFO, sizeof(struct wl_escan_info));
-#else
-	escan = kmalloc(sizeof(struct wl_escan_info), GFP_KERNEL);
-#endif
+	escan = (wl_escan_info_t *)DHD_OS_PREALLOC(dhdp, DHD_PREALLOC_WL_ESCAN_INFO, sizeof(struct wl_escan_info));
 	if (!escan)
 		return -ENOMEM;
 	memset(escan, 0, sizeof(struct wl_escan_info));
@@ -1452,7 +1449,7 @@ wl_escan_attach(struct net_device *dev, void * dhdp)
 
 	return 0;
 err:
-	wl_escan_detach();
+	wl_escan_detach(dhdp);
 	return -ENOMEM;
 }
 

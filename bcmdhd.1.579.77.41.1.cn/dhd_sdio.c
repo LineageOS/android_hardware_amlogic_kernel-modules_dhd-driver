@@ -720,6 +720,7 @@ static int dhd_bcmsdh_send_buffer(void *bus, uint8 *frame, uint16 len);
 static int dhdsdio_set_sdmode(dhd_bus_t *bus, int32 sd_mode);
 static int dhdsdio_sdclk(dhd_bus_t *bus, bool on);
 static void dhdsdio_advertise_bus_cleanup(dhd_pub_t *dhdp);
+static void dhdsdio_advertise_bus_remove(dhd_pub_t *dhdp);
 #ifdef SUPPORT_MULTIPLE_BOARD_REV_FROM_DT
 int dhd_get_system_rev(void);
 #endif /* SUPPORT_MULTIPLE_BOARD_REV_FROM_DT */
@@ -2713,6 +2714,7 @@ dhd_bus_txctl(struct dhd_bus *bus, uchar *msg, uint msglen)
 	uint8 doff = 0;
 	int ret = -1;
 	uint8 sdpcm_hdrlen = bus->txglom_enable ? SDPCM_HDRLEN_TXGLOM : SDPCM_HDRLEN;
+	int cnt = 0;
 
 	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
 
@@ -2752,7 +2754,17 @@ dhd_bus_txctl(struct dhd_bus *bus, uchar *msg, uint msglen)
 
 
 	/* Need to lock here to protect txseq and SDIO tx calls */
+retry:
 	dhd_os_sdlock(bus->dhd);
+	if (cnt < bus->dhd->conf->txctl_tmo_fix && !TXCTLOK(bus)) {
+		cnt++;
+		dhd_os_sdunlock(bus->dhd);
+		OSL_SLEEP(1);
+		if (cnt >= (bus->dhd->conf->txctl_tmo_fix))
+			DHD_ERROR(("%s: No bus credit bus->tx_max %d, bus->tx_seq %d, last retry cnt %d\n",
+				__FUNCTION__, bus->tx_max, bus->tx_seq, cnt));
+		goto retry;
+	}
 
 	BUS_WAKE(bus);
 
@@ -6736,7 +6748,7 @@ clkwait:
 	}
 	/* Resched the DPC if ctrl cmd is pending on bus credit */
 	if (bus->ctrl_frame_stat) {
-		if (bus->dhd->conf->txctl_tmo_fix) {
+		if (bus->dhd->conf->txctl_tmo_fix > 0) {
 			set_current_state(TASK_INTERRUPTIBLE);
 			if (!kthread_should_stop())
 				schedule_timeout(1);
@@ -8448,8 +8460,8 @@ dhdsdio_disconnect(void *ptr)
 
 	if (bus) {
 		ASSERT(bus->dhd);
-		/* Advertise bus cleanup during rmmod */
-		dhdsdio_advertise_bus_cleanup(bus->dhd);
+		/* Advertise bus remove during rmmod */
+		dhdsdio_advertise_bus_remove(bus->dhd);
 		dhdsdio_release(bus, bus->dhd->osh);
 	}
 
@@ -9232,6 +9244,27 @@ dhdsdio_advertise_bus_cleanup(dhd_pub_t	 *dhdp)
 
 	return;
 }
+
+static void
+dhdsdio_advertise_bus_remove(dhd_pub_t	 *dhdp)
+{
+	unsigned long flags;
+	int timeleft;
+
+	DHD_LINUX_GENERAL_LOCK(dhdp, flags);
+	dhdp->busstate = DHD_BUS_REMOVE;
+	DHD_LINUX_GENERAL_UNLOCK(dhdp, flags);
+
+	timeleft = dhd_os_busbusy_wait_negation(dhdp, &dhdp->dhd_bus_busy_state);
+	if ((timeleft == 0) || (timeleft == 1)) {
+		DHD_ERROR(("%s : Timeout due to dhd_bus_busy_state=0x%x\n",
+				__FUNCTION__, dhdp->dhd_bus_busy_state));
+		ASSERT(0);
+	}
+
+	return;
+}
+
 
 int
 dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)

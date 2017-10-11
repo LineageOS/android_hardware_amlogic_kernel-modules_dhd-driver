@@ -15,6 +15,12 @@
 #include <linux/mmc/sdio_func.h>
 #endif /* defined(BUS_POWER_RESTORE) && defined(BCMSDIO) */
 
+
+static int gpio_wl_reg_on = -1; // WL_REG_ON is input pin of WLAN module
+#ifdef CUSTOMER_OOB
+static int gpio_wl_host_wake = -1; // WL_HOST_WAKE is output pin of WLAN module
+#endif
+
 #ifdef CUSTOMER_HW_AMLOGIC
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0))
 #include <linux/amlogic/aml_gpio_consumer.h>
@@ -26,12 +32,6 @@ extern void extern_wifi_set_enable(int is_on);
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0))
 extern int wifi_irq_num(void);
 #endif
-#endif
-
-
-static int gpio_wl_reg_on = -1; // WL_REG_ON is input pin of WLAN module
-#ifdef CUSTOMER_OOB
-static int gpio_wl_host_wake = -1; // WL_HOST_WAKE is output pin of WLAN module
 #endif
 
 static int
@@ -205,14 +205,6 @@ void* bcm_wlan_prealloc(int section, unsigned long size)
 	return NULL;
 }
 #endif
-
-//#if !defined(WL_WIRELESS_EXT)
-//struct cntry_locales_custom {
-//	char iso_abbrev[WLC_CNTRY_BUF_SZ];	/* ISO 3166-1 country abbreviation */
-//	char custom_locale[WLC_CNTRY_BUF_SZ];	/* Custom firmware locale */
-//	int32 custom_locale_rev;		/* Custom local revisin default -1 */
-//};
-//#endif
 
 static struct cntry_locales_custom brcm_wlan_translate_custom_table[] = {
 	/* Table should be filled out based on custom platform regulatory requirement */

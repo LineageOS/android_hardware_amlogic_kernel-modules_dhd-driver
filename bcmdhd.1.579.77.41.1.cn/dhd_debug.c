@@ -1174,7 +1174,7 @@ dhd_dbg_ring_init(dhd_pub_t *dhdp, dhd_dbg_ring_t *ring, uint16 id, uint8 *name,
 	void *buf;
 	unsigned long flags;
 #ifdef CONFIG_DHD_USE_STATIC_BUF
-	buf = bcm_wlan_prealloc(section, ring_sz);
+	buf = DHD_OS_PREALLOC(dhdp, section, ring_sz);
 #else
 	buf = MALLOCZ(dhdp->osh, ring_sz);
 #endif
@@ -2041,7 +2041,12 @@ dhd_dbg_monitor_get_tx_pkts(dhd_pub_t *dhdp, void __user *user_buf,
 	pkt_count = MIN(req_count, tx_report->status_pos);
 
 #ifdef CONFIG_COMPAT
-	if (is_compat_task()) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0))
+	if (in_compat_syscall())
+#else
+	if (is_compat_task())
+#endif
+	{
 		cptr = (compat_wifi_tx_report_t *)user_buf;
 		while ((count < pkt_count) && tx_pkt && cptr) {
 			compat_wifi_tx_report_t *comp_ptr = compat_ptr((uintptr_t) cptr);
@@ -2132,7 +2137,12 @@ dhd_dbg_monitor_get_rx_pkts(dhd_pub_t *dhdp, void __user *user_buf,
 	pkt_count = MIN(req_count, rx_report->pkt_pos);
 
 #ifdef CONFIG_COMPAT
-	if (is_compat_task()) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0))
+	if (in_compat_syscall())
+#else
+	if (is_compat_task())
+#endif
+	{
 		cptr = (compat_wifi_rx_report_t *)user_buf;
 		while ((count < pkt_count) && rx_pkt && cptr) {
 			compat_wifi_rx_report_t *comp_ptr = compat_ptr((uintptr_t) cptr);

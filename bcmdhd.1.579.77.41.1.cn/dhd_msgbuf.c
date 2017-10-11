@@ -2283,11 +2283,11 @@ dhd_prot_attach(dhd_pub_t *dhd)
 	/* Scratch buffer for dma rx offset */
 #ifdef BCM_HOST_BUF
 	if (dhd_dma_buf_alloc(dhd, &prot->d2h_dma_scratch_buf,
-		ROUNDUP(DMA_D2H_SCRATCH_BUF_LEN, 16) + DMA_HOST_BUFFER_LEN)) {
+		ROUNDUP(DMA_D2H_SCRATCH_BUF_LEN, 16) + DMA_HOST_BUFFER_LEN))
 #else
-	if (dhd_dma_buf_alloc(dhd, &prot->d2h_dma_scratch_buf, DMA_D2H_SCRATCH_BUF_LEN)) {
-
+	if (dhd_dma_buf_alloc(dhd, &prot->d2h_dma_scratch_buf, DMA_D2H_SCRATCH_BUF_LEN))
 #endif /* BCM_HOST_BUF */
+	{
 		goto fail;
 	}
 
@@ -8314,12 +8314,14 @@ dhd_prot_debug_info_print(dhd_pub_t *dhd)
 			PCIECFGREG_PHY_DBG_CLKREQ3,
 			dhd_pcie_corereg_read(dhd->bus->sih, PCIECFGREG_PHY_DBG_CLKREQ3)));
 
+#if defined(PCIE_RC_VENDOR_ID) && defined(PCIE_RC_DEVICE_ID)
 		DHD_ERROR(("Pcie RC Error Status Val=0x%x\n",
 			dhdpcie_rc_access_cap(dhd->bus, PCIE_EXTCAP_ID_ERR,
 			PCIE_EXTCAP_AER_UCERR_OFFSET, TRUE, FALSE, 0)));
 
 		DHD_ERROR(("RootPort PCIe linkcap=0x%08x\n",
 			dhd_debug_get_rc_linkcap(dhd->bus)));
+#endif
 
 		DHD_ERROR(("\n ------- DUMPING INTR enable/disable counters  ------- \r\n"));
 		DHD_ERROR(("resume_intr_enable_count=%lu dpc_intr_enable_count=%lu\n"

@@ -920,13 +920,6 @@ struct chan_info {
 #define CFG80211_PUT_BSS(wiphy, bss) cfg80211_put_bss(bss);
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0) */
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0))
-#define ieee80211_band nl80211_band
-#define IEEE80211_BAND_2GHZ NL80211_BAND_2GHZ
-#define IEEE80211_BAND_5GHZ NL80211_BAND_5GHZ
-#define IEEE80211_NUM_BANDS NUM_NL80211_BANDS
-#endif
-
 #define CHAN2G(_channel, _freq, _flags) {			\
 	.band			= IEEE80211_BAND_2GHZ,		\
 	.center_freq		= (_freq),			\
@@ -1178,11 +1171,13 @@ wl_chspec_from_legacy(chanspec_t legacy_chspec)
 			chspec |= WL_CHANSPEC_CTL_SB_U;
 		}
 	}
+
 	if (wf_chspec_malformed(chspec)) {
 		WL_ERR(("wl_chspec_from_legacy: output chanspec (0x%04X) malformed\n",
 		        chspec));
 		return INVCHANSPEC;
 	}
+
 	return chspec;
 }
 
@@ -1286,6 +1281,7 @@ wl_chspec_driver_to_host(chanspec_t chanspec)
 	if (ioctl_version == 1) {
 		chanspec = wl_chspec_from_legacy(chanspec);
 	}
+
 	return chanspec;
 }
 
@@ -3723,6 +3719,7 @@ wl_cfg80211_interface_ops(struct bcm_cfg80211 *cfg,
 			&iface_v3, sizeof(wl_interface_create_v3_t),
 			ioctl_buf, sizeof(ioctl_buf), NULL);
 	} else {
+#if 0
 		/* On any other error, attempt with iovar version 2 */
 		WL_DBG(("interface_create version 2. get_ver:%d\n", ret));
 		iface.ver = WL_INTERFACE_CREATE_VER_2;
@@ -3734,6 +3731,7 @@ wl_cfg80211_interface_ops(struct bcm_cfg80211 *cfg,
 		ret = wldev_iovar_getbuf(ndev, "interface_create",
 			&iface, sizeof(struct wl_interface_create_v2),
 			ioctl_buf, sizeof(ioctl_buf), NULL);
+#endif
 	}
 
 	if (unlikely(ret)) {
@@ -14082,10 +14080,11 @@ static void wl_scan_timeout(unsigned long data)
 	struct wl_bss_info *bi = NULL;
 	s32 i;
 	u32 channel;
-/*#if defined(DHD_DEBUG) && defined(DHD_FW_COREDUMP)
+#if 0
 	dhd_pub_t *dhdp = (dhd_pub_t *)(cfg->pub);
 	uint32 prev_memdump_mode = dhdp->memdump_enabled;
-#endif*/ /* DHD_DEBUG && DHD_FW_COREDUMP */
+#endif /* DHD_DEBUG && DHD_FW_COREDUMP */
+
 	if (!(cfg->scan_request)) {
 		WL_ERR(("timer expired but no scan request\n"));
 		return;
@@ -14096,6 +14095,7 @@ static void wl_scan_timeout(unsigned long data)
 		WL_ERR(("bss_list is null. Didn't receive any partial scan results\n"));
 	} else {
 		WL_ERR(("scanned AP count (%d)\n", bss_list->count));
+
 		bi = next_bss(bss_list, bi);
 		for_each_bss(bss_list, bi, i) {
 			if (bi != NULL && &(bi->chanspec) != NULL && (bi->SSID)) {
@@ -14111,6 +14111,7 @@ static void wl_scan_timeout(unsigned long data)
 			}
 		}
 	}
+
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0))
 	if (cfg->scan_request->dev)
 		wdev = cfg->scan_request->dev->ieee80211_ptr;
@@ -14123,17 +14124,17 @@ static void wl_scan_timeout(unsigned long data)
 		return;
 	}
 	ndev = wdev_to_wlc_ndev(wdev, cfg);
+
 	bzero(&msg, sizeof(wl_event_msg_t));
 	WL_ERR(("timer expired\n"));
-/*#if defined(DHD_DEBUG) && defined(DHD_FW_COREDUMP)
+#if 0
 	if (dhdp->memdump_enabled) {
 		dhdp->memdump_enabled = DUMP_MEMFILE;
 		dhdp->memdump_type = DUMP_TYPE_SCAN_TIMEOUT;
 		dhd_bus_mem_dump(dhdp);
 		dhdp->memdump_enabled = prev_memdump_mode;
 	}
-#endif*/
- /* DHD_DEBUG && DHD_FW_COREDUMP */
+#endif /* DHD_DEBUG && DHD_FW_COREDUMP */
 	msg.event_type = hton32(WLC_E_ESCAN_RESULT);
 	msg.status = hton32(WLC_E_STATUS_TIMEOUT);
 	msg.reason = 0xFFFFFFFF;
@@ -14142,6 +14143,7 @@ static void wl_scan_timeout(unsigned long data)
 	if (!wl_scan_timeout_dbg_enabled)
 		wl_scan_timeout_dbg_set();
 #endif /* CUSTOMER_HW4_DEBUG */
+
 	// terence 20130729: workaround to fix out of memory in firmware
 //	if (dhd_conf_get_chip(dhd_get_pub(ndev)) == BCM43362_CHIP_ID) {
 //		WL_ERR(("Send hang event\n"));
@@ -15181,7 +15183,7 @@ static s32 wl_notifier_change_state(struct bcm_cfg80211 *cfg, struct net_info *_
 					wl_cfg80211_update_power_mode(_net_info->ndev);
 				}
 #ifdef RTT_SUPPORT
-                        }
+			}
 #endif /* RTT_SUPPORT */
 		}
 		wl_cfg80211_concurrent_roam(cfg, 0);
@@ -16380,9 +16382,6 @@ static s32 __wl_cfg80211_down(struct bcm_cfg80211 *cfg)
 	unsigned long flags;
 	struct net_info *iter, *next;
 	struct net_device *ndev = bcmcfg_to_prmry_ndev(cfg);
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0))
-        struct cfg80211_scan_info info;
-#endif
 #if defined(WL_CFG80211) && (defined(WL_ENABLE_P2P_IF) || \
 	defined(WL_NEW_CFG_PRIVCMD_SUPPORT)) && !defined(PLATFORM_SLP)
 	struct net_device *p2p_net = cfg->p2p_net;
@@ -16392,6 +16391,10 @@ static s32 __wl_cfg80211_down(struct bcm_cfg80211 *cfg)
 	dhd_pub_t *dhd =  (dhd_pub_t *)(cfg->pub);
 #endif 
 #endif /* PROP_TXSTATUS_VSDB */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0))
+	struct cfg80211_scan_info info;
+#endif
+
 	WL_DBG(("In\n"));
 
 	/* Check if cfg80211 interface is already down */
@@ -17376,27 +17379,25 @@ done:
 }
 
 static bool
-wl_cfg80211_valid_chanspec_p2p(chanspec_t chanspec)
+wl_cfg80211_valid_channel_p2p(int channel)
 {
 	bool valid = false;
-	char chanbuf[CHANSPEC_STR_LEN];
 
 	/* channel 1 to 14 */
-	if ((chanspec >= 0x2b01) && (chanspec <= 0x2b0e)) {
+	if ((channel >= 1) && (channel <= 14)) {
 		valid = true;
 	}
 	/* channel 36 to 48 */
-	else if ((chanspec >= 0x1b24) && (chanspec <= 0x1b30)) {
+	else if ((channel >= 36) && (channel <= 48)) {
 		valid = true;
 	}
 	/* channel 149 to 161 */
-	else if ((chanspec >= 0x1b95) && (chanspec <= 0x1ba1)) {
+	else if ((channel >= 149) && (channel <= 161)) {
 		valid = true;
 	}
 	else {
 		valid = false;
-		WL_INFORM(("invalid P2P chanspec, chanspec = %s\n",
-			wf_chspec_ntoa_ex(chanspec, chanbuf)));
+		WL_INFORM(("invalid P2P chanspec, channel = %d\n", channel));
 	}
 
 	return valid;
@@ -17461,7 +17462,7 @@ wl_cfg80211_get_chanspecs_5g(struct net_device *ndev, void *buf, s32 buflen)
 		}
 
 		if (CHANNEL_IS_RADAR(channel) ||
-			!(wl_cfg80211_valid_chanspec_p2p(chanspec))) {
+			!(wl_cfg80211_valid_channel_p2p(CHSPEC_CHANNEL(chanspec)))) {
 			continue;
 		} else {
 			list->element[j] = list->element[i];
@@ -17486,7 +17487,7 @@ wl_cfg80211_get_best_channel(struct net_device *ndev, void *buf, int buflen,
 	uint chip;
 
 	/* Start auto channel selection scan. */
-	ret = wldev_ioctl_set(ndev, WLC_START_CHANNEL_SEL, NULL, 0);
+	ret = wldev_ioctl_set(ndev, WLC_START_CHANNEL_SEL, buf, buflen);
 	if (ret < 0) {
 		WL_ERR(("can't start auto channel scan, error = %d\n", ret));
 		*channel = 0;
@@ -17508,7 +17509,7 @@ wl_cfg80211_get_best_channel(struct net_device *ndev, void *buf, int buflen,
 				chanspec = wl_chspec_driver_to_host(chosen);
 				printf("selected chanspec = 0x%x\n", chanspec);
 				ctl_chan = wf_chspec_ctlchan(chanspec);
-				printf("selected ctl_chan = 0x%x\n", ctl_chan);
+				printf("selected ctl_chan = %d\n", ctl_chan);
 				*channel = (u16)(ctl_chan & 0x00FF);
 			} else
 				*channel = (u16)(chosen & 0x00FF);
@@ -17524,6 +17525,7 @@ wl_cfg80211_get_best_channel(struct net_device *ndev, void *buf, int buflen,
 		*channel = 0;
 		ret = BCME_ERROR;
 	}
+	WL_INFORM(("selected channel = %d\n", *channel));
 
 done:
 	return ret;
@@ -17591,17 +17593,19 @@ wl_cfg80211_get_best_channels(struct net_device *dev, char* cmd, int total_len)
 		}
 
 		if (CHANNEL_IS_2G(channel)) {
+#if 0
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39) && !defined(WL_COMPAT_WIRELESS)
 			channel = ieee80211_channel_to_frequency(channel);
 #else
 			channel = ieee80211_channel_to_frequency(channel, IEEE80211_BAND_2GHZ);
 #endif
+#endif
 		} else {
 			WL_ERR(("invalid 2.4GHz channel, channel = %d\n", channel));
 			channel = 0;
 		}
+		pos += snprintf(pos, total_len, "2g=%d ", channel);
 	}
-	pos += snprintf(pos, total_len, "%04d ", channel);
 
 	if (band_cur != WLC_BAND_2G) {
 		// terence 20140120: fix for some chipsets only return 2.4GHz channel (4330b2/43341b0/4339a0)
@@ -17625,17 +17629,12 @@ wl_cfg80211_get_best_channels(struct net_device *dev, char* cmd, int total_len)
 		}
 
 		if (CHANNEL_IS_5G(channel)) {
-			channel = ieee80211_channel_to_frequency(channel, IEEE80211_BAND_5GHZ);
-		} else {
-			WL_ERR(("invalid 5GHz channel, channel = %d\n", channel));
-			channel = 0;
-		}
-
-		if (CHANNEL_IS_5G(channel)) {
+#if 0
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39) && !defined(WL_COMPAT_WIRELESS)
 			channel = ieee80211_channel_to_frequency(channel);
 #else
 			channel = ieee80211_channel_to_frequency(channel, IEEE80211_BAND_5GHZ);
+#endif
 #endif
 		} else {
 			WL_ERR(("invalid 5GHz channel, channel = %d\n", channel));
@@ -17645,11 +17644,8 @@ wl_cfg80211_get_best_channels(struct net_device *dev, char* cmd, int total_len)
 		ret = wldev_ioctl(dev, WLC_SET_BAND, &band_cur, sizeof(band_cur), true);
 		if (ret < 0)
 			WL_ERR(("WLC_SET_BAND error %d\n", ret));
+		pos += snprintf(pos, total_len, "5g=%d ", channel);
 	}
-	pos += snprintf(pos, total_len, "%04d ", channel);
-
-	/* Set overall best channel same as 5GHz best channel. */
-	pos += snprintf(pos, total_len, "%04d ", channel);
 
 done:
 	if (NULL != buf) {
@@ -17662,7 +17658,7 @@ done:
 		WL_ERR(("can't restore auto channel scan state, error = %d\n", ret));
 	}
 
-	printf("%s: channel %s\n", __FUNCTION__, cmd);
+	printf("%s: %s\n", __FUNCTION__, cmd);
 
 	return (pos - cmd);
 }

@@ -190,7 +190,7 @@ sdioh_sdmmc_card_enablefuncs(sdioh_info_t *sd)
 	err_ret = sdio_enable_func(sd->func[1]);
 	sdio_release_host(sd->func[1]);
 	if (err_ret) {
-		sd_err(("bcmsdh_sdmmc: Failed to enable F1 Err: 0x%08x", err_ret));
+		sd_err(("bcmsdh_sdmmc: Failed to enable F1 Err: 0x%08x\n", err_ret));
 	}
 
 	return FALSE;
@@ -1099,6 +1099,7 @@ sdioh_request_word(sdioh_info_t *sd, uint cmd_type, uint rw, uint func, uint add
 	return (((err_ret == 0)&&(err_ret2 == 0)) ? SDIOH_API_RC_SUCCESS : SDIOH_API_RC_FAIL);
 }
 
+#ifdef BCMSDIOH_TXGLOM
 static SDIOH_API_RC
 sdioh_request_packet_chain(sdioh_info_t *sd, uint fix_inc, uint write, uint func,
                      uint addr, void *pkt)
@@ -1117,11 +1118,9 @@ sdioh_request_packet_chain(sdioh_info_t *sd, uint fix_inc, uint write, uint func
 	uint32 sg_count;
 	struct sdio_func *sdio_func = sd->func[func];
 	struct mmc_host *host = sdio_func->card->host;
-#ifdef BCMSDIOH_TXGLOM
 	uint8 *localbuf = NULL;
 	uint local_plen = 0;
 	uint pkt_len = 0;
-#endif /* BCMSDIOH_TXGLOM */
 	struct timespec now, before;
 
 	sd_trace(("%s: Enter\n", __FUNCTION__));
@@ -1139,11 +1138,9 @@ sdioh_request_packet_chain(sdioh_info_t *sd, uint fix_inc, uint write, uint func
 	pkt_offset = 0;
 	pnext = pkt;
 
-#ifdef BCMSDIOH_TXGLOM
 	ttl_len = 0;
 	sg_count = 0;
 	if(sd->txglom_mode == SDPCM_TXGLOM_MDESC) {
-#endif
 	while (pnext != NULL) {
 		ttl_len = 0;
 		sg_count = 0;
@@ -1231,7 +1228,6 @@ sdioh_request_packet_chain(sdioh_info_t *sd, uint fix_inc, uint write, uint func
 			return SDIOH_API_RC_FAIL;
 		}
 	}
-#ifdef BCMSDIOH_TXGLOM
 	} else if(sd->txglom_mode == SDPCM_TXGLOM_CPY) {
 		for (pnext = pkt; pnext; pnext = PKTNEXT(sd->osh, pnext)) {
 			ttl_len += PKTLEN(sd->osh, pnext);
@@ -1305,7 +1301,6 @@ txglomfail:
 
 	if (localbuf)
 		MFREE(sd->osh, localbuf, ttl_len);
-#endif /* BCMSDIOH_TXGLOM */
 
 	if (sd_msglevel & SDH_COST_VAL) {
 		getnstimeofday(&now);
@@ -1316,6 +1311,7 @@ txglomfail:
 	sd_trace(("%s: Exit\n", __FUNCTION__));
 	return SDIOH_API_RC_SUCCESS;
 }
+#endif /* BCMSDIOH_TXGLOM */
 
 static SDIOH_API_RC
 sdioh_buffer_tofrom_bus(sdioh_info_t *sd, uint fix_inc, uint write, uint func,
@@ -1732,15 +1728,22 @@ sdioh_gpio_init(sdioh_info_t *sd)
 uint
 sdmmc_get_clock_rate(sdioh_info_t *sd)
 {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
+	return 0;
+#else
 	struct sdio_func *sdio_func = sd->func[0];
 	struct mmc_host *host = sdio_func->card->host;
 	return mmc_host_clk_rate(host);
+#endif
 }
 
 
 void
 sdmmc_set_clock_rate(sdioh_info_t *sd, uint hz)
 {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
+	return;
+#else
 	struct sdio_func *sdio_func = sd->func[0];
 	struct mmc_host *host = sdio_func->card->host;
 	struct mmc_ios *ios = &host->ios;
@@ -1760,6 +1763,7 @@ sdmmc_set_clock_rate(sdioh_info_t *sd, uint hz)
 	host->ops->set_ios(host, ios);
 	DHD_ERROR(("%s: After change: sd clock rate is %u\n", __FUNCTION__, ios->clock));
 	mmc_host_clk_release(host);
+#endif
 }
 
 void

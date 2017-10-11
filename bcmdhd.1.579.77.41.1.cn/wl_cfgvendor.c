@@ -252,7 +252,7 @@ wl_cfgvendor_set_country(struct wiphy *wiphy,
 	int err = BCME_ERROR, rem, type;
 	char country_code[WLC_CNTRY_BUF_SZ] = {0};
 	const struct nlattr *iter;
-
+	WL_ERR(("enter wl_cfgvendor_set_country: \n"));
 	nla_for_each_attr(iter, data, len, rem) {
 		type = nla_type(iter);
 		switch (type) {
@@ -267,6 +267,7 @@ wl_cfgvendor_set_country(struct wiphy *wiphy,
 	}
 
 	err = wldev_set_country(wdev->netdev, country_code, true, true, -1);
+	WL_ERR(("Set country code ret:%d\n", err));
 	if (err < 0) {
 		WL_ERR(("Set country failed ret:%d\n", err));
 	}
@@ -2203,7 +2204,11 @@ static int wl_cfgvendor_lstats_get_info(struct wiphy *wiphy,
 	wlc_rev_info_t revinfo;
 #ifdef CONFIG_COMPAT
 	compat_wifi_iface_stat compat_iface;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0))
+	int compat_task_state = in_compat_syscall();
+#else
 	int compat_task_state = is_compat_task();
+#endif
 #endif /* CONFIG_COMPAT */
 
 	WL_INFORM(("%s: Enter \n", __func__));
@@ -2563,7 +2568,12 @@ wl_cfgvendor_dbg_get_mem_dump(struct wiphy *wiphy,
 			goto free_mem;
 		}
 #ifdef CONFIG_COMPAT
-		if (is_compat_task()) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0))
+		if (in_compat_syscall())
+#else
+		if (is_compat_task())
+#endif
+		{
 			void * usr_ptr =  compat_ptr((uintptr_t) user_buf);
 			ret = copy_to_user(usr_ptr, mem_buf, buf_len);
 			if (ret) {
@@ -2737,9 +2747,9 @@ static int wl_cfgvendor_dbg_get_feature(struct wiphy *wiphy,
 	ret = wl_cfgvendor_send_cmd_reply(wiphy, bcmcfg_to_prmry_ndev(cfg),
 	        &supported_features, sizeof(supported_features));
 	if (ret < 0) {
-                WL_ERR(("wl_cfgvendor_send_cmd_reply failed ret:%d\n", ret));
-                goto exit;
-        }
+		WL_ERR(("wl_cfgvendor_send_cmd_reply failed ret:%d\n", ret));
+		goto exit;
+	}
 exit:
 	return ret;
 }
