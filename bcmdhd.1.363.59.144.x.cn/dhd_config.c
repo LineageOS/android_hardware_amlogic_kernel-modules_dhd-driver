@@ -59,18 +59,19 @@ uint config_msg_level = CONFIG_ERROR_LEVEL;
 #define CONFIG_BCM43341B0 "config_43341b0.txt"
 #define CONFIG_BCM43241B4 "config_43241b4.txt"
 #define CONFIG_BCM4339A0 "config_4339a0.txt"
+#define CONFIG_BCM43454C0 "config_43454c0.txt"
 #define CONFIG_BCM43455C0 "config_43455c0.txt"
 #define CONFIG_BCM43456C5 "config_43456c5.txt"
 #define CONFIG_BCM4354A1 "config_4354a1.txt"
 #endif
 #define CONFIG_BCM4356A2 "config_4356a2.txt"
-#define CONFIG_BCM4358A3 "config_4358.txt"
+#define CONFIG_BCM4358A3 "config_4358a3.txt"
 #define CONFIG_BCM4359B1 "config_4359b1.txt"
 #define CONFIG_BCM4359C0 "config_4359c0.txt"
 #endif
 
 #ifdef BCMSDIO
-#define SBSDIO_CIS_SIZE_LIMIT		0x200		/* maximum bytes in one CIS */
+#define SBSDIO_CIS_SIZE_LIMIT		0x200
 
 #define FW_BCM4330B2 "fw_bcm40183b2"
 #define FW_BCM4330B2_AG "fw_bcm40183b2_ag"
@@ -88,7 +89,7 @@ uint config_msg_level = CONFIG_ERROR_LEVEL;
 #define FW_BCM43456C5 "fw_bcm43456c5_ag"
 #define FW_BCM4354A1 "fw_bcm4354a1_ag"
 #define FW_BCM4356A2 "fw_bcm4356a2_ag"
-#define FW_BCM4358A3 "fw_bcm4358_ag"
+#define FW_BCM4358A3 "fw_bcm4358a3_ag"
 #define FW_BCM4359B1 "fw_bcm4359b1_ag"
 #define FW_BCM4359C0 "fw_bcm4359c0_ag"
 
@@ -428,6 +429,7 @@ dhd_conf_set_fw_name_by_chip(dhd_pub_t *dhd, char *fw_path)
 		case BCM43012_CHIP_ID:
 			if (chiprev == BCM43012B0_CHIP_REV)
 				strcpy(&fw_path[i+1], FW_BCM43012B0);
+			break;
 		case BCM4334_CHIP_ID:
 			if (chiprev == BCM4334B1_CHIP_REV)
 				strcpy(&fw_path[i+1], FW_BCM4334B1);
@@ -449,11 +451,14 @@ dhd_conf_set_fw_name_by_chip(dhd_pub_t *dhd, char *fw_path)
 			if (chiprev == BCM4339A0_CHIP_REV)
 				strcpy(&fw_path[i+1], FW_BCM4339A0);
 			break;
-		case BCM4345_CHIP_ID:
 		case BCM43454_CHIP_ID:
 			if (chiprev == BCM43455C0_CHIP_REV)
 				strcpy(&fw_path[i+1], FW_BCM43455C0);
-			else if (chiprev == BCM43455C5_CHIP_REV)
+			break;
+		case BCM4345_CHIP_ID:
+			if (chiprev == BCM43455C0_CHIP_REV)
+				strcpy(&fw_path[i+1], FW_BCM43455C0);
+			else if (chiprev == BCM43456C5_CHIP_REV)
 				strcpy(&fw_path[i+1], FW_BCM43456C5);
 			break;
 		case BCM4354_CHIP_ID:
@@ -543,8 +548,8 @@ dhd_conf_set_nv_name_by_chip(dhd_pub_t *dhd, char *nv_path)
 	chiprev = dhd->conf->chiprev;
 
 	for (i=0; i<dhd->conf->nv_by_chip.count; i++) {
-		if (chip==dhd->conf->nv_by_chip.m_chip_nv_path_head[i].chip &&
-				chiprev==dhd->conf->nv_by_chip.m_chip_nv_path_head[i].chiprev) {
+		if (chip == dhd->conf->nv_by_chip.m_chip_nv_path_head[i].chip &&
+				chiprev == dhd->conf->nv_by_chip.m_chip_nv_path_head[i].chiprev) {
 			matched = i;
 			break;
 		}
@@ -656,11 +661,14 @@ dhd_conf_set_conf_name_by_chip(dhd_pub_t *dhd, char *conf_path)
 			if (chiprev == BCM4335A0_CHIP_REV)
 				strcpy(&conf_path[i+1], CONFIG_BCM4339A0);
 			break;
-		case BCM4345_CHIP_ID:
 		case BCM43454_CHIP_ID:
 			if (chiprev == BCM43455C0_CHIP_REV)
+				strcpy(&conf_path[i+1], CONFIG_BCM43454C0);
+			break;
+		case BCM4345_CHIP_ID:
+			if (chiprev == BCM43455C0_CHIP_REV)
 				strcpy(&conf_path[i+1], CONFIG_BCM43455C0);
-			else if (chiprev == BCM43455C5_CHIP_REV)
+			else if (chiprev == BCM43456C5_CHIP_REV)
 				strcpy(&conf_path[i+1], CONFIG_BCM43456C5);
 			break;
 		case BCM4339_CHIP_ID:
@@ -860,7 +868,7 @@ dhd_conf_fix_country(dhd_pub_t *dhd)
 
 	band = dhd_conf_get_band(dhd);
 
-	if (bcmerror || ((band==WLC_BAND_AUTO || band==WLC_BAND_2G) &&
+	if (bcmerror || ((band == WLC_BAND_AUTO || band == WLC_BAND_2G) &&
 			dtoh32(list->count)<11)) {
 		CONFIG_ERROR(("%s: bcmerror=%d, # of channels %d\n",
 			__FUNCTION__, bcmerror, dtoh32(list->count)));
@@ -1105,13 +1113,13 @@ dhd_conf_add_pkt_filter(dhd_pub_t *dhd)
 	 * 4. Filter out netbios pkt:
 	 *   Netbios: 121 0 0 12 0xFFFF000000000000000000FF000000000000000000000000FFFF 0x0800000000000000000000110000000000000000000000000089
 	 */
-	for(i=0; i<dhd->conf->pkt_filter_add.count; i++) {
+	for (i=0; i<dhd->conf->pkt_filter_add.count; i++) {
 		dhd->pktfilter[i+dhd->pktfilter_count] = dhd->conf->pkt_filter_add.filter[i];
 		printf("%s: %s\n", __FUNCTION__, dhd->pktfilter[i+dhd->pktfilter_count]);
 	}
 	dhd->pktfilter_count += i;
 
-	for(i=0; i<dhd->conf->magic_pkt_filter_add.count; i++) {
+	for (i=0; i<dhd->conf->magic_pkt_filter_add.count; i++) {
 		strcat(&dhd->conf->magic_pkt_filter_add.filter[i][0], " 0x");
 		strcat(&dhd->conf->magic_pkt_filter_add.filter[i][0], "FFFFFFFFFFFF");
 		for (j=0; j<16; j++)
@@ -1177,6 +1185,61 @@ dhd_conf_get_pm(dhd_pub_t *dhd)
 	if (dhd && dhd->conf)
 		return dhd->conf->pm;
 	return -1;
+}
+
+#define AP_IN_SUSPEND 1
+#define AP_DOWN_IN_SUSPEND 2
+int
+dhd_conf_get_ap_mode_in_suspend(dhd_pub_t *dhd)
+{
+	int mode = 0;
+
+	/* returned ap_in_suspend value:
+	 * 0: nothing
+	 * 1: ap enabled in suspend
+	 * 2: ap enabled, but down in suspend
+	 */
+	if (dhd->op_mode & DHD_FLAG_HOSTAP_MODE) {
+		mode = dhd->conf->ap_in_suspend;
+	}
+
+	return mode;
+}
+
+int
+dhd_conf_set_ap_in_suspend(dhd_pub_t *dhd, int suspend)
+{
+	int mode = 0;
+	uint wl_down = 1;
+
+	mode = dhd_conf_get_ap_mode_in_suspend(dhd);
+	if (mode)
+		printf("%s: suspend %d, mode %d\n", __FUNCTION__, suspend, mode);
+	if (suspend) {
+		if (mode == AP_IN_SUSPEND) {
+#ifdef SUSPEND_EVENT
+			if (dhd->conf->suspend_eventmask_enable) {
+				char *eventmask = dhd->conf->suspend_eventmask;
+				dhd_conf_set_bufiovar(dhd, WLC_SET_VAR, "event_msgs", eventmask, sizeof(eventmask), TRUE);
+			}
+#endif
+		} else if (mode == AP_DOWN_IN_SUSPEND)
+			dhd_wl_ioctl_cmd(dhd, WLC_DOWN, (char *)&wl_down, sizeof(wl_down), TRUE, 0);
+	} else {
+		if (mode == AP_IN_SUSPEND) {
+#ifdef SUSPEND_EVENT
+			if (dhd->conf->suspend_eventmask_enable) {
+				char *eventmask = dhd->conf->resume_eventmask;
+				dhd_conf_set_bufiovar(dhd, WLC_SET_VAR, "event_msgs", eventmask, sizeof(eventmask), TRUE);
+			}
+#endif
+		} else if (mode == AP_DOWN_IN_SUSPEND) {
+			wl_down = 0;
+			dhd_wl_ioctl_cmd(dhd, WLC_UP, (char *)&wl_down, sizeof(wl_down), TRUE, 0);
+		}
+	}
+
+	return mode;
 }
 
 #ifdef PROP_TXSTATUS
@@ -1269,12 +1332,12 @@ pick_config_vars(char *varbuf, uint len, uint start_pos, char *pickbuf)
 			continue;
 		}
 
-		if (column==0 && !pick) { // start to pick
+		if (column == 0 && !pick) { // start to pick
 			pick = TRUE;
 			column++;
 			pick_column = 0;
 		} else {
-			if (pick && column==0) { // stop to pick
+			if (pick && column == 0) { // stop to pick
 				pick = FALSE;
 				break;
 			} else
@@ -1283,7 +1346,7 @@ pick_config_vars(char *varbuf, uint len, uint start_pos, char *pickbuf)
 		if (pick) {
 			if (varbuf[n] == 0x9)
 				continue;
-			if (pick_column>0 && pickbuf[pick_column-1]==' ' && varbuf[n]==' ')
+			if (pick_column>0 && pickbuf[pick_column-1] == ' ' && varbuf[n] == ' ')
 				continue;
 			pickbuf[pick_column] = varbuf[n];
 			pick_column++;
@@ -1345,7 +1408,6 @@ dhd_conf_read_wme_ac_value(wme_param_t *wme, char *pick, int ac_val)
 {
 	char *pick_tmp, *pch;
 
-	/* Process WMM parameters */
 	pick_tmp = pick;
 	pch = bcmstrstr(pick_tmp, "aifsn ");
 	if (pch) {
@@ -1382,7 +1444,6 @@ dhd_conf_read_wme_ac_params(dhd_pub_t *dhd, char *full_param, uint len_param)
 	// wme_ac_sta_be=aifsn 1 ecwmin 2 ecwmax 3 txop 0x5e
 	// wme_ac_sta_vo=aifsn 1 ecwmin 1 ecwmax 1 txop 0x5e
 
-	/* Process WMM parameters */
 	if (!strncmp("force_wme_ac=", full_param, len_param)) {
 		conf->force_wme_ac = (int)simple_strtol(data, NULL, 10);
 		printf("%s: force_wme_ac = %d\n", __FUNCTION__, conf->force_wme_ac);
@@ -1769,16 +1830,45 @@ dhd_conf_read_iapsta(dhd_pub_t *dhd, char *full_param, uint len_param)
 }
 #endif
 
-#ifdef IDHCPC
+#ifdef IDHCP
 bool
 dhd_conf_read_dhcp_params(dhd_pub_t *dhd, char *full_param, uint len_param)
 {
 	struct dhd_conf *conf = dhd->conf;
 	char *data = full_param+len_param;
+	struct ipv4_addr ipa_set;
 
 	if (!strncmp("dhcpc_enable=", full_param, len_param)) {
 		conf->dhcpc_enable = (int)simple_strtol(data, NULL, 10);
 		printf("%s: dhcpc_enable = %d\n", __FUNCTION__, conf->dhcpc_enable);
+	}
+	else if (!strncmp("dhcpd_enable=", full_param, len_param)) {
+		conf->dhcpd_enable = (int)simple_strtol(data, NULL, 10);
+		printf("%s: dhcpd_enable = %d\n", __FUNCTION__, conf->dhcpd_enable);
+	}
+	else if (!strncmp("dhcpd_ip_addr=", full_param, len_param)) {
+		if (!bcm_atoipv4(data, &ipa_set))
+			printf("%s : dhcpd_ip_addr adress setting failed.\n", __FUNCTION__);
+		conf->dhcpd_ip_addr = ipa_set;
+		printf("%s: dhcpd_ip_addr = %s\n",__FUNCTION__, data);
+	}
+	else if (!strncmp("dhcpd_ip_mask=", full_param, len_param)) {
+		if (!bcm_atoipv4(data, &ipa_set))
+			printf("%s : dhcpd_ip_mask adress setting failed.\n", __FUNCTION__);
+		conf->dhcpd_ip_mask = ipa_set;
+		printf("%s: dhcpd_ip_mask = %s\n",__FUNCTION__, data);
+	}
+	else if (!strncmp("dhcpd_ip_start=", full_param, len_param)) {
+		if (!bcm_atoipv4(data, &ipa_set))
+			printf("%s : dhcpd_ip_start adress setting failed.\n", __FUNCTION__);
+		conf->dhcpd_ip_start = ipa_set;
+		printf("%s: dhcpd_ip_start = %s\n",__FUNCTION__, data);
+	}
+	else if (!strncmp("dhcpd_ip_end=", full_param, len_param)) {
+		if (!bcm_atoipv4(data, &ipa_set))
+			printf("%s : dhcpd_ip_end adress setting failed.\n", __FUNCTION__);
+		conf->dhcpd_ip_end = ipa_set;
+		printf("%s: dhcpd_ip_end = %s\n",__FUNCTION__, data);
 	}
 	else
 		return false;
@@ -1809,7 +1899,7 @@ dhd_conf_read_sdio_params(dhd_pub_t *dhd, char *full_param, uint len_param)
 		printf("%s: dhd_slpauto = %d\n", __FUNCTION__, dhd_slpauto);
 	}
 	else if (!strncmp("kso_enable=", full_param, len_param)) {
-		if (!strncmp(data, "1", 1))
+		if (!strncmp(data, "0", 1))
 			dhd_slpauto = FALSE;
 		else
 			dhd_slpauto = TRUE;
@@ -1841,6 +1931,14 @@ dhd_conf_read_sdio_params(dhd_pub_t *dhd, char *full_param, uint len_param)
 		else
 			conf->oob_enabled_later = TRUE;
 		printf("%s: oob_enabled_later = %d\n", __FUNCTION__, conf->oob_enabled_later);
+	}
+	else if (!strncmp("dpc_cpucore=", full_param, len_param)) {
+		conf->dpc_cpucore = (int)simple_strtol(data, NULL, 10);
+		printf("%s: dpc_cpucore = %d\n", __FUNCTION__, conf->dpc_cpucore);
+	}
+	else if (!strncmp("rxf_cpucore=", full_param, len_param)) {
+		conf->rxf_cpucore = (int)simple_strtol(data, NULL, 10);
+		printf("%s: rxf_cpucore = %d\n", __FUNCTION__, conf->rxf_cpucore);
 	}
 #if defined(BCMSDIOH_TXGLOM)
 	else if (!strncmp("txglomsize=", full_param, len_param)) {
@@ -1957,6 +2055,10 @@ dhd_conf_read_pm_params(dhd_pub_t *dhd, char *full_param, uint len_param)
 		else
 			conf->xmit_in_suspend = FALSE;
 		printf("%s: xmit_in_suspend = %d\n", __FUNCTION__, conf->xmit_in_suspend);
+	}
+	else if (!strncmp("ap_in_suspend=", full_param, len_param)) {
+		conf->ap_in_suspend = (int)simple_strtol(data, NULL, 10);
+		printf("%s: ap_in_suspend = %d\n", __FUNCTION__, conf->ap_in_suspend);
 	}
 	else
 		return false;
@@ -2202,10 +2304,10 @@ dhd_conf_read_config(dhd_pub_t *dhd, char *conf_path)
 			else if (dhd_conf_read_iapsta(dhd, pick, len_param))
 				continue;
 #endif /* IAPSTA_PREINIT */
-#ifdef IDHCPC
+#ifdef IDHCP
 			else if (dhd_conf_read_dhcp_params(dhd, pick, len_param))
 				continue;
-#endif /* IDHCPC */
+#endif /* IDHCP */
 #ifdef BCMSDIO
 			else if (dhd_conf_read_sdio_params(dhd, pick, len_param))
 				continue;
@@ -2416,10 +2518,16 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 	conf->pm2_sleep_ret = -1;
 	conf->num_different_channels = -1;
 	conf->xmit_in_suspend = TRUE;
-#ifdef IDHCPC
+	conf->ap_in_suspend = 0;
+#ifdef IDHCP
 	conf->dhcpc_enable = -1;
+	conf->dhcpd_enable = -1;
 #endif
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0))
+	conf->tsq = 10;
+#else
 	conf->tsq = 0;
+#endif
 #ifdef DHDTCPACK_SUPPRESS
 	conf->tcpack_sup_mode = TCPACK_SUP_OFF;
 #endif
@@ -2432,8 +2540,12 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 	memset(conf->iapsta_config, 0, sizeof(conf->iapsta_config));
 	memset(conf->iapsta_enable, 0, sizeof(conf->iapsta_enable));
 #endif
+#ifdef CUSTOMER_HW_AMLOGIC
+	dhd_slpauto = FALSE;
+#endif
 #ifdef BCMSDIO
-	if (conf->chip == BCM43430_CHIP_ID || conf->chip == BCM4345_CHIP_ID) {
+	if (conf->chip == BCM43430_CHIP_ID || conf->chip == BCM43454_CHIP_ID ||
+			conf->chip == BCM4345_CHIP_ID) {
 		conf->txctl_tmo_fix = 1;
 	}
 #endif
@@ -2443,15 +2555,18 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 #ifdef DHDTCPACK_SUPPRESS
 		conf->tcpack_sup_mode = TCPACK_SUP_REPLACE;
 #endif
-		dhd_rxbound = 64;
+		dhd_rxbound = 128;
 		dhd_txbound = 64;
 		conf->txbf = 1;
 		conf->frameburst = 1;
 #ifdef BCMSDIO
 		conf->dhd_txminmax = -1;
 		conf->txinrx_thres = 128;
-		conf->sd_f2_blocksize = 256;
+		conf->sd_f2_blocksize = CUSTOM_SDIO_F2_BLKSIZE;
 		conf->oob_enabled_later = TRUE;
+#ifdef CUSTOMER_HW_AMLOGIC
+		conf->rxf_cpucore = 2;
+#endif
 #endif
 	}
 

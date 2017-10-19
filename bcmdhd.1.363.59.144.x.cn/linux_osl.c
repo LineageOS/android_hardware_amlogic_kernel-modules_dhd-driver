@@ -33,6 +33,8 @@
 #include <bcmendian.h>
 #include <linuxver.h>
 #include <bcmdefs.h>
+#include <dngl_stats.h>
+#include <dhd.h>
 
 
 #if !defined(STBLINUX)
@@ -465,7 +467,7 @@ int osl_static_mem_init(osl_t *osh, void *adapter)
 #ifdef CONFIG_DHD_USE_STATIC_BUF
 		if (!bcm_static_buf && adapter) {
 			if (!(bcm_static_buf = (bcm_static_buf_t *)wifi_platform_prealloc(adapter,
-				3, STATIC_BUF_SIZE + STATIC_BUF_TOTAL_LEN))) {
+				DHD_PREALLOC_OSL_BUF, STATIC_BUF_SIZE + STATIC_BUF_TOTAL_LEN))) {
 				printk("can not alloc static buf!\n");
 				bcm_static_skb = NULL;
 				ASSERT(osh->magic == OS_HANDLE_MAGIC);
@@ -484,7 +486,7 @@ int osl_static_mem_init(osl_t *osh, void *adapter)
 			int i;
 			void *skb_buff_ptr = 0;
 			bcm_static_skb = (bcm_static_pkt_t *)((char *)bcm_static_buf + 2048);
-			skb_buff_ptr = wifi_platform_prealloc(adapter, 4, 0);
+			skb_buff_ptr = wifi_platform_prealloc(adapter, DHD_PREALLOC_SKB_BUF, 0);
 			if (!skb_buff_ptr) {
 				printk("cannot alloc static buf!\n");
 				bcm_static_buf = NULL;

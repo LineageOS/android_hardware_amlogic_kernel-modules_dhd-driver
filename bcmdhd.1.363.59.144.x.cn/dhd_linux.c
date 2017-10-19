@@ -821,11 +821,11 @@ module_param(dhd_watchdog_prio, int, 0);
 
 /* DPC thread priority */
 int dhd_dpc_prio = CUSTOM_DPC_PRIO_SETTING;
-module_param(dhd_dpc_prio, int, 0644);
+module_param(dhd_dpc_prio, int, 0);
 
 /* RX frame thread priority */
 int dhd_rxf_prio = CUSTOM_RXF_PRIO_SETTING;
-module_param(dhd_rxf_prio, int, 0644);
+module_param(dhd_rxf_prio, int, 0);
 
 int passive_channel_skip = 0;
 module_param(passive_channel_skip, int, (S_IRUSR|S_IWUSR));
@@ -2720,7 +2720,9 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 			}
 #endif /* DYNAMIC_SWOOB_DURATION */
 #endif /* DHD_USE_EARLYSUSPEND */
+			dhd_conf_set_ap_in_suspend(dhd, value);
 		} else {
+			dhd_conf_set_ap_in_suspend(dhd, value);
 #ifdef PKT_FILTER_SUPPORT
 			dhd->early_suspended = 0;
 #endif
@@ -2830,7 +2832,7 @@ static int dhd_suspend_resume_helper(struct dhd_info *dhd, int val, int force)
 	/* Set flag when early suspend was called */
 	dhdp->in_suspend = val;
 	if ((force || !dhdp->suspend_disable_flag) &&
-		dhd_support_sta_mode(dhdp))
+		(dhd_support_sta_mode(dhdp) || dhd_conf_get_ap_mode_in_suspend(dhdp)))
 	{
 		ret = dhd_set_suspend(val, dhdp);
 	}
@@ -4949,17 +4951,17 @@ dhd_dpc_thread(void *data)
 
 #ifdef CUSTOM_DPC_CPUCORE
 	set_cpus_allowed_ptr(current, cpumask_of(CUSTOM_DPC_CPUCORE));
-#else
-	if (dhd->pub.conf->dpc_cpucore >= 0) {
-		printf("%s: set dpc_cpucore %d from config.txt\n", __FUNCTION__, dhd->pub.conf->dpc_cpucore);
-		set_cpus_allowed_ptr(current, cpumask_of(dhd->pub.conf->dpc_cpucore));
-	}
 #endif
 #ifdef CUSTOM_SET_CPUCORE
 	dhd->pub.current_dpc = current;
 #endif /* CUSTOM_SET_CPUCORE */
 	/* Run until signal received */
 	while (1) {
+		if (dhd->pub.conf->dpc_cpucore >= 0) {
+			printf("%s: set dpc_cpucore %d\n", __FUNCTION__, dhd->pub.conf->dpc_cpucore);
+			set_cpus_allowed_ptr(current, cpumask_of(dhd->pub.conf->dpc_cpucore));
+			dhd->pub.conf->dpc_cpucore = -1;
+		}
 		if (!binary_sema_down(tsk)) {
 #ifdef ENABLE_ADAPTIVE_SCHED
 			dhd_sched_policy(dhd_dpc_prio);
@@ -5030,11 +5032,6 @@ dhd_rxf_thread(void *data)
 #ifdef CUSTOM_RXF_CPUCORE
 	/* change rxf thread to other cpu core */
 	set_cpus_allowed_ptr(current, cpumask_of(CUSTOM_RXF_CPUCORE));
-#else
-	if (dhd->pub.conf->rxf_cpucore >= 0) {
-		printf("%s: set rxf_cpucore %d from config.txt\n", __FUNCTION__, dhd->pub.conf->rxf_cpucore);
-		set_cpus_allowed_ptr(current, cpumask_of(dhd->pub.conf->rxf_cpucore));
-	}
 #endif
 
 	/*  signal: thread has started */
@@ -5044,6 +5041,11 @@ dhd_rxf_thread(void *data)
 #endif /* CUSTOM_SET_CPUCORE */
 	/* Run until signal received */
 	while (1) {
+		if (dhd->pub.conf->rxf_cpucore >= 0) {
+			printf("%s: set rxf_cpucore %d\n", __FUNCTION__, dhd->pub.conf->rxf_cpucore);
+			set_cpus_allowed_ptr(current, cpumask_of(dhd->pub.conf->rxf_cpucore));
+			dhd->pub.conf->rxf_cpucore = -1;
+		}
 		if (down_interruptible(&tsk->sema) == 0) {
 			void *skb;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 0)
@@ -5758,13 +5760,11 @@ dhd_ioctl_entry(struct net_device *net, struct ifreq *ifr, int cmd)
 	if (is_compat_task())
 #endif
 	{
-
 		compat_wl_ioctl_t compat_ioc;
 		if (copy_from_user(&compat_ioc, ifr->ifr_data, sizeof(compat_wl_ioctl_t))) {
 			ret = BCME_BADADDR;
 			goto done;
 		}
-
 		ioc.cmd = compat_ioc.cmd;
 		ioc.buf = (uint64 *)compat_ioc.buf;
 		ioc.len = compat_ioc.len;
@@ -7296,7 +7296,7 @@ dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen)
 	}
 #ifdef WL_ESCAN
 	wl_escan_attach(net, (void *)&dhd->pub);
-#endif
+#endif /* WL_ESCAN */
 #endif /* defined(WL_WIRELESS_EXT) */
 
 #ifdef SHOW_LOGTRACE
@@ -8260,6 +8260,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 #endif /* (defined(AP) || defined(WLP2P)) && !defined(SOFTAP_AND_GC) */
 #ifdef GET_CUSTOM_MAC_ENABLE
 	struct ether_addr ea_addr;
+	char hw_ether[62];
 #endif /* GET_CUSTOM_MAC_ENABLE */
 
 #ifdef DISABLE_11N
@@ -8330,15 +8331,33 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 		DHD_INFO(("%s : Set IOCTL response time.\n", __FUNCTION__));
 	}
 #ifdef GET_CUSTOM_MAC_ENABLE
-	ret = wifi_platform_get_mac_addr(dhd->info->adapter, ea_addr.octet);
+	ret = wifi_platform_get_mac_addr(dhd->info->adapter, hw_ether);
 	if (!ret) {
 		memset(buf, 0, sizeof(buf));
+		bcopy(hw_ether, ea_addr.octet, sizeof(struct ether_addr));
 		bcm_mkiovar("cur_etheraddr", (void *)&ea_addr, ETHER_ADDR_LEN, buf, sizeof(buf));
 		ret = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, buf, sizeof(buf), TRUE, 0);
 		if (ret < 0) {
-			DHD_ERROR(("%s: can't set MAC address MAC="MACDBG", error=%d\n",
-				__FUNCTION__, MAC2STRDBG(ea_addr.octet), ret));
+			memset(buf, 0, sizeof(buf));
+			bcm_mkiovar("hw_ether", hw_ether, sizeof(hw_ether), buf, sizeof(buf));
+			ret = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, buf, sizeof(buf), TRUE, 0);
+			if (ret) {
+				int i;
+				DHD_ERROR(("%s: can't set MAC address MAC="MACDBG", error=%d\n",
+					__FUNCTION__, MAC2STRDBG(hw_ether), ret));
+				for (i=0; i<sizeof(hw_ether)-ETHER_ADDR_LEN; i++) {
+					printf("0x%02x,", hw_ether[i+ETHER_ADDR_LEN]);
+					if ((i+1)%8 == 0)
+						printf("\n");
+				}
+				ret = BCME_NOTUP;
+				goto done;
+			}
 		}
+	} else {
+		DHD_ERROR(("%s: can't get custom MAC address, ret=%d\n", __FUNCTION__, ret));
+		ret = BCME_NOTUP;
+		goto done;
 	}
 #endif /* GET_CUSTOM_MAC_ENABLE */
 	/* Get the default device MAC address directly from firmware */
@@ -8625,7 +8644,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 		}
 	}
 #endif /* DHD_ENABLE_LPC */
-	dhd_conf_set_intiovar(dhd, WLC_SET_VAR, "lpc", dhd->conf->lpc, 0, FALSE);
+	dhd_conf_set_intiovar(dhd, WLC_SET_VAR, "lpc", dhd->conf->lpc, 0, TRUE);
 
 	/* Set PowerSave mode */
 	if (dhd->conf->pm >= 0)
@@ -8670,7 +8689,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 	dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0);
 #endif /* defined(AP) && !defined(WLP2P) */
 	/*  0:HT20 in ALL, 1:HT40 in ALL, 2: HT20 in 2G HT40 in 5G */
-	dhd_conf_set_intiovar(dhd, WLC_SET_VAR, "mimo_bw_cap", dhd->conf->mimo_bw_cap, 1, TRUE);
+	dhd_conf_set_intiovar(dhd, WLC_SET_VAR, "mimo_bw_cap", dhd->conf->mimo_bw_cap, 0, TRUE);
 	dhd_conf_set_intiovar(dhd, WLC_SET_VAR, "force_wme_ac", dhd->conf->force_wme_ac, 1, FALSE);
 	dhd_conf_set_intiovar(dhd, WLC_SET_VAR, "stbc_tx", dhd->conf->stbc, 0, FALSE);
 	dhd_conf_set_intiovar(dhd, WLC_SET_VAR, "stbc_rx", dhd->conf->stbc, 0, FALSE);
@@ -8679,8 +8698,15 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 	dhd_conf_set_intiovar(dhd, WLC_SET_SPECT_MANAGMENT, "WLC_SET_SPECT_MANAGMENT", dhd->conf->spect, 0, FALSE);
 	dhd_conf_set_intiovar(dhd, WLC_SET_VAR, "rsdb_mode", dhd->conf->rsdb_mode, -1, TRUE);
 	dhd_conf_set_intiovar(dhd, WLC_SET_VAR, "vhtmode", dhd->conf->vhtmode, 0, TRUE);
-#ifdef IDHCPC
+#ifdef IDHCP
 	dhd_conf_set_intiovar(dhd, WLC_SET_VAR, "dhcpc_enable", dhd->conf->dhcpc_enable, 0, FALSE);
+	if (dhd->conf->dhcpd_enable >= 0) {
+		dhd_conf_set_bufiovar(dhd, WLC_SET_VAR, "dhcpd_ip_addr", (char *)&dhd->conf->dhcpd_ip_addr, sizeof(dhd->conf->dhcpd_ip_addr), FALSE);
+		dhd_conf_set_bufiovar(dhd, WLC_SET_VAR, "dhcpd_ip_mask", (char *)&dhd->conf->dhcpd_ip_mask, sizeof(dhd->conf->dhcpd_ip_mask), FALSE);
+		dhd_conf_set_bufiovar(dhd, WLC_SET_VAR, "dhcpd_ip_start", (char *)&dhd->conf->dhcpd_ip_start, sizeof(dhd->conf->dhcpd_ip_start), FALSE);
+		dhd_conf_set_bufiovar(dhd, WLC_SET_VAR, "dhcpd_ip_end", (char *)&dhd->conf->dhcpd_ip_end, sizeof(dhd->conf->dhcpd_ip_end), FALSE);
+		dhd_conf_set_intiovar(dhd, WLC_SET_VAR, "dhcpd_enable", dhd->conf->dhcpd_enable, 0, FALSE);
+	}
 #endif
 	dhd_conf_set_bw_cap(dhd);
 
@@ -8886,7 +8912,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 #endif /* WLTDLS */
 #ifdef WL_ESCAN
 	setbit(eventmask, WLC_E_ESCAN_RESULT);
-#endif
+#endif /* WL_ESCAN */
 #ifdef WL_CFG80211
 	setbit(eventmask, WLC_E_ESCAN_RESULT);
 	setbit(eventmask, WLC_E_AP_STARTED);
@@ -8919,6 +8945,9 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 	dhd_update_flow_prio_map(dhd, DHD_FLOW_PRIO_LLR_MAP);
 #endif /* defined(PCIE_FULL_DONGLE) && defined(DHD_LOSSLESS_ROAMING) */
 
+#ifdef SUSPEND_EVENT
+	bcopy(eventmask, dhd->conf->resume_eventmask, WL_EVENTING_MASK_LEN);
+#endif
 	/* Write updated Event mask */
 	bcm_mkiovar("event_msgs", eventmask, WL_EVENTING_MASK_LEN, iovbuf, sizeof(iovbuf));
 	if ((ret = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0)) < 0) {
@@ -9803,7 +9832,7 @@ void dhd_detach(dhd_pub_t *dhdp)
 	}
 #ifdef WL_ESCAN
 	wl_escan_detach();
-#endif
+#endif /* WL_ESCAN */
 #endif /* defined(WL_WIRELESS_EXT) */
 
 	/* delete all interfaces, start with virtual  */

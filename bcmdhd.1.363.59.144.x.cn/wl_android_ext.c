@@ -42,7 +42,7 @@ extern int disable_proptx;
 #endif /* PROP_TXSTATUS_VSDB */
 #endif
 #endif
-#ifdef IDHCPC
+#ifdef IDHCP
 #define CMD_DHCPC_ENABLE	"DHCPC_ENABLE"
 #define CMD_DHCPC_DUMP		"DHCPC_DUMP"
 #endif
@@ -112,7 +112,7 @@ int wl_ext_iovar_setbuf_bsscfg(struct net_device *dev, s8 *iovar_name,
 	void *param, s32 paramlen, void *buf, s32 buflen, s32 bsscfg_idx, struct mutex* buf_sync)
 {
 	int ret;
-	
+
 	ret = wldev_iovar_setbuf_bsscfg(dev, iovar_name, param, paramlen,
 		buf, buflen, bsscfg_idx, buf_sync);
 	if (ret < 0)
@@ -125,7 +125,7 @@ int wl_ext_iovar_getbuf_bsscfg(struct net_device *dev, s8 *iovar_name,
 	void *param, s32 paramlen, void *buf, s32 buflen, s32 bsscfg_idx, struct mutex* buf_sync)
 {
 	int ret;
-	
+
 	ret = wldev_iovar_getbuf_bsscfg(dev, iovar_name, param, paramlen,
 		buf, buflen, bsscfg_idx, buf_sync);
 	if (ret < 0)
@@ -487,7 +487,7 @@ wl_ext_keep_alive(struct net_device *dev, char *command, int total_len)
 		ANDROID_TRACE(("%s: command result is %s\n", __FUNCTION__, command));
 		ret = bytes_written;
 	}
-	
+
 exit:
 	return ret;
 }
@@ -1044,7 +1044,7 @@ wl_ext_iapsta_config(struct net_device *dev, char *command, int total_len)
 					cur_if->amode = AUTH_WPAPSK;
 				else if (!strcmp(pch, "wpa2psk"))
 					cur_if->amode = AUTH_WPA2PSK;
-				else if (!strcmp(pch, "wpawpa2psk")) 
+				else if (!strcmp(pch, "wpawpa2psk"))
 					cur_if->amode = AUTH_WPAWPA2PSK;
 				else {
 					ANDROID_ERROR(("%s: amode [open|shared|wpapsk|wpa2psk|wpawpa2psk]\n",
@@ -1063,7 +1063,7 @@ wl_ext_iapsta_config(struct net_device *dev, char *command, int total_len)
 					cur_if->emode = ENC_TKIP;
 				else if (!strcmp(pch, "aes"))
 					cur_if->emode = ENC_AES;
-				else if (!strcmp(pch, "tkipaes")) 
+				else if (!strcmp(pch, "tkipaes"))
 					cur_if->emode = ENC_TKIPAES;
 				else {
 					ANDROID_ERROR(("%s: emode [none|wep|tkip|aes|tkipaes]\n",
@@ -1173,7 +1173,7 @@ wl_ext_iapsta_disable(struct net_device *dev, char *command, int total_len)
 
 #ifdef PROP_TXSTATUS_VSDB
 #if defined(BCMSDIO)
-	if (cur_if==&apsta_params->vif && dhd->conf->disable_proptx!=0) {
+	if (cur_if == &apsta_params->vif && dhd->conf->disable_proptx != 0) {
 		bool enabled;
 		dhd_wlfc_get_enable(dhd, &enabled);
 		if (enabled) {
@@ -1321,7 +1321,7 @@ wl_ext_iapsta_enable(struct net_device *dev, char *command, int total_len)
 
 #ifdef PROP_TXSTATUS_VSDB
 #if defined(BCMSDIO)
-	if (cur_if==&apsta_params->vif && !disable_proptx) {
+	if (cur_if == &apsta_params->vif && !disable_proptx) {
 		bool enabled;
 		dhd_wlfc_get_enable(dhd, &enabled);
 		if (!enabled) {
@@ -1329,7 +1329,7 @@ wl_ext_iapsta_enable(struct net_device *dev, char *command, int total_len)
 			wl_ext_ioctl(dev, WLC_UP, NULL, 0, 1);
 		}
 	}
-#endif 
+#endif
 #endif /* PROP_TXSTATUS_VSDB */
 
 	printf("%s: ifname=%s, SSID: %s\n", __FUNCTION__, ifname, cur_if->ssid);
@@ -1350,7 +1350,7 @@ wl_android_ext_iapsta_disconnect_sta(struct net_device *dev, u32 channel)
 	channel_info_t ci;
 	struct dhd_pub *dhd;
 
-	if (apsta_params->apstamode==IAPSTA_MODE && cur_if->ifstate==IF_STATE_ENABLE) {
+	if (apsta_params->apstamode == IAPSTA_MODE && cur_if->ifstate == IF_STATE_ENABLE) {
 		dhd = dhd_get_pub(dev);
 		if (!FW_SUPPORTED(dhd, vsdb)) {
 			if (!(ret = wldev_ioctl(cur_if->dev, WLC_GET_CHANNEL, &ci, sizeof(channel_info_t), FALSE))) {
@@ -1392,7 +1392,7 @@ int wl_android_ext_dettach_netdev(void)
 }
 #endif
 
-#ifdef IDHCPC
+#ifdef IDHCP
 int wl_ext_ip_dump(int ip, char *buf)
 {
 	unsigned char bytes[4];
@@ -1401,7 +1401,7 @@ int wl_ext_ip_dump(int ip, char *buf)
 	bytes[0] = ip & 0xFF;
 	bytes[1] = (ip >> 8) & 0xFF;
 	bytes[2] = (ip >> 16) & 0xFF;
-	bytes[3] = (ip >> 24) & 0xFF;   
+	bytes[3] = (ip >> 24) & 0xFF;
 	bytes_written = sprintf(buf, "%d.%d.%d.%d", bytes[0], bytes[1], bytes[2], bytes[3]);
 
 	return bytes_written;
@@ -1471,7 +1471,7 @@ wl_ext_dhcpc_dump(struct net_device *dev, char *command, int total_len)
 
 	if (!bytes_written)
 		bytes_written = -1;
-	
+
 	ANDROID_TRACE(("%s: command result is %s\n", __FUNCTION__, command));
 
 	return bytes_written;
@@ -1511,7 +1511,7 @@ wl_ext_iovar(struct net_device *dev, char *command, int total_len)
 		sscanf(command, "%s %s %s", wl, cmd_str, val_str);
 
 	if (!strcmp(wl, "wl")) {
-		if (cmd>=0 && cmd!=WLC_GET_VAR && cmd!=WLC_SET_VAR) {
+		if (cmd >= 0 && cmd != WLC_GET_VAR && cmd != WLC_SET_VAR) {
 			ret = sscanf(arg, "%d", &val);
 			if (ret > 0) { // set
 				ret = wl_ext_ioctl(dev, cmd, &val, sizeof(val), TRUE);
@@ -1583,7 +1583,7 @@ int wl_android_ext_priv_cmd(struct net_device *net, char *command, int total_len
 		*bytes_written = wl_ext_iapsta_disable(net, command, total_len);
 	}
 #endif
-#ifdef IDHCPC
+#ifdef IDHCP
 	else if (strnicmp(command, CMD_DHCPC_ENABLE, strlen(CMD_DHCPC_ENABLE)) == 0) {
 		*bytes_written = wl_ext_dhcpc_enable(net, command, total_len);
 	}

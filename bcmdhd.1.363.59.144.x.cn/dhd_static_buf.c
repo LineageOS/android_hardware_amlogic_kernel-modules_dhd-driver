@@ -255,6 +255,7 @@ static int dhd_init_wlan_mem(void)
 		pr_err("Failed to alloc wlan_static_if_flow_lkup\n");
 		goto err_mem_alloc;
 	}
+	printk("%s: sectoin %d, size=%d\n", __FUNCTION__, DHD_PREALLOC_IF_FLOW_LKUP, DHD_PREALLOC_IF_FLOW_LKUP_SIZE);
 #endif /* CONFIG_BCMDHD_PCIE */
 
 	return 0;
