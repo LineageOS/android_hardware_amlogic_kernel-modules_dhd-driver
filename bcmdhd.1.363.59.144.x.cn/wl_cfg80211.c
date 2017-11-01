@@ -500,6 +500,7 @@ static inline chanspec_t wl_cfg80211_ulb_get_min_bw_chspec(
 	return WL_CHANSPEC_BW_20;
 }
 #endif /* WL11ULB */
+static void wl_cfg80211_wait_for_disconnection(struct bcm_cfg80211 *cfg, struct net_device *dev);
 
 /*
  * event & event Q handlers for cfg80211 interfaces
@@ -4354,7 +4355,7 @@ static bool wl_get_chan_isvht80(struct net_device *net, dhd_pub_t *dhd)
 		chanspec = wl_chspec_driver_to_host(chanspec);
 
 	isvht80 = chanspec & WL_CHANSPEC_BW_80;
-	WL_INFO(("%s: chanspec(%x:%d)\n", __FUNCTION__, chanspec, isvht80));
+	WL_INFORM(("%s: chanspec(%x:%d)\n", __FUNCTION__, chanspec, isvht80));
 
 	return isvht80;
 }
@@ -4721,6 +4722,21 @@ exit:
 	return err;
 }
 
+#define WAIT_FOR_DISCONNECT_MAX 10
+static void wl_cfg80211_wait_for_disconnection(struct bcm_cfg80211 *cfg, struct net_device *dev)
+{
+	uint8 wait_cnt;
+
+	wait_cnt = WAIT_FOR_DISCONNECT_MAX;
+	while (wl_get_drv_status(cfg, DISCONNECTING, dev) && wait_cnt) {
+		WL_DBG(("Waiting for disconnection, wait_cnt: %d\n", wait_cnt));
+		wait_cnt--;
+		OSL_SLEEP(50);
+	}
+
+	return;
+}
+
 static s32
 wl_cfg80211_disconnect(struct wiphy *wiphy, struct net_device *dev,
 	u16 reason_code)
@@ -4770,10 +4786,7 @@ wl_cfg80211_disconnect(struct wiphy *wiphy, struct net_device *dev,
 					WL_ERR(("error (%d)\n", err));
 					return err;
 				}
-#if defined(BCM4358_CHIP)
-				WL_ERR(("Wait for complete of disconnecting \n"));
-				OSL_SLEEP(200);
-#endif /* BCM4358_CHIP */
+				wl_cfg80211_wait_for_disconnection(cfg, dev);
 		}
 	}
 #ifdef CUSTOM_SET_CPUCORE
@@ -13287,6 +13300,8 @@ static s32 wl_notifier_change_state(struct bcm_cfg80211 *cfg, struct net_info *_
 		}
 
 		pm = PM_OFF;
+		if (dhd_conf_get_pm(dhd) >= 0)
+			pm = dhd_conf_get_pm(dhd);
 		if ((err = wldev_ioctl(_net_info->ndev, WLC_SET_PM, &pm,
 				sizeof(pm), true)) != 0) {
 			if (err == -ENODEV)
