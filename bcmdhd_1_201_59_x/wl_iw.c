@@ -592,9 +592,9 @@ wl_iw_set_freq(
 				fwrq->m /= 10;
 		}
 	/* handle 4.9GHz frequencies as Japan 4 GHz based channelization */
-	if (fwrq->m > 4000 && fwrq->m < 5000)
+	if (fwrq->m > 4000 && fwrq->m < 5000) {
 		sf = WF_CHAN_FACTOR_4_G; /* start factor for 4 GHz */
-
+	}
 		chan = wf_mhz2channel(fwrq->m, sf);
 	}
 	WL_ERROR(("%s: chan=%d\n", __FUNCTION__, chan));
@@ -3227,11 +3227,12 @@ wl_iw_ioctl(
 
 #if WIRELESS_EXT > 13
 	case SIOCGIWSCAN:
-	if (g_iscan)
+	if (g_iscan) {
 		max_tokens = wrq->u.data.length;
-	else
+	} else {
 		max_tokens = IW_SCAN_MAX_DATA;
-		break;
+	}
+	break;
 #endif /* WIRELESS_EXT > 13 */
 
 	case SIOCSIWSPY:
