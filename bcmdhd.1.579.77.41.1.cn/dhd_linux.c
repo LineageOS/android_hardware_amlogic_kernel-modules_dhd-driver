@@ -14124,8 +14124,8 @@ dhd_dev_get_feature_set(struct net_device *dev)
 	if (dhd_is_pno_supported(dhd)) {
 		feature_set |= WIFI_FEATURE_PNO;
 #ifdef GSCAN_SUPPORT
-		feature_set |= WIFI_FEATURE_GSCAN;
-		feature_set |= WIFI_FEATURE_HAL_EPNO;
+//		feature_set |= WIFI_FEATURE_GSCAN;
+//		feature_set |= WIFI_FEATURE_HAL_EPNO;
 #endif /* GSCAN_SUPPORT */
 	}
 #endif /* PNO_SUPPORT */
