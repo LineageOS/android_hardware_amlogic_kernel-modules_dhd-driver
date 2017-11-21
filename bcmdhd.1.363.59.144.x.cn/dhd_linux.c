@@ -9118,6 +9118,9 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 	// terence 20151210: set bus:txglom after dhd_txglom_enable since it's possible changed in dhd_conf_set_txglom_params
 	dhd_conf_set_intiovar(dhd, WLC_SET_VAR, "bus:txglom", dhd->conf->bus_txglom, 0, FALSE);
 #endif /* defined(BCMSDIO) */
+#if defined(BCMPCIE)
+	dhd_conf_set_intiovar(dhd, WLC_SET_VAR, "bus:deepsleep_disable", dhd->conf->bus_deepsleep_disable, 0, FALSE);
+#endif /* defined(BCMPCIE) */
 
 #if defined(BCMSDIO)
 #ifdef PROP_TXSTATUS
@@ -10288,10 +10291,15 @@ dhd_os_set_ioctl_resp_timeout(unsigned int timeout_msec)
 }
 
 int
-dhd_os_ioctl_resp_wait(dhd_pub_t *pub, uint *condition)
+dhd_os_ioctl_resp_wait(dhd_pub_t *pub, uint *condition, bool resched)
 {
 	dhd_info_t * dhd = (dhd_info_t *)(pub->info);
-	int timeout;
+	int timeout, timeout_tmp = dhd_ioctl_timeout_msec;
+
+	if (!resched && pub->conf->ctrl_resched>0 && pub->conf->dhd_ioctl_timeout_msec>0) {
+		timeout_tmp = dhd_ioctl_timeout_msec;
+		dhd_ioctl_timeout_msec = pub->conf->dhd_ioctl_timeout_msec;
+	}
 
 	/* Convert timeout in millsecond to jiffies */
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
@@ -10303,6 +10311,10 @@ dhd_os_ioctl_resp_wait(dhd_pub_t *pub, uint *condition)
 	DHD_PERIM_UNLOCK(pub);
 
 	timeout = wait_event_timeout(dhd->ioctl_resp_wait, (*condition), timeout);
+
+	if (!resched && pub->conf->ctrl_resched>0 && pub->conf->dhd_ioctl_timeout_msec>0) {
+		dhd_ioctl_timeout_msec = timeout_tmp;
+	}
 
 	DHD_PERIM_LOCK(pub);
 

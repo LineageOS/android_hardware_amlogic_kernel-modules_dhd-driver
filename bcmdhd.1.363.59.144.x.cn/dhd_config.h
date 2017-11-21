@@ -23,7 +23,7 @@ extern uint dhd_slpauto;
 #define BCM43430A0_CHIP_REV     0
 #define BCM43430A1_CHIP_REV     1
 #define BCM43430A2_CHIP_REV     2
-#define BCM43012B0_CHIP_REV     1
+#define BCM43013B0_CHIP_REV     1
 #define BCM4330B2_CHIP_REV      4
 #define BCM4334B1_CHIP_REV      3
 #define BCM43341B0_CHIP_REV     2
@@ -137,6 +137,7 @@ typedef struct dhd_conf {
 	int txbf;
 	int lpc;
 	int disable_proptx;
+	int dhd_poll;
 #ifdef BCMSDIO
 	int bus_txglom;
 	int use_rxchain;
@@ -149,7 +150,6 @@ typedef struct dhd_conf {
 	*/
 	int tx_max_offset;
 	uint txglomsize;
-	int dhd_poll;
 	bool txctl_tmo_fix;
 	bool tx_in_rx;
 	bool txglom_mode;
@@ -164,6 +164,9 @@ typedef struct dhd_conf {
 	int dhd_txminmax; // -1=DATABUFCNT(bus)
 	uint sd_f2_blocksize;
 	bool oob_enabled_later;
+#endif
+#ifdef BCMPCIE
+	int bus_deepsleep_disable;
 #endif
 	int ampdu_ba_wsize;
 	int ampdu_hostreorder;
@@ -202,6 +205,8 @@ typedef struct dhd_conf {
 	char iapsta_enable[50];
 #endif
 	int autocountry;
+	int ctrl_resched;
+	int dhd_ioctl_timeout_msec;
 	int tsq;
 } dhd_conf_t;
 

@@ -3215,6 +3215,7 @@ dhd_bus_rxctl(struct dhd_bus *bus, uchar *msg, uint msglen)
 {
 	int timeleft;
 	uint rxlen = 0;
+	static uint cnt = 0;
 
 	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
 
@@ -3222,13 +3223,39 @@ dhd_bus_rxctl(struct dhd_bus *bus, uchar *msg, uint msglen)
 		return -EIO;
 
 	/* Wait until control frame is available */
-	timeleft = dhd_os_ioctl_resp_wait(bus->dhd, &bus->rxlen);
+	timeleft = dhd_os_ioctl_resp_wait(bus->dhd, &bus->rxlen, false);
 
 	dhd_os_sdlock(bus->dhd);
 	rxlen = bus->rxlen;
 	bcopy(bus->rxctl, msg, MIN(msglen, rxlen));
 	bus->rxlen = 0;
 	dhd_os_sdunlock(bus->dhd);
+
+	if (bus->dhd->conf->ctrl_resched > 0 && !rxlen && timeleft == 0) {
+		cnt++;
+		if (cnt <= bus->dhd->conf->ctrl_resched) {
+			uint32 status, retry = 0;
+			R_SDREG(status, &bus->regs->intstatus, retry);
+			if ((status & I_HMB_HOST_INT) || PKT_AVAILABLE(bus, status)) {
+				DHD_ERROR(("%s: reschedule dhd_dpc, cnt=%d, status=0x%x\n",
+					__FUNCTION__, cnt, status));
+				bus->ipend = TRUE;
+				bus->dpc_sched = TRUE;
+				dhd_sched_dpc(bus->dhd);
+
+				/* Wait until control frame is available */
+				timeleft = dhd_os_ioctl_resp_wait(bus->dhd, &bus->rxlen, true);
+
+				dhd_os_sdlock(bus->dhd);
+				rxlen = bus->rxlen;
+				bcopy(bus->rxctl, msg, MIN(msglen, rxlen));
+				bus->rxlen = 0;
+				dhd_os_sdunlock(bus->dhd);
+			}
+		}
+	} else {
+		cnt = 0;
+	}
 
 	if (rxlen) {
 		DHD_CTL(("%s: resumed on rxctl frame, got %d expected %d\n",

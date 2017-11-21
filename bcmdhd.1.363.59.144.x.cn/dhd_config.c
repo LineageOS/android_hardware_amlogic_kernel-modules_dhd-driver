@@ -81,7 +81,7 @@ uint config_msg_level = CONFIG_ERROR_LEVEL;
 #define FW_BCM43438A0 "fw_bcm43438a0"
 #define FW_BCM43438A1 "fw_bcm43438a1"
 #define FW_BCM43436B0 "fw_bcm43436b0"
-#define FW_BCM43012B0 "fw_bcm43012b0"
+#define FW_BCM43013B0 "fw_bcm43013b0"
 #define FW_BCM43341B1 "fw_bcm43341b0_ag"
 #define FW_BCM43241B4 "fw_bcm43241b4_ag"
 #define FW_BCM4339A0 "fw_bcm4339a0_ag"
@@ -93,7 +93,7 @@ uint config_msg_level = CONFIG_ERROR_LEVEL;
 #define FW_BCM4359B1 "fw_bcm4359b1_ag"
 #define FW_BCM4359C0 "fw_bcm4359c0_ag"
 
-#define CLM_BCM43012B0 "clm_bcm43012b0"
+#define CLM_BCM43013B0 "clm_bcm43013b0"
 #endif
 #ifdef BCMPCIE
 #define FW_BCM4356A2 "fw_bcm4356a2_pcie_ag"
@@ -427,8 +427,8 @@ dhd_conf_set_fw_name_by_chip(dhd_pub_t *dhd, char *fw_path)
 				strcpy(&fw_path[i+1], FW_BCM43436B0);
 			break;
 		case BCM43012_CHIP_ID:
-			if (chiprev == BCM43012B0_CHIP_REV)
-				strcpy(&fw_path[i+1], FW_BCM43012B0);
+			if (chiprev == BCM43013B0_CHIP_REV)
+				strcpy(&fw_path[i+1], FW_BCM43013B0);
 			break;
 		case BCM4334_CHIP_ID:
 			if (chiprev == BCM4334B1_CHIP_REV)
@@ -522,8 +522,8 @@ dhd_conf_set_clm_name_by_chip(dhd_pub_t *dhd, char *clm_path)
 	switch (chip) {
 #ifdef BCMSDIO
 		case BCM43012_CHIP_ID:
-			if (chiprev == BCM43012B0_CHIP_REV)
-				strcpy(&clm_path[i+1], CLM_BCM43012B0);
+			if (chiprev == BCM43013B0_CHIP_REV)
+				strcpy(&clm_path[i+1], CLM_BCM43013B0);
 			break;
 #endif
 		default:
@@ -1969,13 +1969,6 @@ dhd_conf_read_sdio_params(dhd_pub_t *dhd, char *full_param, uint len_param)
 			conf->bus_rxglom = TRUE;
 		printf("%s: bus:rxglom = %d\n", __FUNCTION__, conf->bus_rxglom);
 	}
-	else if (!strncmp("dhd_poll=", full_param, len_param)) {
-		if (!strncmp(data, "0", 1))
-			conf->dhd_poll = 0;
-		else
-			conf->dhd_poll = 1;
-		printf("%s: dhd_poll = %d\n", __FUNCTION__, conf->dhd_poll);
-	}
 	else if (!strncmp("deferred_tx_len=", full_param, len_param)) {
 		conf->deferred_tx_len = (int)simple_strtol(data, NULL, 10);
 		printf("%s: deferred_tx_len = %d\n", __FUNCTION__, conf->deferred_tx_len);
@@ -2006,6 +1999,27 @@ dhd_conf_read_sdio_params(dhd_pub_t *dhd, char *full_param, uint len_param)
 		printf("%s: txglom_mode = %d\n", __FUNCTION__, conf->txglom_mode);
 	}
 #endif
+	else
+		return false;
+
+	return true;
+}
+#endif
+
+#ifdef BCMPCIE
+bool
+dhd_conf_read_pcie_params(dhd_pub_t *dhd, char *full_param, uint len_param)
+{
+	struct dhd_conf *conf = dhd->conf;
+	char *data = full_param+len_param;
+
+	if (!strncmp("bus:deepsleep_disable=", full_param, len_param)) {
+		if (!strncmp(data, "0", 1))
+			conf->bus_deepsleep_disable = 0;
+		else
+			conf->bus_deepsleep_disable = 1;
+		printf("%s: bus:deepsleep_disable = %d\n", __FUNCTION__, conf->bus_deepsleep_disable);
+	}
 	else
 		return false;
 
@@ -2068,7 +2082,18 @@ dhd_conf_read_others(dhd_pub_t *dhd, char *full_param, uint len_param)
 	char *pch, *pick_tmp;
 	int i;
 
-	if (!strncmp("band=", full_param, len_param)) {
+	if (!strncmp("dhd_poll=", full_param, len_param)) {
+		if (!strncmp(data, "0", 1))
+			conf->dhd_poll = 0;
+		else
+			conf->dhd_poll = 1;
+		printf("%s: dhd_poll = %d\n", __FUNCTION__, conf->dhd_poll);
+	}
+	else if (!strncmp("dhd_watchdog_ms=", full_param, len_param)) {
+		dhd_watchdog_ms = (int)simple_strtol(data, NULL, 10);
+		printf("%s: dhd_watchdog_ms = %d\n", __FUNCTION__, dhd_watchdog_ms);
+	}
+	else if (!strncmp("band=", full_param, len_param)) {
 		/* Process band:
 		 * band=a for 5GHz only and band=b for 2.4GHz only
 		 */
@@ -2207,6 +2232,14 @@ dhd_conf_read_others(dhd_pub_t *dhd, char *full_param, uint len_param)
 		conf->tsq = (int)simple_strtol(data, NULL, 10);
 		printf("%s: tsq = %d\n", __FUNCTION__, conf->tsq);
 	}
+	else if (!strncmp("ctrl_resched=", full_param, len_param)) {
+		conf->ctrl_resched = (int)simple_strtol(data, NULL, 10);
+		printf("%s: ctrl_resched = %d\n", __FUNCTION__, conf->ctrl_resched);
+	}
+	else if (!strncmp("dhd_ioctl_timeout_msec=", full_param, len_param)) {
+		conf->dhd_ioctl_timeout_msec = (int)simple_strtol(data, NULL, 10);
+		printf("%s: dhd_ioctl_timeout_msec = %d\n", __FUNCTION__, conf->dhd_ioctl_timeout_msec);
+	}
 	else
 		return false;
 
@@ -2305,6 +2338,10 @@ dhd_conf_read_config(dhd_pub_t *dhd, char *conf_path)
 			else if (dhd_conf_read_sdio_params(dhd, pick, len_param))
 				continue;
 #endif /* BCMSDIO */
+#ifdef BCMPCIE
+			else if (dhd_conf_read_pcie_params(dhd, pick, len_param))
+				continue;
+#endif /* BCMPCIE */
 			else if (dhd_conf_read_pm_params(dhd, pick, len_param))
 				continue;
 			else if (dhd_conf_read_others(dhd, pick, len_param))
@@ -2410,6 +2447,7 @@ int
 dhd_conf_preinit(dhd_pub_t *dhd)
 {
 	struct dhd_conf *conf = dhd->conf;
+//	int i;
 
 	CONFIG_TRACE(("%s: Enter\n", __FUNCTION__));
 
@@ -2484,6 +2522,7 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 	conf->txbf = -1;
 	conf->lpc = -1;
 	conf->disable_proptx = -1;
+	conf->dhd_poll = -1;
 #ifdef BCMSDIO
 	conf->bus_txglom = -1;
 	conf->use_rxchain = 0;
@@ -2491,7 +2530,6 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 	conf->txglom_ext = FALSE;
 	conf->tx_max_offset = 0;
 	conf->txglomsize = SDPCM_DEFGLOM_SIZE;
-	conf->dhd_poll = -1;
 	conf->txctl_tmo_fix = FALSE;
 	conf->tx_in_rx = TRUE;
 	conf->txglom_mode = SDPCM_TXGLOM_MDESC;
@@ -2500,6 +2538,9 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 	conf->txinrx_thres = -1;
 	conf->sd_f2_blocksize = 0;
 	conf->oob_enabled_later = FALSE;
+#endif
+#ifdef BCMPCIE
+	conf->bus_deepsleep_disable = -1;
 #endif
 	conf->ampdu_ba_wsize = 0;
 	conf->ampdu_hostreorder = -1;
@@ -2529,6 +2570,8 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 	conf->rsdb_mode = -2;
 	conf->vhtmode = -1;
 	conf->autocountry = -1;
+	conf->ctrl_resched = 2;
+	conf->dhd_ioctl_timeout_msec = 0;
 #ifdef IAPSTA_PREINIT
 	memset(conf->iapsta_init, 0, sizeof(conf->iapsta_init));
 	memset(conf->iapsta_config, 0, sizeof(conf->iapsta_config));
@@ -2547,7 +2590,9 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 			conf->chip == BCM4371_CHIP_ID || conf->chip == BCM43569_CHIP_ID ||
 			conf->chip == BCM4359_CHIP_ID) {
 #ifdef DHDTCPACK_SUPPRESS
+#ifdef BCMSDIO
 		conf->tcpack_sup_mode = TCPACK_SUP_REPLACE;
+#endif
 #endif
 		dhd_rxbound = 128;
 		dhd_txbound = 64;

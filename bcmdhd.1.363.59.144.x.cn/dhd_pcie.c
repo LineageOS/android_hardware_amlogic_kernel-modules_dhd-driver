@@ -437,7 +437,9 @@ uint32
 dhdpcie_bus_intstatus(dhd_bus_t *bus)
 {
 	uint32 intstatus = 0;
+#ifndef DHD_READ_INTSTATUS_IN_DPC
 	uint32 intmask = 0;
+#endif /* DHD_READ_INTSTATUS_IN_DPC */
 
 	if ((bus->sih->buscorerev == 6) || (bus->sih->buscorerev == 4) ||
 		(bus->sih->buscorerev == 2)) {
@@ -448,6 +450,7 @@ dhdpcie_bus_intstatus(dhd_bus_t *bus)
 		/* this is a PCIE core register..not a config register... */
 		intstatus = si_corereg(bus->sih, bus->sih->buscoreidx, PCIMailBoxInt, 0, 0);
 
+#ifndef DHD_READ_INTSTATUS_IN_DPC
 		/* this is a PCIE core register..not a config register... */
 		intmask = si_corereg(bus->sih, bus->sih->buscoreidx, PCIMailBoxMask, 0, 0);
 
@@ -461,6 +464,7 @@ dhdpcie_bus_intstatus(dhd_bus_t *bus)
 			intstatus);
 
 		intstatus &= intmask;
+#endif /* DHD_READ_INTSTATUS_IN_DPC */
 
 		/* Is device removed. intstatus & intmask read 0xffffffff */
 		if (intstatus == (uint32)-1) {
@@ -474,6 +478,16 @@ dhdpcie_bus_intstatus(dhd_bus_t *bus)
 #endif /* CUSTOMER_HW4_DEBUG */
 		}
 
+#ifdef DHD_READ_INTSTATUS_IN_DPC
+				/*
+				 * The fourth argument to si_corereg is the "mask" fields of the register to update
+				 * and the fifth field is the "value" to update. Now if we are interested in only
+				 * few fields of the "mask" bit map, we should not be writing back what we read
+				 * By doing so, we might clear/ack interrupts that are not handled yet.
+				 */
+				si_corereg(bus->sih, bus->sih->buscoreidx, PCIMailBoxInt, bus->def_intmask,
+					intstatus);
+#endif /* DHD_READ_INTSTATUS_IN_DPC */
 		intstatus &= bus->def_intmask;
 	}
 
@@ -495,7 +509,9 @@ dhdpcie_bus_intstatus(dhd_bus_t *bus)
 int32
 dhdpcie_bus_isr(dhd_bus_t *bus)
 {
+#ifndef DHD_READ_INTSTATUS_IN_DPC
 	uint32 intstatus = 0;
+#endif /* DHD_READ_INTSTATUS_IN_DPC */
 
 	do {
 		DHD_TRACE(("%s: Enter\n", __FUNCTION__));
@@ -515,6 +531,7 @@ dhdpcie_bus_isr(dhd_bus_t *bus)
 			break;
 		}
 
+#ifndef DHD_READ_INTSTATUS_IN_DPC
 		intstatus = dhdpcie_bus_intstatus(bus);
 
 		/* Check if the interrupt is ours or not */
@@ -534,6 +551,7 @@ dhdpcie_bus_isr(dhd_bus_t *bus)
 
 		/* Count the interrupt call */
 		bus->intrcount++;
+#endif /* DHD_READ_INTSTATUS_IN_DPC */
 
 		/* read interrupt status register!! Status bits will be cleared in DPC !! */
 		bus->ipend = TRUE;
@@ -702,6 +720,8 @@ dhdpcie_dongle_attach(dhd_bus_t *bus)
 
 	/* Set the poll and/or interrupt flags */
 	bus->intr = (bool)dhd_intr;
+	if ((bus->poll = (bool)dhd_poll))
+		bus->pollrate = 1;
 
 	bus->wait_for_d3_ack = 1;
 	bus->suspended = FALSE;
@@ -1047,7 +1067,6 @@ done:
 bool dhd_bus_watchdog(dhd_pub_t *dhd)
 {
 	unsigned long flags;
-#ifdef DHD_DEBUG
 	dhd_bus_t *bus;
 	bus = dhd->bus;
 
@@ -1060,6 +1079,7 @@ bool dhd_bus_watchdog(dhd_pub_t *dhd)
 	dhd->dhd_bus_busy_state |= DHD_BUS_BUSY_IN_WD;
 	DHD_GENERAL_UNLOCK(dhd, flags);
 
+#ifdef DHD_DEBUG
 #ifdef DHD_PCIE_RUNTIMEPM
 	dhdpcie_runtime_bus_wake(dhd, TRUE, __builtin_return_address(0));
 #endif /* DHD_PCIE_RUNTIMEPM */
@@ -1077,6 +1097,14 @@ bool dhd_bus_watchdog(dhd_pub_t *dhd)
 		}
 	}
 #endif /* DHD_DEBUG */
+
+#ifdef DHD_READ_INTSTATUS_IN_DPC
+	if (bus->poll) {
+		bus->ipend = TRUE;
+		bus->dpc_sched = TRUE;
+		dhd_sched_dpc(bus->dhd);     /* queue DPC now!! */
+	}
+#endif /* DHD_READ_INTSTATUS_IN_DPC */
 
 #ifdef PCIE_OOB
 	/* If haven't communicated with device for a while, deassert the Device_Wake GPIO */
@@ -1243,12 +1271,11 @@ dhd_set_path_params(struct dhd_bus *bus)
 	/* External conf takes precedence if specified */
 	dhd_conf_preinit(bus->dhd);
 
-	if (bus->dhd->clm_path[0] == '\0') {
-		dhd_conf_set_path(bus->dhd, "clm.blob", bus->dhd->clm_path, bus->fw_path);
-	}
-	dhd_conf_set_clm_name_by_chip(bus->dhd, bus->dhd->clm_path);
 	if (bus->dhd->conf_path[0] == '\0') {
 		dhd_conf_set_path(bus->dhd, "config.txt", bus->dhd->conf_path, bus->nv_path);
+	}
+	if (bus->dhd->clm_path[0] == '\0') {
+		dhd_conf_set_path(bus->dhd, "clm.blob", bus->dhd->clm_path, bus->fw_path);
 	}
 #ifdef CONFIG_PATH_AUTO_SELECT
 	dhd_conf_set_conf_name_by_chip(bus->dhd, bus->dhd->conf_path);
@@ -1265,6 +1292,17 @@ dhd_set_path_params(struct dhd_bus *bus)
 	printf("Final clm_path=%s\n", bus->dhd->clm_path);
 	printf("Final conf_path=%s\n", bus->dhd->conf_path);
 
+}
+
+void
+dhd_set_bus_params(struct dhd_bus *bus)
+{
+	if (bus->dhd->conf->dhd_poll >= 0) {
+		bus->poll = bus->dhd->conf->dhd_poll;
+		if (!bus->pollrate)
+			bus->pollrate = 1;
+		printf("%s: set polling mode %d\n", __FUNCTION__, bus->dhd->conf->dhd_poll);
+	}
 }
 
 static int
@@ -1308,6 +1346,7 @@ dhdpcie_download_firmware(struct dhd_bus *bus, osl_t *osh)
 	DHD_OS_WAKE_LOCK(bus->dhd);
 
 	dhd_set_path_params(bus);
+	dhd_set_bus_params(bus);
 
 	ret = _dhdpcie_download_firmware(bus);
 
@@ -4753,9 +4792,24 @@ dhd_bus_dpc(struct dhd_bus *bus)
 	bus->dhd->dhd_bus_busy_state |= DHD_BUS_BUSY_IN_DPC;
 	DHD_GENERAL_UNLOCK(bus->dhd, flags);
 
+#ifdef DHD_READ_INTSTATUS_IN_DPC
+	if (bus->ipend) {
+		bus->ipend = FALSE;
+		bus->intstatus = dhdpcie_bus_intstatus(bus);
+		/* Check if the interrupt is ours or not */
+		if (bus->intstatus == 0) {
+			goto INTR_ON;
+		}
+		bus->intrcount++;
+	}
+#endif /* DHD_READ_INTSTATUS_IN_DPC */
+
 	resched = dhdpcie_bus_process_mailbox_intr(bus, bus->intstatus);
 	if (!resched) {
 		bus->intstatus = 0;
+#ifdef DHD_READ_INTSTATUS_IN_DPC
+INTR_ON:
+#endif /* DHD_READ_INTSTATUS_IN_DPC */
 		if (!bus->pci_d3hot_done) {
 			dhdpcie_bus_intr_enable(bus);
 		} else {

@@ -616,7 +616,13 @@ dhdpcie_request_irq(dhdpcie_info_t *dhdpcie_info)
 		snprintf(dhdpcie_info->pciname, sizeof(dhdpcie_info->pciname),
 		    "dhdpcie:%s", pci_name(pdev));
 #ifdef DHD_USE_MSI
-		pci_enable_msi(pdev);
+		printf("%s: MSI enabled\n", __FUNCTION__);
+		err = pci_enable_msi(pdev);
+		if (err < 0) {
+			DHD_ERROR(("%s: pci_enable_msi() failed, %d, fall back to INTx\n", __FUNCTION__, err));
+		}
+#else
+		printf("%s: MSI not enabled\n", __FUNCTION__);
 #endif /* DHD_USE_MSI */
 		err = request_irq(pdev->irq, dhdpcie_isr, IRQF_SHARED,
 			dhdpcie_info->pciname, bus);
