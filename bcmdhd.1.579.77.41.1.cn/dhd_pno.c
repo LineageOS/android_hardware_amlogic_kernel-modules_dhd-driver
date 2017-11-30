@@ -910,7 +910,6 @@ exit:
 	bytes_written = (int32)(bp - buf);
 	return bytes_written;
 }
-
 static int
 _dhd_pno_clear_all_batch_results(dhd_pub_t *dhd, struct list_head *head, bool only_last)
 {
@@ -993,7 +992,6 @@ _dhd_pno_cfg(dhd_pub_t *dhd, uint16 *channel_list, int nchan)
 exit:
 	return err;
 }
-
 static int
 _dhd_pno_reinitialize_prof(dhd_pub_t *dhd, dhd_pno_params_t *params, dhd_pno_mode_t mode)
 {
@@ -4009,7 +4007,6 @@ exit:
 	kfree(buf);
 	return err;
 }
-
 int dhd_pno_deinit(dhd_pub_t *dhd)
 {
 	int err = BCME_OK;

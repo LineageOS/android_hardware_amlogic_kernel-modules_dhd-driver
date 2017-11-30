@@ -11554,6 +11554,13 @@ typedef struct wl_interface_create {
 	struct	ether_addr   mac_addr;	/* Optional Mac address */
 } wl_interface_create_t;
 
+typedef struct wl_interface_create_v0 {
+	uint16	ver;			/* version of this struct */
+	struct ether_addr    mac_addr;	/* MAC address of the interface */
+	char	ifname[BCM_MSG_IFNAME_MAX]; /* name of interface */
+	uint8	bsscfgidx;		/* source bsscfg index */
+} wl_interface_info_t;
+
 typedef struct wl_interface_create_v1 {
 	uint16  ver;                    /**< version of this struct */
 	uint8   pad1[2];                /**< Padding bytes */
