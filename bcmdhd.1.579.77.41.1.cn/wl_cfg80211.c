@@ -16688,9 +16688,12 @@ int wl_cfg80211_hang(struct net_device *dev, u16 reason)
 s32 wl_cfg80211_down(struct net_device *dev)
 {
 	struct bcm_cfg80211 *cfg = wl_get_cfg(dev);
-	s32 err;
+	s32 err = 0;
 
 	WL_DBG(("In\n"));
+	if (cfg == NULL)
+		return err;
+
 	mutex_lock(&cfg->usr_sync);
 #if defined(RSSIAVG)
 	wl_free_rssi_cache(&g_rssi_cache_ctrl);
