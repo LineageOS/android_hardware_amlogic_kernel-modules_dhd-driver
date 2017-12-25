@@ -3774,7 +3774,7 @@ wl_customer6_legacy_chip_check(struct bcm_cfg80211 *cfg,
 		dtoh32(revinfo.deviceid), dtoh32(revinfo.vendorid), dtoh32(revinfo.chipnum)));
 	chipnum = revinfo.chipnum;
 	if ((chipnum == BCM4350_CHIP_ID) || (chipnum == BCM4355_CHIP_ID) ||
-		(chipnum == BCM4345_CHIP_ID)) {
+		(chipnum == BCM4345_CHIP_ID) || (chipnum == BCM43430_CHIP_ID)) {
 		/* WAR required */
 		return true;
 	}
@@ -11203,6 +11203,9 @@ wl_notify_connect_status_ap(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 			printf("%s: ** AP/GO Link up event **\n", __FUNCTION__);
 			wl_set_drv_status(cfg, AP_CREATED, ndev);
 			wake_up_interruptible(&cfg->netif_change_event);
+			if (!memcmp(ndev->name, WL_P2P_INTERFACE_PREFIX, strlen(WL_P2P_INTERFACE_PREFIX))) {
+				dhd_conf_set_mchan_bw(cfg->pub, WL_P2P_IF_GO, -1);
+			}
 			return 0;
 		}
 	}
@@ -11857,6 +11860,9 @@ wl_notify_connect_status(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev,
 			wl_update_prof(cfg, ndev, e, &act, WL_PROF_ACT);
 			wl_update_prof(cfg, ndev, NULL, (const void *)&e->addr, WL_PROF_BSSID);
 			dhd_conf_set_wme(cfg->pub, 0);
+			if (!memcmp(ndev->name, WL_P2P_INTERFACE_PREFIX, strlen(WL_P2P_INTERFACE_PREFIX))) {
+				dhd_conf_set_mchan_bw(cfg->pub, WL_P2P_IF_CLIENT, -1);
+			}
 		} else if (WL_IS_LINKDOWN(cfg, e, data) ||
 				((event == WLC_E_SET_SSID) &&
 				(ntoh32(e->status) != WLC_E_STATUS_SUCCESS) &&

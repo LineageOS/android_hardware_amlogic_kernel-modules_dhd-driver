@@ -15,6 +15,9 @@
 #include <linux/mmc/sdio_func.h>
 #endif /* defined(BUS_POWER_RESTORE) && defined(BCMSDIO) */
 
+#ifdef CONFIG_DHD_USE_STATIC_BUF
+extern void *bcmdhd_mem_prealloc(int section, unsigned long size);
+#endif /* CONFIG_DHD_USE_STATIC_BUF */
 
 static int gpio_wl_reg_on = -1; // WL_REG_ON is input pin of WLAN module
 #ifdef CUSTOMER_OOB
@@ -189,33 +192,21 @@ static int dhd_wlan_get_mac_addr(unsigned char *buf)
 
 	return err;
 }
-#ifdef CONFIG_DHD_USE_STATIC_BUF
-extern void *bcmdhd_mem_prealloc(int section, unsigned long size);
-void* bcm_wlan_prealloc(int section, unsigned long size)
-{
-	void *alloc_ptr = NULL;
-	alloc_ptr = bcmdhd_mem_prealloc(section, size);
-	if (alloc_ptr) {
-		printf("success alloc section %d, size %ld\n", section, size);
-		if (size != 0L)
-			bzero(alloc_ptr, size);
-		return alloc_ptr;
-	}
-	printf("can't alloc section %d\n", section);
-	return NULL;
-}
-#endif
 
 static struct cntry_locales_custom brcm_wlan_translate_custom_table[] = {
 	/* Table should be filled out based on custom platform regulatory requirement */
+#ifdef EXAMPLE_TABLE
 	{"",   "XT", 49},  /* Universal if Country code is unknown or empty */
 	{"US", "US", 0},
+#endif /* EXMAPLE_TABLE */
 };
 
 #ifdef CUSTOM_FORCE_NODFS_FLAG
 struct cntry_locales_custom brcm_wlan_translate_nodfs_table[] = {
+#ifdef EXAMPLE_TABLE
 	{"",   "XT", 50},  /* Universal if Country code is unknown or empty */
 	{"US", "US", 0},
+#endif /* EXMAPLE_TABLE */
 };
 #endif
 
@@ -266,7 +257,7 @@ struct wifi_platform_data dhd_wlan_control = {
 	.set_carddetect	= dhd_wlan_set_carddetect,
 	.get_mac_addr	= dhd_wlan_get_mac_addr,
 #ifdef CONFIG_DHD_USE_STATIC_BUF
-	.mem_prealloc	= bcm_wlan_prealloc,
+	.mem_prealloc	= bcmdhd_mem_prealloc,
 #endif /* CONFIG_DHD_USE_STATIC_BUF */
 	.get_country_code = dhd_wlan_get_country_code,
 };

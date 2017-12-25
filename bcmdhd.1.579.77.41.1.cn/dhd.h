@@ -443,11 +443,7 @@ enum dhd_rsdb_scan_features {
 
 /* Packet alignment for most efficient SDIO (can change based on platform) */
 #ifndef DHD_SDALIGN
-#ifdef CUSTOM_SDIO_F2_BLKSIZE
-#define DHD_SDALIGN	CUSTOM_SDIO_F2_BLKSIZE
-#else
 #define DHD_SDALIGN	32
-#endif
 #endif
 
 /**
@@ -1494,7 +1490,7 @@ extern void dhd_os_dhdiovar_lock(dhd_pub_t *pub);
 extern void dhd_os_dhdiovar_unlock(dhd_pub_t *pub);
 extern int dhd_os_proto_block(dhd_pub_t * pub);
 extern int dhd_os_proto_unblock(dhd_pub_t * pub);
-extern int dhd_os_ioctl_resp_wait(dhd_pub_t * pub, uint * condition);
+extern int dhd_os_ioctl_resp_wait(dhd_pub_t * pub, uint * condition, bool resched);
 extern int dhd_os_ioctl_resp_wake(dhd_pub_t * pub);
 extern unsigned int dhd_os_get_ioctl_resp_timeout(void);
 extern void dhd_os_set_ioctl_resp_timeout(unsigned int timeout_msec);

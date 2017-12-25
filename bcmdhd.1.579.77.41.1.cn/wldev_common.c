@@ -495,7 +495,7 @@ int wldev_set_country(
 	cspec.rev = revinfo;
 	memcpy(cspec.country_abbrev, country_code, WLC_CNTRY_BUF_SZ);
 	memcpy(cspec.ccode, country_code, WLC_CNTRY_BUF_SZ);
-	error = dhd_conf_get_country_from_config(dhd_get_pub(dev), &cspec);
+	error = dhd_conf_map_country_list(dhd_get_pub(dev), &cspec, 0);
 	if (error)
 		dhd_get_customized_country_code(dev, (char *)&cspec.country_abbrev, &cspec);
 

@@ -23,7 +23,7 @@ extern uint dhd_slpauto;
 #define BCM43430A0_CHIP_REV     0
 #define BCM43430A1_CHIP_REV     1
 #define BCM43430A2_CHIP_REV     2
-#define BCM43012B0_CHIP_REV     1
+#define BCM43013B0_CHIP_REV     1
 #define BCM4330B2_CHIP_REV      4
 #define BCM4334B1_CHIP_REV      3
 #define BCM43341B0_CHIP_REV     2
@@ -31,13 +31,13 @@ extern uint dhd_slpauto;
 #define BCM4335A0_CHIP_REV      2
 #define BCM4339A0_CHIP_REV      1
 #define BCM43455C0_CHIP_REV     6
-#define BCM43455C5_CHIP_REV     9
+#define BCM43456C5_CHIP_REV     9
 #define BCM4354A1_CHIP_REV      1
 #define BCM4359B1_CHIP_REV      5
-#define BCM4359C0_CHIP_REV      9
 #endif
 #define BCM4356A2_CHIP_REV      2
 #define BCM4358A3_CHIP_REV      3
+#define BCM4359C0_CHIP_REV      9
 
 typedef struct wl_mac_range {
 	uint32 oui;
@@ -82,6 +82,7 @@ typedef struct wmes_param {
 #ifdef PKT_FILTER_SUPPORT
 #define DHD_CONF_FILTER_MAX	8
 #define PKT_FILTER_LEN 300
+#define MAGIC_PKT_FILTER_LEN 450
 typedef struct conf_pkt_filter_add {
 	uint32 count;
 	char filter[DHD_CONF_FILTER_MAX][PKT_FILTER_LEN];
@@ -96,8 +97,18 @@ typedef struct conf_pkt_filter_del {
 #define CONFIG_COUNTRY_LIST_SIZE 100
 typedef struct conf_country_list {
 	uint32 count;
-	wl_country_t cspec[CONFIG_COUNTRY_LIST_SIZE];
+	wl_country_t *cspec[CONFIG_COUNTRY_LIST_SIZE];
 } conf_country_list_t;
+
+/* mchan_params */
+#define MCHAN_MAX_NUM 4
+#define MIRACAST_SOURCE	1
+#define MIRACAST_SINK	2
+typedef struct mchan_params {
+	int bw;
+	int p2p_mode;
+	int miracast_mode;
+} mchan_params_t;
 
 typedef struct dhd_conf {
 	uint chip;
@@ -106,6 +117,7 @@ typedef struct dhd_conf {
 	wl_mac_list_ctrl_t nv_by_mac;
 	wl_chip_nv_path_list_ctrl_t nv_by_chip;
 	conf_country_list_t country_list;
+	conf_country_list_t country_list_nodfs;
 	int band;
 	int mimo_bw_cap;
 	int bw_cap_2g;
@@ -114,7 +126,7 @@ typedef struct dhd_conf {
 	wl_channel_list_t channels;
 	uint roam_off;
 	uint roam_off_suspend;
-	int roam_trigger[2];	
+	int roam_trigger[2];
 	int roam_scan_period[2];
 	int roam_delta[2];
 	int fullroamperiod;
@@ -127,7 +139,7 @@ typedef struct dhd_conf {
 #ifdef PKT_FILTER_SUPPORT
 	conf_pkt_filter_add_t pkt_filter_add;
 	conf_pkt_filter_del_t pkt_filter_del;
-	conf_pkt_filter_add_t magic_pkt_filter_add;
+	char *magic_pkt_filter_add;
 #endif
 	int srl;
 	int lrl;
@@ -136,6 +148,7 @@ typedef struct dhd_conf {
 	int txbf;
 	int lpc;
 	int disable_proptx;
+	int dhd_poll;
 #ifdef BCMSDIO
 	int bus_txglom;
 	int use_rxchain;
@@ -148,7 +161,6 @@ typedef struct dhd_conf {
 	*/
 	int tx_max_offset;
 	uint txglomsize;
-	int dhd_poll;
 	int txctl_tmo_fix;
 	bool tx_in_rx;
 	bool txglom_mode;
@@ -162,6 +174,9 @@ typedef struct dhd_conf {
 	int dhd_txminmax; // -1=DATABUFCNT(bus)
 	uint sd_f2_blocksize;
 	bool oob_enabled_later;
+#endif
+#ifdef BCMPCIE
+	int bus_deepsleep_disable;
 #endif
 	int ampdu_ba_wsize;
 	int ampdu_hostreorder;
@@ -200,6 +215,9 @@ typedef struct dhd_conf {
 	char iapsta_enable[50];
 #endif
 	int autocountry;
+	int ctrl_resched;
+	int dhd_ioctl_timeout_msec;
+	struct mchan_params mchan[MCHAN_MAX_NUM];
 	int tsq;
 } dhd_conf_t;
 
@@ -224,14 +242,15 @@ int dhd_conf_set_intiovar(dhd_pub_t *dhd, uint cmd, char *name, int val, int def
 int dhd_conf_get_iovar(dhd_pub_t *dhd, int cmd, char *name, char *buf, int len, int ifidx);
 int dhd_conf_set_bufiovar(dhd_pub_t *dhd, uint cmd, char *name, char *buf, int len, bool down);
 uint dhd_conf_get_band(dhd_pub_t *dhd);
-int dhd_conf_set_country(dhd_pub_t *dhd);
+int dhd_conf_set_country(dhd_pub_t *dhd, wl_country_t *cspec);
 int dhd_conf_get_country(dhd_pub_t *dhd, wl_country_t *cspec);
-int dhd_conf_get_country_from_config(dhd_pub_t *dhd, wl_country_t *cspec);
+int dhd_conf_map_country_list(dhd_pub_t *dhd, wl_country_t *cspec, int nodfs);
 int dhd_conf_fix_country(dhd_pub_t *dhd);
 bool dhd_conf_match_channel(dhd_pub_t *dhd, uint32 channel);
 int dhd_conf_set_roam(dhd_pub_t *dhd);
 void dhd_conf_set_bw_cap(dhd_pub_t *dhd);
 void dhd_conf_set_wme(dhd_pub_t *dhd, int mode);
+void dhd_conf_set_mchan_bw(dhd_pub_t *dhd, int go, int source);
 void dhd_conf_add_pkt_filter(dhd_pub_t *dhd);
 bool dhd_conf_del_pkt_filter(dhd_pub_t *dhd, uint32 id);
 void dhd_conf_discard_pkt_filter(dhd_pub_t *dhd);
