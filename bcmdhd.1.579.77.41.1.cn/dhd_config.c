@@ -65,7 +65,7 @@ uint config_msg_level = CONFIG_ERROR_LEVEL;
 #define CONFIG_BCM4354A1 "config_4354a1.txt"
 #endif
 #define CONFIG_BCM4356A2 "config_4356a2.txt"
-#define CONFIG_BCM4358A3 "config_4358.txt"
+#define CONFIG_BCM4358A3 "config_4358a3.txt"
 #define CONFIG_BCM4359B1 "config_4359b1.txt"
 #define CONFIG_BCM4359C0 "config_4359c0.txt"
 #endif
@@ -89,7 +89,7 @@ uint config_msg_level = CONFIG_ERROR_LEVEL;
 #define FW_BCM43456C5 "fw_bcm43456c5_ag"
 #define FW_BCM4354A1 "fw_bcm4354a1_ag"
 #define FW_BCM4356A2 "fw_bcm4356a2_ag"
-#define FW_BCM4358A3 "fw_bcm4358_ag"
+#define FW_BCM4358A3 "fw_bcm4358a3_ag"
 #define FW_BCM4359B1 "fw_bcm4359b1_ag"
 #define FW_BCM4359C0 "fw_bcm4359c0_ag"
 
