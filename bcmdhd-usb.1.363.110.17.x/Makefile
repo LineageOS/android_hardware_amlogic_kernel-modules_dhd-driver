@@ -4,6 +4,7 @@
 
 CONFIG_BCMDHD := m
 CONFIG_DHD_USE_STATIC_BUF := y
+CONFIG_BCMDHD_PROPTXSTATUS := y
 
 DHDCFLAGS = -Wall -Wstrict-prototypes -Dlinux -DBCMDRIVER                \
 	-DBCMDONGLEHOST -DUNRELEASEDCHIP -DBCMDMA32 -DBCMFILEIMAGE            \
@@ -13,7 +14,7 @@ DHDCFLAGS = -Wall -Wstrict-prototypes -Dlinux -DBCMDRIVER                \
 	-DEMBEDDED_PLATFORM -DPNO_SUPPORT                                     \
 	-DOEM_ANDROID                                                         \
 	-DSUPPORT_PM2_ONLY -DWL_EXT_IAPSTA                                    \
-	-DTOE -DBDC -DDHD_BCMEVENTS -DPROP_TXSTATUS                           \
+	-DTOE -DBDC -DDHD_BCMEVENTS                                           \
 	-I$(src) -I$(src)/include -I$(src)/common/include
 
 DHDCFLAGS += -DUSBOS_TX_THREAD -DBCMDHDUSB -DBCMDBUS -DBCMTRXV2          \
@@ -27,6 +28,13 @@ DHDOFILES = bcmutils.o bcmwifi_channels.o bcmxtlv.o \
 	hnd_pktq.o hnd_pktpool.o dbus.o dbus_usb.o dbus_usb_linux.o           \
 	dhd_debug.o dhd_debug_linux.o                                         \
 	dhd_config.o wl_android_ext.o
+
+ifeq ($(CONFIG_BCMDHD_PROPTXSTATUS),y)
+DHDCFLAGS += -DPROP_TXSTATUS
+ifneq ($(CONFIG_CFG80211),)
+DHDCFLAGS += -DPROP_TXSTATUS_VSDB
+endif
+endif
 
 obj-$(CONFIG_BCMDHD) += bcmdhd.o
 bcmdhd-objs += $(DHDOFILES)
@@ -57,7 +65,7 @@ DHDCFLAGS += -DWL_SUPPORT_AUTO_CHANNEL
 DHDCFLAGS += -DWL_SUPPORT_BACKPORTED_KPATCHES
 DHDCFLAGS += -DESCAN_RESULT_PATCH
 DHDCFLAGS += -DVSDB -DWL_CFG80211_VSDB_PRIORITIZE_SCAN_REQUEST
-DHDCFLAGS += -DWLTDLS -DWL_SDO -DWL_NAN -DPROP_TXSTATUS_VSDB
+DHDCFLAGS += -DWLTDLS -DWL_SDO -DWL_NAN
 endif
 ifneq ($(CONFIG_DHD_USE_SCHED_SCAN),)
 DHDCFLAGS += -DWL_SCHED_SCAN

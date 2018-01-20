@@ -1411,6 +1411,7 @@ void wl_escan_detach(void)
 		kfree(escan->escan_ioctl_buf);
 		escan->escan_ioctl_buf = NULL;
 	}
+
 #ifndef CONFIG_DHD_USE_STATIC_BUF
 	kfree(escan);
 #endif
@@ -1426,6 +1427,7 @@ wl_escan_attach(struct net_device *dev, void * dhdp)
 
 	if (!dev)
 		return 0;
+
 #ifdef CONFIG_DHD_USE_STATIC_BUF
 	escan = dhd_wlan_mem_prealloc(DHD_PREALLOC_WL_ESCAN_INFO, sizeof(struct wl_escan_info));
 #else

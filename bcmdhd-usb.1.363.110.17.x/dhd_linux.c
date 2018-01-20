@@ -7208,8 +7208,6 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 #if defined(BCMDBUS)
 #ifdef PROP_TXSTATUS
 	int wlfc_enable = TRUE;
-	/* terence 20161229: we should set ampdu_hostreorder=0 if proptx not support in fw */
-	uint32 fw_caps;
 #ifndef DISABLE_11N
 	uint32 hostreorder = 1;
 	uint wl_down = 1;
@@ -7616,8 +7614,11 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 	dhd_conf_set_intiovar(dhd, WLC_SET_VAR, "stbc_rx", dhd->conf->stbc, 0, FALSE);
 	dhd_conf_set_intiovar(dhd, WLC_SET_SRL, "WLC_SET_SRL", dhd->conf->srl, 0, TRUE);
 	dhd_conf_set_intiovar(dhd, WLC_SET_LRL, "WLC_SET_LRL", dhd->conf->lrl, 0, FALSE);
-	dhd_conf_set_intiovar(dhd, WLC_SET_SPECT_MANAGMENT, "WLC_SET_SPECT_MANAGMENT", dhd->conf->spect, 0, FALSE);
+	dhd_conf_set_intiovar(dhd, WLC_SET_SPECT_MANAGMENT, "WLC_SET_SPECT_MANAGMENT", dhd->conf->spect, 0, TRUE);
 	dhd_conf_set_intiovar(dhd, WLC_SET_VAR, "vhtmode", dhd->conf->vhtmode, 0, TRUE);
+#ifdef IDHCPC
+	dhd_conf_set_intiovar(dhd, WLC_SET_VAR, "dhcpc_enable", dhd->conf->dhcpc_enable, 0, FALSE);
+#endif
 	dhd_conf_set_bw_cap(dhd);
 
 #if defined(OEM_ANDROID) && defined(SOFTAP)
@@ -8031,16 +8032,6 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 
 #if defined(BCMDBUS)
 #ifdef PROP_TXSTATUS
-	/* terence 20161229: we should set ampdu_hostreorder=0 if proptx not support in fw or disabled */
-	ret = dhd_conf_get_iovar(dhd, WLC_GET_VAR, "wlfc_mode", (char *)&fw_caps, sizeof(fw_caps), 0);
-	ret = 0; // terence 20161229: for short term fix for some old chip not support wlfc_mode, but proptxstatus supported
-	if (ret || dhd->conf->disable_proptx) {
-		printf("%s: set disable_proptx=1 and ampdu_hostreorder=0\n", __FUNCTION__);
-		disable_proptx = 1;
-#ifndef DISABLE_11N
-		hostreorder = 0;
-#endif
-	}
 	if (disable_proptx ||
 #ifdef PROP_TXSTATUS_VSDB
 		/* enable WLFC only if the firmware is VSDB when it is in STA mode */
@@ -8049,6 +8040,16 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 #endif /* PROP_TXSTATUS_VSDB */
 		FALSE) {
 		wlfc_enable = FALSE;
+	}
+	ret = dhd_conf_get_disable_proptx(dhd);
+	if (ret == 0){
+		disable_proptx = 0;
+		wlfc_enable = TRUE;
+	} else if (ret >= 1) {
+		disable_proptx = 1;
+		wlfc_enable = FALSE;
+		/* terence 20161229: we should set ampdu_hostreorder=0 when disalbe_proptx=1 */
+		hostreorder = 0;
 	}
 
 #if defined(PROP_TXSTATUS)
@@ -8070,8 +8071,11 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 	dhd_preinit_config(dhd, 0);
 #endif /* READ_CONFIG_FROM_FILE */
 
-	if (wlfc_enable)
+	if (wlfc_enable) {
 		dhd_wlfc_init(dhd);
+		/* terence 20161229: enable ampdu_hostreorder if tlv enabled */
+		dhd_conf_set_intiovar(dhd, WLC_SET_VAR, "ampdu_hostreorder", 1, 0, TRUE);
+	}
 #ifndef DISABLE_11N
 	else if (hostreorder)
 		dhd_wlfc_hostreorder_init(dhd);

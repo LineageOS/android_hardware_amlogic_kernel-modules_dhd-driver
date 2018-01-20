@@ -9613,6 +9613,9 @@ static s32 wl_setup_wiphy(struct wireless_dev *wdev, struct device *sdiofunc_dev
 		brcm_wowlan_config->patterns = NULL;
 		brcm_wowlan_config->n_patterns = 0;
 		brcm_wowlan_config->tcp = NULL;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0))
+		brcm_wowlan_config->nd_config = NULL;
+#endif
 	} else {
 		WL_ERR(("Can not allocate memory for brcm_wowlan_config,"
 					" So wiphy->wowlan_config is set to NULL\n"));
@@ -9677,7 +9680,6 @@ static void wl_free_wdev(struct bcm_cfg80211 *cfg)
 		/* Reset wowlan & wowlan_config before Unregister to avoid  Kernel Panic */
 		WL_DBG(("wl_free_wdev Clearing wowlan Config \n"));
 		wdev->wiphy->wowlan = NULL;
-		wdev->wiphy->wowlan_config = NULL;
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0) */
 #endif /* CONFIG_PM && WL_CFG80211_P2P_DEV_IF */
 		wiphy_unregister(wdev->wiphy);
@@ -12053,24 +12055,22 @@ static void wl_deinit_priv_mem(struct bcm_cfg80211 *cfg)
 static s32 wl_create_event_handler(struct bcm_cfg80211 *cfg)
 {
 	int ret = 0;
+	WL_DBG(("Enter \n"));
 
 	/* Do not use DHD in cfg driver */
-	if (!cfg->event_tsk.thr_pid) {
-		WL_DBG(("Enter \n"));
-		cfg->event_tsk.thr_pid = -1;
+
+	if (cfg->event_tsk.thr_pid < 0) {
 		PROC_START(wl_event_handler, cfg, &cfg->event_tsk, 0, "wl_event_handler");
+		if (cfg->event_tsk.thr_pid < 0)
+			ret = -ENOMEM;
 	}
-	if (cfg->event_tsk.thr_pid < 0)
-		ret = -ENOMEM;
 	return ret;
 }
 
 static void wl_destroy_event_handler(struct bcm_cfg80211 *cfg)
 {
-	if (cfg->event_tsk.thr_pid >= 0) {
-		WL_DBG(("Enter \n"));
+	if (cfg->event_tsk.thr_pid >= 0)
 		PROC_STOP(&cfg->event_tsk);
-	}
 }
 
 void wl_terminate_event_handler(void)
@@ -13179,6 +13179,7 @@ static s32 wl_init_priv(struct bcm_cfg80211 *cfg)
 	err = wl_init_priv_mem(cfg);
 	if (err)
 		return err;
+	cfg->event_tsk.thr_pid = -1;
 	if (wl_create_event_handler(cfg))
 		return -ENOMEM;
 	wl_init_event_handler(cfg);
@@ -16255,6 +16256,7 @@ wl_cfg80211_get_best_channel(struct net_device *ndev, void *buf, int buflen,
 	s32 ret = BCME_ERROR;
 	int chosen = 0;
 	int retry = 0;
+	uint chip;
 
 	/* Start auto channel selection scan. */
 	ret = wldev_ioctl(ndev, WLC_START_CHANNEL_SEL, buf, buflen, true);
@@ -16273,7 +16275,17 @@ wl_cfg80211_get_best_channel(struct net_device *ndev, void *buf, int buflen,
 		ret = wldev_ioctl(ndev, WLC_GET_CHANNEL_SEL, &chosen, sizeof(chosen),
 			false);
 		if ((ret == 0) && (dtoh32(chosen) != 0)) {
-			*channel = (u16)(chosen & 0x00FF);
+			chip = dhd_conf_get_chip(dhd_get_pub(ndev));
+			if (chip != BCM43143_CHIP_ID) {
+				u32 chanspec = 0;
+				int ctl_chan;
+				chanspec = wl_chspec_driver_to_host(chosen);
+				printf("selected chanspec = 0x%x\n", chanspec);
+				ctl_chan = wf_chspec_ctlchan(chanspec);
+				printf("selected ctl_chan = 0x%x\n", ctl_chan);
+				*channel = (u16)(ctl_chan & 0x00FF);
+			} else
+				*channel = (u16)(chosen & 0x00FF);
 			WL_INFORM(("selected channel = %d\n", *channel));
 			break;
 		}

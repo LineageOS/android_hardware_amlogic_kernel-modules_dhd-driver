@@ -437,6 +437,7 @@ dhd_dbg_ring_init(dhd_pub_t *dhdp, dhd_dbg_ring_t *ring, uint16 id, uint8 *name,
 {
 	void *buf;
 	unsigned long flags;
+
 #ifdef CONFIG_DHD_USE_STATIC_BUF
 	buf = dhd_wlan_mem_prealloc(section, ring_sz);
 #else
@@ -485,6 +486,7 @@ dhd_dbg_ring_deinit(dhd_pub_t *dhdp, dhd_dbg_ring_t *ring)
 	dhd_os_spin_unlock(ring->lock, flags);
 
 	dhd_os_spin_lock_deinit(dhdp->osh, ring->lock);
+
 #ifndef CONFIG_DHD_USE_STATIC_BUF
 	MFREE(dhdp->osh, buf, ring_sz);
 #endif

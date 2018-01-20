@@ -33,6 +33,7 @@
 #include <bcmendian.h>
 #include <linuxver.h>
 #include <bcmdefs.h>
+
 #ifdef mips
 #include <asm/paccess.h>
 #include <asm/cache.h>

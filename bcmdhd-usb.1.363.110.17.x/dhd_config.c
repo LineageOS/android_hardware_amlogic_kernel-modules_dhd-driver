@@ -447,11 +447,11 @@ dhd_conf_add_pkt_filter(dhd_pub_t *dhd)
 
 	/*
 	 * 1. Filter out all pkt: actually not to enable this since 4-way handshake will be filter out as well.
-	 *   1) pkt_filter_mode=0
+	 *   1) dhd_master_mode=0
 	 *   2) pkt_filter_add=99 0 0 0 0x000000000000 0x000000000000
 	 * 2. Filter in less pkt: ARP(0x0806, ID is 105), BRCM(0x886C), 802.1X(0x888E)
-	 *   1) pkt_filter_mode=1
-	 *   2) pkt_filter_del=100, 102, 103, 104
+	 *   1) dhd_master_mode=1
+	 *   2) pkt_filter_del=100, 102, 103, 104, 105
 	 *   3) pkt_filter_add=131 0 0 12 0xFFFF 0x886C, 132 0 0 12 0xFFFF 0x888E
 	 * 3. magic pkt: magic_pkt_filter_add=141 0 1 12
 	 * 4. Filter out netbios pkt:
@@ -530,6 +530,56 @@ dhd_conf_get_pm(dhd_pub_t *dhd)
 		return dhd->conf->pm;
 	return -1;
 }
+
+#ifdef PROP_TXSTATUS
+int
+dhd_conf_get_disable_proptx(dhd_pub_t *dhd)
+{
+	struct dhd_conf *conf = dhd->conf;
+	int disable_proptx = -1;
+	int fw_proptx = 0;
+
+	/* check fw proptx priority:
+	  * 1st: check fw support by wl cap
+	  * 2nd: 4334/43340/43341/43241 support proptx but not show in wl cap, so enable it by default
+	  * 	   if you would like to disable it, please set disable_proptx=1 in config.txt
+	  * 3th: disable when proptxstatus not support in wl cap
+	  */
+	if (FW_SUPPORTED(dhd, proptxstatus)) {
+		fw_proptx = 1;
+	} else if (conf->chip == BCM4334_CHIP_ID || conf->chip == BCM43340_CHIP_ID ||
+			dhd->conf->chip == BCM43340_CHIP_ID || conf->chip == BCM4324_CHIP_ID) {
+		fw_proptx = 1;
+	} else {
+		fw_proptx = 0;
+	}
+
+	/* returned disable_proptx value:
+	  * -1: disable in STA and enable in P2P(follow original dhd settings when PROP_TXSTATUS_VSDB enabled)
+	  * 0: depend on fw support
+	  * 1: always disable proptx
+	  */
+	if (conf->disable_proptx == 0) {
+		// check fw support as well
+		if (fw_proptx)
+			disable_proptx = 0;
+		else
+			disable_proptx = 1;
+	} else if (conf->disable_proptx >= 1) {
+		disable_proptx = 1;
+	} else {
+		// check fw support as well
+		if (fw_proptx)
+			disable_proptx = -1;
+		else
+			disable_proptx = 1;
+	}
+
+	printf("%s: fw_proptx=%d, disable_proptx=%d\n", __FUNCTION__, fw_proptx, disable_proptx);
+
+	return disable_proptx;
+}
+#endif
 
 unsigned int
 process_config_vars(char *varbuf, unsigned int len, char *pickbuf, char *param)
@@ -1282,6 +1332,16 @@ dhd_conf_read_config(dhd_pub_t *dhd, char *conf_path)
 			printf("%s: num_different_channels = %d\n", __FUNCTION__, conf->num_different_channels);
 		}
 
+#ifdef IDHCPC
+		/* Process dhcpc_enable parameters */
+		memset(pick, 0, MAXSZ_BUF);
+		len_val = process_config_vars(bufp, len, pick, "dhcpc_enable=");
+		if (len_val) {
+			conf->dhcpc_enable = (int)simple_strtol(pick, NULL, 10);
+			printf("%s: dhcpc_enable = %d\n", __FUNCTION__, conf->dhcpc_enable);
+		}
+#endif
+
 		bcmerror = 0;
 	} else {
 		CONFIG_ERROR(("%s: error reading config file: %d\n", __FUNCTION__, len));
@@ -1307,6 +1367,16 @@ dhd_conf_set_chiprev(dhd_pub_t *dhd, uint chip, uint chiprev)
 	printf("%s: chip=0x%x, chiprev=%d\n", __FUNCTION__, chip, chiprev);
 	dhd->conf->chip = chip;
 	dhd->conf->chiprev = chiprev;
+	return 0;
+}
+
+uint
+dhd_conf_get_chip(void *context)
+{
+	dhd_pub_t *dhd = context;
+
+	if (dhd && dhd->conf)
+		return dhd->conf->chip;
 	return 0;
 }
 
@@ -1385,7 +1455,7 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 	conf->spect = -1;
 	conf->txbf = -1;
 	conf->lpc = -1;
-	conf->disable_proptx = 1;
+	conf->disable_proptx = -1;
 	conf->ampdu_ba_wsize = 0;
 	conf->ampdu_hostreorder = -1;
 	conf->dpc_cpucore = -1;
@@ -1395,6 +1465,9 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 	conf->pm_in_suspend = -1;
 	conf->pm2_sleep_ret = -1;
 	conf->num_different_channels = -1;
+#ifdef IDHCPC
+	conf->dhcpc_enable = -1;
+#endif
 	conf->pktprio8021x = -1;
 	conf->vhtmode = -1;
 

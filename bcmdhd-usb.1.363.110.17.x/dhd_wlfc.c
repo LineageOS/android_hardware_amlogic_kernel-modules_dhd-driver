@@ -3523,8 +3523,6 @@ dhd_wlfc_init(dhd_pub_t *dhd)
 		*/
 		DHD_ERROR(("dhd_wlfc_init(): successfully %s bdcv2 tlv signaling, %d\n",
 			dhd->wlfc_enabled?"enabled":"disabled", tlv));
-		/* terence 20161229: enable ampdu_hostreorder if tlv enable hostreorder */
-		dhd_conf_set_intiovar(dhd, WLC_SET_VAR, "ampdu_hostreorder", 1, 0, TRUE);
 	}
 
 	mode = 0;
