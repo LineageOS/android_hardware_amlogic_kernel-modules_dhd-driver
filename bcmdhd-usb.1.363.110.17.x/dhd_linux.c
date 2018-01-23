@@ -174,6 +174,8 @@ typedef struct histo_ {
 static histo_t vi_d1, vi_d2, vi_d3, vi_d4;
 #endif /* WLMEDIA_HTSF */
 
+extern void extern_wifi_set_enable(int is_on);
+
 #ifdef STBLINUX
 #ifdef quote_str
 #undef quote_str
@@ -9026,6 +9028,7 @@ dhd_module_exit(void)
 {
 	dhd_module_cleanup();
 	unregister_reboot_notifier(&dhd_reboot_notifier);
+	extern_wifi_set_enable(0);
 }
 
 static int __init
@@ -9036,7 +9039,9 @@ dhd_module_init(void)
 
 	printf("%s: in\n", __FUNCTION__);
 	DHD_PERIM_RADIO_INIT();
-
+	extern_wifi_set_enable(0);
+	mdelay(200);
+	extern_wifi_set_enable(1);
 
 	if (firmware_path[0] != '\0') {
 		strncpy(fw_bak_path, firmware_path, MOD_PARAM_PATHLEN);
