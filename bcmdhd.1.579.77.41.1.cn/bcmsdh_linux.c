@@ -391,10 +391,12 @@ int bcmsdh_oob_intr_register(bcmsdh_info_t *bcmsdh, bcmsdh_cb_fn_t oob_irq_handl
 	SDLX_MSG(("%s: disable_irq_wake\n", __FUNCTION__));
 	bcmsdh_osinfo->oob_irq_wake_enabled = FALSE;
 #else
+/*
 	err = enable_irq_wake(bcmsdh_osinfo->oob_irq_num);
 	if (err)
 		SDLX_MSG(("%s: enable_irq_wake failed with %d\n", __FUNCTION__, err));
 	else
+*/
 		bcmsdh_osinfo->oob_irq_wake_enabled = TRUE;
 #endif
 	return 0;
@@ -402,7 +404,7 @@ int bcmsdh_oob_intr_register(bcmsdh_info_t *bcmsdh, bcmsdh_cb_fn_t oob_irq_handl
 
 void bcmsdh_oob_intr_unregister(bcmsdh_info_t *bcmsdh)
 {
-	int err = 0;
+	/*int err = 0;*/
 	bcmsdh_os_info_t *bcmsdh_osinfo = bcmsdh->os_cxt;
 
 	SDLX_MSG(("%s: Enter\n", __FUNCTION__));
@@ -410,11 +412,13 @@ void bcmsdh_oob_intr_unregister(bcmsdh_info_t *bcmsdh)
 		SDLX_MSG(("%s: irq is not registered\n", __FUNCTION__));
 		return;
 	}
+/*
 	if (bcmsdh_osinfo->oob_irq_wake_enabled) {
 		err = disable_irq_wake(bcmsdh_osinfo->oob_irq_num);
 		if (!err)
 			bcmsdh_osinfo->oob_irq_wake_enabled = FALSE;
 	}
+*/
 	if (bcmsdh_osinfo->oob_irq_enabled) {
 		disable_irq(bcmsdh_osinfo->oob_irq_num);
 		bcmsdh_osinfo->oob_irq_enabled = FALSE;

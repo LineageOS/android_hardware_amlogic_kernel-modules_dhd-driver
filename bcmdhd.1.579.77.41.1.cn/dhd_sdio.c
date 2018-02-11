@@ -881,6 +881,7 @@ dhdsdio_sr_cap(dhd_bus_t *bus)
 		(bus->sih->chip == BCM4371_CHIP_ID) ||
 		(BCM4349_CHIP(bus->sih->chip))		||
 		(bus->sih->chip == BCM4350_CHIP_ID) ||
+		(bus->sih->chip == BCM43751_CHIP_ID) ||
 		(bus->sih->chip == BCM43012_CHIP_ID)) {
 		core_capext = TRUE;
 	} else {
@@ -977,6 +978,7 @@ dhdsdio_sr_init(dhd_bus_t *bus)
 	if (CHIPID(bus->sih->chip) == BCM43430_CHIP_ID ||
 		CHIPID(bus->sih->chip) == BCM43018_CHIP_ID ||
 		CHIPID(bus->sih->chip) == BCM4339_CHIP_ID ||
+		CHIPID(bus->sih->chip) == BCM43751_CHIP_ID ||
 		CHIPID(bus->sih->chip) == BCM43012_CHIP_ID)
 		dhdsdio_devcap_set(bus, SDIOD_CCCR_BRCM_CARDCAP_CMD_NODEC);
 
@@ -7642,6 +7644,9 @@ dhdsdio_chipmatch(uint16 chipid)
 	if (chipid == BCM43012_CHIP_ID)
 		return TRUE;
 
+	if (chipid == BCM43751_CHIP_ID)
+		return TRUE;
+
 	return FALSE;
 }
 
@@ -8060,6 +8065,9 @@ dhdsdio_probe_attach(struct dhd_bus *bus, osl_t *osh, void *sdh, void *regsva,
 				break;
 			case BCM4347_CHIP_GRPID:
 				bus->dongle_ram_base = CR4_4347_RAM_BASE;
+				break;
+			case BCM43751_CHIP_ID:
+				bus->dongle_ram_base = CR4_43751_RAM_BASE;
 				break;
 			default:
 				bus->dongle_ram_base = 0;
