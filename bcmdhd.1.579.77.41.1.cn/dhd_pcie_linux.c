@@ -178,12 +178,6 @@ static int dhdpcie_init(struct pci_dev *pdev);
 static irqreturn_t dhdpcie_isr(int irq, void *arg);
 /* OS Routine functions for PCI suspend/resume */
 
-#if defined(MULTIPLE_SUPPLICANT)
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25))
-DEFINE_MUTEX(_dhd_sdio_mutex_lock_);
-#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)) */
-#endif
-
 static int dhdpcie_set_suspend_resume(dhd_bus_t *bus, bool state);
 static int dhdpcie_resume_host_dev(dhd_bus_t *bus);
 static int dhdpcie_suspend_host_dev(dhd_bus_t *bus);

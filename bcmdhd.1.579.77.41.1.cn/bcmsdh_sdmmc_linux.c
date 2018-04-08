@@ -275,9 +275,7 @@ static int bcmsdh_sdmmc_suspend(struct device *pdev)
 
 static int bcmsdh_sdmmc_resume(struct device *pdev)
 {
-#if defined(OOB_INTR_ONLY)
 	sdioh_info_t *sdioh;
-#endif
 	struct sdio_func *func = dev_to_sdio_func(pdev);
 
 	printf("%s Enter func->num=%d\n", __FUNCTION__, func->num);
@@ -285,10 +283,8 @@ static int bcmsdh_sdmmc_resume(struct device *pdev)
 		return 0;
 
 	dhd_mmc_suspend = FALSE;
-#if defined(OOB_INTR_ONLY)
 	sdioh = sdio_get_drvdata(func);
 	bcmsdh_resume(sdioh->bcmsdh);
-#endif
 
 	smp_mb();
 	printf("%s Exit\n", __FUNCTION__);

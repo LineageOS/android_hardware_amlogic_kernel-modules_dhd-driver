@@ -51,7 +51,11 @@
 #include <dhd_flowring.h>
 #endif
 
+#ifdef BCMDBUS
+#include <dbus.h>
+#else
 #include <dhd_bus.h>
+#endif /* BCMDBUS */
 #include <dhd_proto.h>
 #include <dhd_config.h>
 #include <bcmsdbus.h>
@@ -650,7 +654,11 @@ void* dhd_get_fwdump_buf(dhd_pub_t *dhd_pub, uint32 length)
 int
 dhd_common_socram_dump(dhd_pub_t *dhdp)
 {
+#ifdef BCMDBUS
+	return -1;
+#else
 	return dhd_socram_dump(dhdp->bus);
+#endif /* BCMDBUS */
 }
 
 static int
@@ -1038,7 +1046,7 @@ dhd_iovar_parse_bssidx(dhd_pub_t *dhd_pub, const char *params, uint32 *idx, cons
 	return BCME_OK;
 }
 
-#if defined(DHD_DEBUG) && defined(BCMDHDUSB)
+#if defined(DHD_DEBUG) && defined(BCMDBUS)
 /* USB Device console input function */
 int dhd_bus_console_in(dhd_pub_t *dhd, uchar *msg, uint msglen)
 {
@@ -1047,7 +1055,7 @@ int dhd_bus_console_in(dhd_pub_t *dhd, uchar *msg, uint msglen)
 	return dhd_iovar(dhd, 0, "cons", msg, msglen, NULL, 0, TRUE);
 
 }
-#endif /* DHD_DEBUG && BCMDHDUSB  */
+#endif /* DHD_DEBUG && BCMDBUS  */
 
 #ifdef DHD_DEBUG
 int
@@ -1263,10 +1271,12 @@ dhd_doiovar(dhd_pub_t *dhd_pub, const bcm_iovar_t *vi, uint32 actionid, const ch
 		bcopy(&int_val, arg, val_size);
 		break;
 
+#ifndef BCMDBUS
 	case IOV_GVAL(IOV_WDTICK):
 		int_val = (int32)dhd_watchdog_ms;
 		bcopy(&int_val, arg, val_size);
 		break;
+#endif /* !BCMDBUS */
 
 	case IOV_SVAL(IOV_WDTICK):
 		if (!dhd_pub->up) {
@@ -1285,6 +1295,7 @@ dhd_doiovar(dhd_pub_t *dhd_pub, const bcm_iovar_t *vi, uint32 actionid, const ch
 		bcmerror = dhd_dump(dhd_pub, arg, len);
 		break;
 
+#ifndef BCMDBUS
 	case IOV_GVAL(IOV_DCONSOLE_POLL):
 		int_val = (int32)dhd_console_ms;
 		bcopy(&int_val, arg, val_size);
@@ -1298,6 +1309,7 @@ dhd_doiovar(dhd_pub_t *dhd_pub, const bcm_iovar_t *vi, uint32 actionid, const ch
 		if (len > 0)
 			bcmerror = dhd_bus_console_in(dhd_pub, arg, len - 1);
 		break;
+#endif /* !BCMDBUS */
 
 	case IOV_SVAL(IOV_CLEARCOUNTS):
 		dhd_pub->tx_packets = dhd_pub->rx_packets = 0;
@@ -1423,9 +1435,9 @@ dhd_doiovar(dhd_pub_t *dhd_pub, const bcm_iovar_t *vi, uint32 actionid, const ch
 
 	case IOV_GVAL(IOV_BUS_TYPE):
 		/* The dhd application queries the driver to check if its usb or sdio.  */
-#ifdef BCMDHDUSB
+#ifdef BCMDBUS
 		int_val = BUS_TYPE_USB;
-#endif
+#endif /* BCMDBUS */
 #ifdef BCMSDIO
 		int_val = BUS_TYPE_SDIO;
 #endif
@@ -1952,6 +1964,8 @@ dhd_doiovar(dhd_pub_t *dhd_pub, const bcm_iovar_t *vi, uint32 actionid, const ch
 		break;
 	}
 #endif /* REPORT_FATAL_TIMEOUTS */
+#ifdef DHD_DEBUG
+#if defined(BCMSDIO) || defined(BCMPCIE)
 	case IOV_GVAL(IOV_DONGLE_TRAP_TYPE):
 		if (dhd_pub->dongle_trap_occured)
 			int_val = ltoh32(dhd_pub->last_trap_info.type);
@@ -1971,8 +1985,6 @@ dhd_doiovar(dhd_pub_t *dhd_pub, const bcm_iovar_t *vi, uint32 actionid, const ch
 		dhd_bus_dump_trap_info(dhd_pub->bus, &strbuf);
 		break;
 	}
-#ifdef DHD_DEBUG
-#if defined(BCMSDIO) || defined(BCMPCIE)
 
 	case IOV_GVAL(IOV_BPADDR):
 		{
@@ -2388,11 +2400,21 @@ dhd_ioctl(dhd_pub_t * dhd_pub, dhd_ioctl_t *ioc, void *buf, uint buflen)
 
 				/* if still not found, try bus module */
 				if (ioc->cmd == DHD_GET_VAR) {
+#ifdef BCMDBUS
+					bcmerror = dbus_iovar_op(dhd_pub->dbus, buf,
+						arg, arglen, buf, buflen, IOV_GET);
+#else
 					bcmerror = dhd_bus_iovar_op(dhd_pub, buf,
 							arg, arglen, buf, buflen, IOV_GET);
+#endif /* BCMDBUS */
 				} else {
+#ifdef BCMDBUS
+					bcmerror = dbus_iovar_op(dhd_pub->dbus, buf,
+						NULL, 0, arg, arglen, IOV_SET);
+#else
 					bcmerror = dhd_bus_iovar_op(dhd_pub, buf,
 							NULL, 0, arg, arglen, IOV_SET);
+#endif /* BCMDBUS */
 				}
 				if (bcmerror != BCME_UNSUPPORTED) {
 					goto unlock_exit;
@@ -2820,12 +2842,14 @@ dngl_host_event_process(dhd_pub_t *dhdp, bcm_dngl_event_t *event,
 #ifdef DHD_FW_COREDUMP
 	dhdp->memdump_type = DUMP_TYPE_DONGLE_HOST_EVENT;
 #endif /* DHD_FW_COREDUMP */
+#ifndef BCMDBUS
 	if (dhd_socram_dump(dhdp->bus)) {
 		DHD_ERROR(("%s: socram dump failed\n", __FUNCTION__));
 	} else {
 		/* Notify framework */
 		dhd_dbg_send_urgent_evt(dhdp, p, datalen);
 	}
+#endif /* !BCMDBUS */
 }
 #endif /* DNGL_EVENT_SUPPORT */
 
@@ -3113,6 +3137,7 @@ wl_process_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata, uint pktlen
 			dhd_ifname2idx(dhd_pub->info, event->ifname),
 			&event->addr.octet);
 		break;
+#ifndef BCMDBUS
 #if defined(DHD_FW_COREDUMP)
 	case WLC_E_PSM_WATCHDOG:
 		DHD_ERROR(("%s: WLC_E_PSM_WATCHDOG event received : \n", __FUNCTION__));
@@ -3121,6 +3146,7 @@ wl_process_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata, uint pktlen
 		}
 	break;
 #endif
+#endif /* !BCMDBUS */
 #ifdef DHD_WMF
 	case WLC_E_PSTA_PRIMARY_INTF_IND:
 		dhd_update_psta_interface_for_sta(dhd_pub, event->ifname,
@@ -3187,6 +3213,14 @@ wl_process_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata, uint pktlen
 
 	default:
 		*ifidx = dhd_ifname2idx(dhd_pub->info, event->ifname);
+#ifdef DHD_UPDATE_INTF_MAC
+		if ((WLC_E_LINK==type)&&(WLC_EVENT_MSG_LINK&flags)) {
+			dhd_event_ifchange(dhd_pub->info,
+			(struct wl_event_data_if *)event,
+			event->ifname,
+			event->addr.octet);
+		}
+#endif /* DHD_UPDATE_INTF_MAC */
 		/* push up to external supp/auth */
 		dhd_event(dhd_pub->info, (char *)pvt_data, evlen, *ifidx);
 		DHD_TRACE(("%s: MAC event %d, flags %x, status %x\n",
@@ -4271,6 +4305,8 @@ dhd_get_suspend_bcn_li_dtim(dhd_pub_t *dhd)
 		}
 	}
 
+	if (dhd->conf->suspend_bcn_li_dtim >= 0)
+		bcn_li_dtim = dhd->conf->suspend_bcn_li_dtim;
 	DHD_ERROR(("%s beacon=%d bcn_li_dtim=%d DTIM=%d Listen=%d\n",
 		__FUNCTION__, ap_beacon, bcn_li_dtim, dtim_period, CUSTOM_LISTEN_INTERVAL));
 

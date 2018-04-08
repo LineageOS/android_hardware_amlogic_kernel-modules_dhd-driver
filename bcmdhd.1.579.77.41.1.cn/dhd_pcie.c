@@ -994,6 +994,9 @@ dhdpcie_dongle_attach(dhd_bus_t *bus)
 		case BCM4347_CHIP_GRPID:
 			bus->dongle_ram_base = CR4_4347_RAM_BASE;
 			break;
+		case BCM4362_CHIP_ID:
+			bus->dongle_ram_base = CR4_4362_RAM_BASE;
+			break;
 		default:
 			bus->dongle_ram_base = 0;
 			DHD_ERROR(("%s: WARNING: Using default ram base at 0x%x\n",
@@ -7088,6 +7091,11 @@ dhdpcie_chipmatch(uint16 vendor, uint16 device)
 	if ((device == BCM4361_D11AC_ID) || (device == BCM4361_D11AC2G_ID) ||
 		(device == BCM4361_D11AC5G_ID) || (device == BCM4361_CHIP_ID))
 		return 0;
+	
+	if ((device == BCM4362_D11AX_ID) || (device == BCM4362_D11AX2G_ID) ||
+		(device == BCM4362_D11AX5G_ID) || (device == BCM4362_CHIP_ID)) {
+		return 0;
+	}
 
 	if ((device == BCM4365_D11AC_ID) || (device == BCM4365_D11AC2G_ID) ||
 		(device == BCM4365_D11AC5G_ID) || (device == BCM4365_CHIP_ID))

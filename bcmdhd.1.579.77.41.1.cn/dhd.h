@@ -51,6 +51,9 @@
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && defined(CONFIG_HAS_WAKELOCK)
 #include <linux/wakelock.h>
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && defined (CONFIG_HAS_WAKELOCK) */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+#include <linux/sched/types.h>
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0) */
 /* The kernel threading is sdio-specific */
 struct task_struct;
 struct sched_param;
@@ -85,10 +88,6 @@ int get_scheduler_policy(struct task_struct *p);
 #define WL_VENDOR_EXT_SUPPORT
 #endif /* 3.18 > KERNEL_VER >= 3.14 || defined(CONFIG_BCMDHD_VENDOR_EXT) */
 
-/*#if !defined(WL_VENDOR_EXT_SUPPORT)
-#undef GSCAN_SUPPORT
-#endif
-*/
 #if defined(KEEP_ALIVE)
 /* Default KEEP_ALIVE Period is 55 sec to prevent AP from sending Keep Alive probe frame */
 #define KEEP_ALIVE_PERIOD 55000
@@ -676,6 +675,9 @@ typedef struct dhd_pub {
 	 * please do NOT merge it back from other branches !!!
 	 */
 
+#ifdef BCMDBUS
+	struct dbus_pub *dbus;
+#endif /* BCMDBUS */
 
 	/* Internal dhd items */
 	bool up;		/* Driver up/down (to OS) */
@@ -1709,6 +1711,9 @@ extern int dhd_event_ifdel(struct dhd_info *dhd, struct wl_event_data_if *ifeven
 	char *name, uint8 *mac);
 extern int dhd_event_ifchange(struct dhd_info *dhd, struct wl_event_data_if *ifevent,
        char *name, uint8 *mac);
+#ifdef DHD_UPDATE_INTF_MAC
+extern int dhd_op_if_update(dhd_pub_t *dhdpub, int ifidx);
+#endif /* DHD_UPDATE_INTF_MAC */
 extern struct net_device* dhd_allocate_if(dhd_pub_t *dhdpub, int ifidx, const char *name,
 	uint8 *mac, uint8 bssidx, bool need_rtnl_lock, const char *dngl_name);
 extern int dhd_remove_if(dhd_pub_t *dhdpub, int ifidx, bool need_rtnl_lock);
@@ -1830,6 +1835,9 @@ extern uint dhd_console_ms;
 extern uint android_msg_level;
 extern uint config_msg_level;
 extern uint sd_msglevel;
+#ifdef BCMDBUS
+extern uint dbus_msglevel;
+#endif /* BCMDBUS */
 #ifdef WL_WIRELESS_EXT
 extern uint iw_msg_level;
 #endif
@@ -2040,7 +2048,9 @@ extern char fw_path2[MOD_PARAM_PATHLEN];
 
 /* Flag to indicate if we should download firmware on driver load */
 extern uint dhd_download_fw_on_driverload;
+#ifndef BCMDBUS
 extern int allow_delay_fwdl;
+#endif /* !BCMDBUS */
 
 extern int dhd_process_cid_mac(dhd_pub_t *dhdp, bool prepost);
 extern int dhd_write_file(const char *filepath, char *buf, int buf_len);
@@ -2235,6 +2245,10 @@ extern void dhd_os_general_spin_unlock(dhd_pub_t *pub, unsigned long flags);
 
 extern void dhd_dump_to_kernelog(dhd_pub_t *dhdp);
 
+#ifdef BCMDBUS
+extern void dhd_bus_dump(dhd_pub_t *dhdp, struct bcmstrbuf *strbuf);
+extern void dhd_bus_clearcounts(dhd_pub_t *dhdp);
+#endif /* BCMDBUS */
 
 #ifdef DHD_L2_FILTER
 extern int dhd_get_parp_status(dhd_pub_t *dhdp, uint32 idx);

@@ -2766,6 +2766,7 @@ exit:
 	return err;
 }
 #endif /* GSCAN_SUPPORT */
+
 #if defined(GSCAN_SUPPORT) || defined(DHD_GET_VALID_CHANNELS)
 void *
 dhd_pno_get_gscan(dhd_pub_t *dhd, dhd_pno_gscan_cmd_cfg_t type,

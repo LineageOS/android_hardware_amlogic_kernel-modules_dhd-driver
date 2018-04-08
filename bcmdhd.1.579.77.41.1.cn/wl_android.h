@@ -104,9 +104,14 @@ int wl_handle_private_cmd(struct net_device *net, char *command, u32 cmd_len);
 
 s32 wl_netlink_send_msg(int pid, int type, int seq, const void *data, size_t size);
 #ifdef WL_EXT_IAPSTA
-int wl_android_ext_attach_netdev(struct net_device *net, uint8 bssidx);
-int wl_android_ext_dettach_netdev(void);
-void wl_android_ext_iapsta_disconnect_sta(struct net_device *dev, u32 channel);
+int wl_ext_iapsta_attach_netdev(struct net_device *net, uint8 bssidx);
+int wl_ext_iapsta_attach_name(struct net_device *net, uint8 bssidx);
+int wl_ext_iapsta_dettach_netdev(void);
+void wl_ext_iapsta_disconnect_sta(struct net_device *dev, u32 channel);
+int wl_ext_iapsta_alive_preinit(struct net_device *dev);
+int wl_ext_iapsta_alive_postinit(struct net_device *dev);
+int wl_ext_iapsta_event(struct net_device *dev, wl_event_msg_t *e, void* data);
+extern int op_mode;
 #endif
 int wl_android_ext_priv_cmd(struct net_device *net, char *command, int total_len,
 	int *bytes_written);
@@ -125,13 +130,18 @@ typedef enum APSTAMODE {
 	IAPONLY_MODE,
 	IAPSTA_MODE,
 	IDUALAP_MODE,
-	IGOSTA_MODE,
-	IGCSTA_MODE
+	IMESHONLY_MODE,
+	IMESHSTA_MODE,
+	IMESHAP_MODE,
+	IMESHAPSTA_MODE,
+	IMESHAPAP_MODE,
+	IGOSTA_MODE
 } apstamode_t;
 
 typedef enum IFMODE {
 	ISTA_MODE = 1,
-	IAP_MODE
+	IAP_MODE,
+	IMESH_MODE
 } ifmode_t;
 
 typedef enum BGNMODE {
@@ -158,6 +168,13 @@ typedef enum ENCMODE {
 	ENC_TKIPAES
 } encmode_t;
 
+enum wl_if_list {
+	IF_PIF,
+	IF_VIF,
+	IF_VIF2,
+	MAX_IF_NUM
+};
+
 /* i/f query */
 typedef struct wl_if_info {
 	struct net_device *dev;
@@ -174,14 +191,16 @@ typedef struct wl_if_info {
 	authmode_t amode;
 	encmode_t emode;
 	char key[100];
-} wl_apsta_if_t;
+} wl_if_info_t;
 
 typedef struct wl_apsta_params {
-	struct wl_if_info pif; // primary device
-	struct wl_if_info vif; // virtual device
+	struct wl_if_info if_info[MAX_IF_NUM]; // primary device
 	int ioctl_ver;
 	bool init;
+	bool vsdb;
 	apstamode_t apstamode;
+	bool netif_change;
+	wait_queue_head_t netif_change_event;
 } wl_apsta_params_t;
 
 /* hostap mac mode */

@@ -3299,6 +3299,7 @@ wl_iw_event(struct net_device *dev, wl_event_msg_t *e, void* data)
 	uint16 flags =  ntoh16(e->flags);
 	uint32 datalen = ntoh32(e->datalen);
 	uint32 status =  ntoh32(e->status);
+	uint32 reason =  ntoh32(e->reason);
 
 	memset(&wrqu, 0, sizeof(wrqu));
 	memset(extra, 0, sizeof(extra));
@@ -3328,12 +3329,12 @@ wl_iw_event(struct net_device *dev, wl_event_msg_t *e, void* data)
 		cmd = SIOCGIWAP;
 		wrqu.data.length = strlen(extra);
 		if (!(flags & WLC_EVENT_MSG_LINK)) {
-			printf("%s: Link Down with BSSID="MACSTR"\n", __FUNCTION__,
-				MAC2STR((u8 *)wrqu.addr.sa_data));
+			printf("%s: Link Down with "MACSTR", reason=%d\n", __FUNCTION__,
+				MAC2STR((u8 *)wrqu.addr.sa_data), reason);
 			bzero(wrqu.addr.sa_data, ETHER_ADDR_LEN);
 			bzero(&extra, ETHER_ADDR_LEN);
 		} else {
-			printf("%s: Link UP with BSSID="MACSTR"\n", __FUNCTION__,
+			printf("%s: Link UP with "MACSTR"\n", __FUNCTION__,
 				MAC2STR((u8 *)wrqu.addr.sa_data));
 		}
 		break;

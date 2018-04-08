@@ -252,7 +252,7 @@ wl_cfgvendor_set_country(struct wiphy *wiphy,
 	int err = BCME_ERROR, rem, type;
 	char country_code[WLC_CNTRY_BUF_SZ] = {0};
 	const struct nlattr *iter;
-	WL_ERR(("enter wl_cfgvendor_set_country: \n"));
+
 	nla_for_each_attr(iter, data, len, rem) {
 		type = nla_type(iter);
 		switch (type) {
@@ -267,7 +267,6 @@ wl_cfgvendor_set_country(struct wiphy *wiphy,
 	}
 
 	err = wldev_set_country(wdev->netdev, country_code, true, true, -1);
-	WL_ERR(("Set country code ret:%d\n", err));
 	if (err < 0) {
 		WL_ERR(("Set country failed ret:%d\n", err));
 	}

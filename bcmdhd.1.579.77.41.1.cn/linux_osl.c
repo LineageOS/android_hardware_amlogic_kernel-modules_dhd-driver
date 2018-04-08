@@ -2151,9 +2151,13 @@ osl_os_get_image_block(char *buf, int len, void *image)
 	if (!image)
 		return 0;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
+	rdlen = kernel_read(fp, buf, len, &fp->f_pos);
+#else
 	rdlen = kernel_read(fp, fp->f_pos, buf, len);
 	if (rdlen > 0)
 		fp->f_pos += rdlen;
+#endif
 
 	return rdlen;
 }
@@ -2680,7 +2684,12 @@ osl_pkt_orphan_partial(struct sk_buff *skb, int tsq)
 	 */
 	fraction = skb->truesize * (tsq - 1) / tsq;
 	skb->truesize -= fraction;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0)
+	atomic_sub(fraction, &skb->sk->sk_wmem_alloc.refs);
+#else
 	atomic_sub(fraction, &skb->sk->sk_wmem_alloc);
+#endif /* LINUX_VERSION >= 4.13.0 */
+	skb_orphan(skb);
 }
 #endif /* LINUX_VERSION >= 3.6.0 && TSQ_MULTIPLIER */
 

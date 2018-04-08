@@ -42,6 +42,9 @@
 #if defined(CONFIG_WIFI_CONTROL_FUNC)
 #include <linux/wlan_plat.h>
 #endif
+#ifdef BCMDBUS
+#include <dbus.h>
+#endif /* BCMDBUS */
 #ifdef CONFIG_DTS
 #include<linux/regulator/consumer.h>
 #include<linux/of_gpio.h>
@@ -58,6 +61,7 @@ extern void dhd_wlan_deinit_plat_data(wifi_adapter_info_t *adapter);
 
 #ifdef CONFIG_DTS
 struct regulator *wifi_regulator = NULL;
+extern struct wifi_platform_data dhd_wlan_control;
 #endif /* CONFIG_DTS */
 
 bool cfg_multichip = FALSE;
@@ -167,10 +171,12 @@ int wifi_platform_set_power(wifi_adapter_info_t *adapter, bool on, unsigned long
 #endif /* BT_OVER_SDIO */
 #ifdef CONFIG_DTS
 	if (on) {
+		printf("======== PULL WL_REG_ON HIGH! ========\n");
 		err = regulator_enable(wifi_regulator);
 		is_power_on = TRUE;
 	}
 	else {
+		printf("======== PULL WL_REG_ON LOW! ========\n");
 		err = regulator_disable(wifi_regulator);
 		is_power_on = FALSE;
 	}
@@ -280,7 +286,7 @@ static int wifi_plat_dev_drv_probe(struct platform_device *pdev)
 {
 	struct resource *resource;
 	wifi_adapter_info_t *adapter;
-#ifdef CONFIG_DTS
+#if defined(CONFIG_DTS) && defined(CUSTOMER_OOB)
 	int irq, gpio;
 #endif /* CONFIG_DTS */
 
@@ -290,7 +296,8 @@ static int wifi_plat_dev_drv_probe(struct platform_device *pdev)
 	ASSERT(dhd_wifi_platdata != NULL);
 	ASSERT(dhd_wifi_platdata->num_adapters == 1);
 	adapter = &dhd_wifi_platdata->adapters[0];
-	adapter->wifi_plat_data = (struct wifi_platform_data *)(pdev->dev.platform_data);
+	adapter->wifi_plat_data = (void *)&dhd_wlan_control;
+//	adapter->wifi_plat_data = (struct wifi_platform_data *)(pdev->dev.platform_data);
 
 	resource = platform_get_resource_byname(pdev, IORESOURCE_IRQ, "bcmdhd_wlan_irq");
 	if (resource == NULL)
@@ -310,6 +317,7 @@ static int wifi_plat_dev_drv_probe(struct platform_device *pdev)
 		return -1;
 	}
 
+#if defined(CUSTOMER_OOB)
 	/* This is to get the irq for the OOB */
 	gpio = of_get_gpio(pdev->dev.of_node, 0);
 
@@ -327,6 +335,7 @@ static int wifi_plat_dev_drv_probe(struct platform_device *pdev)
 	/* need to change the flags according to our requirement */
 	adapter->intr_flags = IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHLEVEL |
 		IORESOURCE_IRQ_SHAREABLE;
+#endif
 #endif /* CONFIG_DTS */
 
 	wifi_plat_dev_probe_ret = dhd_wifi_platform_load();
@@ -519,7 +528,9 @@ static int wifi_ctrlfunc_register_drv(void)
 
 void wifi_ctrlfunc_unregister_drv(void)
 {
+#ifndef CONFIG_DTS
 	wifi_adapter_info_t *adapter;
+#endif
 
 #if defined(CONFIG_DTS) && !defined(CUSTOMER_HW)
 	DHD_ERROR(("unregister wifi platform drivers\n"));
@@ -865,10 +876,43 @@ static int dhd_wifi_platform_load_sdio(void)
 }
 #endif /* BCMSDIO */
 
+#ifdef BCMDBUS
+/* User-specified vid/pid */
+int dhd_vid = 0xa5c;
+int dhd_pid = 0x48f;
+module_param(dhd_vid, int, 0);
+module_param(dhd_pid, int, 0);
+void *dhd_dbus_probe_cb(void *arg, const char *desc, uint32 bustype, uint32 hdrlen);
+void dhd_dbus_disconnect_cb(void *arg);
+
+static int dhd_wifi_platform_load_usb(void)
+{
+	int err = 0;
+
+	if (dhd_vid < 0 || dhd_vid > 0xffff) {
+		DHD_ERROR(("%s: invalid dhd_vid 0x%x\n", __FUNCTION__, dhd_vid));
+		return -EINVAL;
+	}
+	if (dhd_pid < 0 || dhd_pid > 0xffff) {
+		DHD_ERROR(("%s: invalid dhd_pid 0x%x\n", __FUNCTION__, dhd_pid));
+		return -EINVAL;
+	}
+
+	err = dbus_register(dhd_vid, dhd_pid, dhd_dbus_probe_cb, dhd_dbus_disconnect_cb,
+		NULL, NULL, NULL);
+
+	/* Device not detected */
+	if (err == DBUS_ERR_NODEVICE)
+		err = DBUS_OK;
+
+	return err;
+}
+#else /* BCMDBUS */
 static int dhd_wifi_platform_load_usb(void)
 {
 	return 0;
 }
+#endif /* BCMDBUS */
 
 static int dhd_wifi_platform_load()
 {

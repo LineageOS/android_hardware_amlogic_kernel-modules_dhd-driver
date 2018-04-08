@@ -182,12 +182,6 @@ DHD_SPINWAIT_SLEEP_INIT(sdioh_spinwait_sleep);
 pkt_statics_t tx_statics = {0};
 #endif
 
-#if defined(MULTIPLE_SUPPLICANT)
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25))
-DEFINE_MUTEX(_dhd_sdio_mutex_lock_);
-#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)) */
-#endif
-
 #ifdef SUPPORT_MULTIPLE_BOARD_REV_FROM_HW
 extern unsigned int system_hw_rev;
 #endif /* SUPPORT_MULTIPLE_BOARD_REV_FROM_HW */
@@ -341,6 +335,8 @@ typedef struct dhd_bus {
 #if defined(SUPPORT_P2P_GO_PS)
 	wait_queue_head_t bus_sleep;
 #endif /* LINUX && SUPPORT_P2P_GO_PS */
+	bool		ctrl_wait;
+	wait_queue_head_t ctrl_tx_wait;
 	uint		rxflow_mode;		/* Rx flow control mode */
 	bool		rxflow;			/* Is rx flow control on */
 	uint		prev_rxlim_hit;		/* Is prev rx limit exceeded (per dpc schedule) */
@@ -881,8 +877,8 @@ dhdsdio_sr_cap(dhd_bus_t *bus)
 		(bus->sih->chip == BCM4371_CHIP_ID) ||
 		(BCM4349_CHIP(bus->sih->chip))		||
 		(bus->sih->chip == BCM4350_CHIP_ID) ||
-		(bus->sih->chip == BCM43751_CHIP_ID) ||
-		(bus->sih->chip == BCM43012_CHIP_ID)) {
+		(bus->sih->chip == BCM43012_CHIP_ID) ||
+		(bus->sih->chip == BCM4362_CHIP_ID)) {
 		core_capext = TRUE;
 	} else {
 		core_capext = bcmsdh_reg_read(bus->sdh,
@@ -978,8 +974,8 @@ dhdsdio_sr_init(dhd_bus_t *bus)
 	if (CHIPID(bus->sih->chip) == BCM43430_CHIP_ID ||
 		CHIPID(bus->sih->chip) == BCM43018_CHIP_ID ||
 		CHIPID(bus->sih->chip) == BCM4339_CHIP_ID ||
-		CHIPID(bus->sih->chip) == BCM43751_CHIP_ID ||
-		CHIPID(bus->sih->chip) == BCM43012_CHIP_ID)
+		CHIPID(bus->sih->chip) == BCM43012_CHIP_ID ||
+		CHIPID(bus->sih->chip) == BCM4362_CHIP_ID)
 		dhdsdio_devcap_set(bus, SDIOD_CCCR_BRCM_CARDCAP_CMD_NODEC);
 
 	if (bus->sih->chip == BCM43012_CHIP_ID) {
@@ -1983,12 +1979,16 @@ dhd_bus_txdata(struct dhd_bus *bus, void *pkt)
 
 	prec = PRIO2PREC((PKTPRIO(pkt) & PRIOMASK));
 
+	/* move from dhdsdio_sendfromq(), try to orphan skb early */
+	if (bus->dhd->conf->orphan_move)
+		PKTORPHAN(pkt, bus->dhd->conf->tsq);
+
 	/* Check for existing queue, current flow-control, pending event, or pending clock */
 	if (dhd_deferred_tx || bus->fcstate || pktq_len(&bus->txq) || bus->dpc_sched ||
 	    (!DATAOK(bus)) || (bus->flowcontrol & NBITVAL(prec)) ||
 	    (bus->clkstate != CLK_AVAIL)) {
 		bool deq_ret;
-		int pkq_len;
+		int pkq_len = 0;
 
 		DHD_TRACE(("%s: deferring pktq len %d\n", __FUNCTION__, pktq_len(&bus->txq)));
 		bus->fcqueued++;
@@ -2017,10 +2017,12 @@ dhd_bus_txdata(struct dhd_bus *bus, void *pkt)
 		} else
 			ret = BCME_OK;
 
-		dhd_os_sdlock_txq(bus->dhd);
-		pkq_len = pktq_len(&bus->txq);
-		dhd_os_sdunlock_txq(bus->dhd);
-		if (pkq_len >= FCHI) {
+		if (dhd_doflow) {
+			dhd_os_sdlock_txq(bus->dhd);
+			pkq_len = pktq_len(&bus->txq);
+			dhd_os_sdunlock_txq(bus->dhd);
+		}
+		if (dhd_doflow && pkq_len >= FCHI) {
 			bool wlfc_enabled = FALSE;
 #ifdef PROP_TXSTATUS
 			wlfc_enabled = (dhd_wlfc_flowcontrol(bus->dhd, ON, FALSE) !=
@@ -2624,7 +2626,8 @@ dhdsdio_sendfromq(dhd_bus_t *bus, uint maxframes)
 				}
 			}
 #endif /* DHD_LOSSLESS_ROAMING */
-			PKTORPHAN(pkts[i], bus->dhd->conf->tsq);
+			if (!bus->dhd->conf->orphan_move)
+				PKTORPHAN(pkts[i], bus->dhd->conf->tsq);
 			datalen += PKTLEN(osh, pkts[i]);
 		}
 		dhd_os_sdunlock_txq(bus->dhd);
@@ -2661,9 +2664,11 @@ dhdsdio_sendfromq(dhd_bus_t *bus, uint maxframes)
 
 	}
 
-	dhd_os_sdlock_txq(bus->dhd);
-	txpktqlen = pktq_len(&bus->txq);
-	dhd_os_sdunlock_txq(bus->dhd);
+	if (dhd_doflow) {
+		dhd_os_sdlock_txq(bus->dhd);
+		txpktqlen = pktq_len(&bus->txq);
+		dhd_os_sdunlock_txq(bus->dhd);
+	}
 
 	/* Do flow-control if needed */
 	if (dhd->up && (dhd->busstate == DHD_BUS_DATA) && (txpktqlen < FCLOW)) {
@@ -2716,7 +2721,6 @@ dhd_bus_txctl(struct dhd_bus *bus, uchar *msg, uint msglen)
 	uint8 doff = 0;
 	int ret = -1;
 	uint8 sdpcm_hdrlen = bus->txglom_enable ? SDPCM_HDRLEN_TXGLOM : SDPCM_HDRLEN;
-	int cnt = 0;
 
 	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
 
@@ -2756,17 +2760,13 @@ dhd_bus_txctl(struct dhd_bus *bus, uchar *msg, uint msglen)
 
 
 	/* Need to lock here to protect txseq and SDIO tx calls */
-retry:
-	dhd_os_sdlock(bus->dhd);
-	if (cnt < bus->dhd->conf->txctl_tmo_fix && !TXCTLOK(bus)) {
-		cnt++;
-		dhd_os_sdunlock(bus->dhd);
-		OSL_SLEEP(1);
-		if (cnt >= (bus->dhd->conf->txctl_tmo_fix))
-			DHD_ERROR(("%s: No bus credit bus->tx_max %d, bus->tx_seq %d, last retry cnt %d\n",
-				__FUNCTION__, bus->tx_max, bus->tx_seq, cnt));
-		goto retry;
+	if (bus->dhd->conf->txctl_tmo_fix > 0 && !TXCTLOK(bus)) {
+		bus->ctrl_wait = TRUE;
+		wait_event_interruptible_timeout(bus->ctrl_tx_wait, TXCTLOK(bus),
+			msecs_to_jiffies(bus->dhd->conf->txctl_tmo_fix));
+		bus->ctrl_wait = FALSE;
 	}
+	dhd_os_sdlock(bus->dhd);
 
 	BUS_WAKE(bus);
 
@@ -6844,6 +6844,8 @@ exit:
 		}
 	}
 
+	if (bus->ctrl_wait && TXCTLOK(bus))
+		wake_up_interruptible(&bus->ctrl_tx_wait);
 	dhd_os_sdunlock(bus->dhd);
 #ifdef DEBUG_DPC_THREAD_WATCHDOG
 	if (bus->dhd->dhd_bug_on) {
@@ -7643,8 +7645,7 @@ dhdsdio_chipmatch(uint16 chipid)
 
 	if (chipid == BCM43012_CHIP_ID)
 		return TRUE;
-
-	if (chipid == BCM43751_CHIP_ID)
+	if (chipid == BCM4362_CHIP_ID)
 		return TRUE;
 
 	return FALSE;
@@ -7756,6 +7757,7 @@ dhdsdio_probe(uint16 venid, uint16 devid, uint16 bus_no, uint16 slot,
 #if defined(SUPPORT_P2P_GO_PS)
 	init_waitqueue_head(&bus->bus_sleep);
 #endif /* LINUX && SUPPORT_P2P_GO_PS */
+	init_waitqueue_head(&bus->ctrl_tx_wait);
 
 	/* attempt to attach to the dongle */
 	if (!(dhdsdio_probe_attach(bus, osh, sdh, regsva, devid))) {
@@ -7925,7 +7927,7 @@ dhdsdio_probe_attach(struct dhd_bus *bus, osl_t *osh, void *sdh, void *regsva,
 	bcmsdh_cfg_write(sdh, SDIO_FUNC_1, SBSDIO_FUNC1_CHIPCLKCSR,
 	                 DHD_INIT_CLKCTL2, &err);
 	OSL_DELAY(200);
-	
+
 	if (DHD_INFO_ON()) {
 		for (fn = 0; fn <= numfn; fn++) {
 			if (!(cis[fn] = MALLOC(osh, SBSDIO_CIS_SIZE_LIMIT))) {
@@ -8066,8 +8068,8 @@ dhdsdio_probe_attach(struct dhd_bus *bus, osl_t *osh, void *sdh, void *regsva,
 			case BCM4347_CHIP_GRPID:
 				bus->dongle_ram_base = CR4_4347_RAM_BASE;
 				break;
-			case BCM43751_CHIP_ID:
-				bus->dongle_ram_base = CR4_43751_RAM_BASE;
+			case BCM4362_CHIP_ID:
+				bus->dongle_ram_base = CR4_4362_RAM_BASE;
 				break;
 			default:
 				bus->dongle_ram_base = 0;
@@ -8327,15 +8329,12 @@ dhd_set_bus_params(struct dhd_bus *bus)
 	}
 	if (bus->dhd->conf->use_rxchain >= 0) {
 		bus->use_rxchain = (bool)bus->dhd->conf->use_rxchain;
-		printf("%s: set use_rxchain %d\n", __FUNCTION__, bus->dhd->conf->use_rxchain);
 	}
 	if (bus->dhd->conf->txinrx_thres >= 0) {
 		bus->txinrx_thres = bus->dhd->conf->txinrx_thres;
-		printf("%s: set txinrx_thres %d\n", __FUNCTION__, bus->txinrx_thres);
 	}
 	if (bus->dhd->conf->txglomsize >= 0) {
 		bus->txglomsize = bus->dhd->conf->txglomsize;
-		printf("%s: set txglomsize %d\n", __FUNCTION__, bus->dhd->conf->txglomsize);
 	}
 }
 

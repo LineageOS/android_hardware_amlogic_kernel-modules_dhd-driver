@@ -104,6 +104,10 @@ uint android_msg_level = ANDROID_ERROR_LEVEL;
 #define CMD_SETBAND		"SETBAND"
 #define CMD_GETBAND		"GETBAND"
 #define CMD_COUNTRY		"COUNTRY"
+#ifdef WLMESH
+#define CMD_SAE_SET_PASSWORD "SAE_SET_PASSWORD"
+#define CMD_SET_RSDB_MODE "RSDB_MODE"
+#endif
 #define CMD_P2P_SET_NOA		"P2P_SET_NOA"
 #if !defined WL_ENABLE_P2P_IF
 #define CMD_P2P_GET_NOA			"P2P_GET_NOA"
@@ -1179,6 +1183,7 @@ static int wl_cfg80211_wbtext_btm_delta(struct net_device *dev,
 #define PNO_PARAM_SIZE 50
 #define VALUE_SIZE 50
 #define LIMIT_STR_FMT  ("%50s %50s")
+
 static int
 wls_parse_batching_cmd(struct net_device *dev, char *command, int total_len)
 {
@@ -1187,7 +1192,8 @@ wls_parse_batching_cmd(struct net_device *dev, char *command, int total_len)
 	char *pos, *pos2, *token, *token2, *delim;
 	char param[PNO_PARAM_SIZE+1], value[VALUE_SIZE+1];
 	struct dhd_pno_batch_params batch_params;
-	DHD_PNO(("%s: command=%s, len=%d\n", __FUNCTION__, command, total_len));
+
+	ANDROID_INFO(("%s: command=%s, len=%d\n", __FUNCTION__, command, total_len));
 	if (total_len < strlen(CMD_WLS_BATCHING)) {
 		ANDROID_ERROR(("%s argument=%d less min size\n", __FUNCTION__, total_len));
 		err = BCME_ERROR;
@@ -1212,13 +1218,13 @@ wls_parse_batching_cmd(struct net_device *dev, char *command, int total_len)
 			tokens = sscanf(token, LIMIT_STR_FMT, param, value);
 			if (!strncmp(param, PNO_PARAM_SCANFREQ, strlen(PNO_PARAM_SCANFREQ))) {
 				batch_params.scan_fr = simple_strtol(value, NULL, 0);
-				DHD_PNO(("scan_freq : %d\n", batch_params.scan_fr));
+				ANDROID_INFO(("scan_freq : %d\n", batch_params.scan_fr));
 			} else if (!strncmp(param, PNO_PARAM_BESTN, strlen(PNO_PARAM_BESTN))) {
 				batch_params.bestn = simple_strtol(value, NULL, 0);
-				DHD_PNO(("bestn : %d\n", batch_params.bestn));
+				ANDROID_INFO(("bestn : %d\n", batch_params.bestn));
 			} else if (!strncmp(param, PNO_PARAM_MSCAN, strlen(PNO_PARAM_MSCAN))) {
 				batch_params.mscan = simple_strtol(value, NULL, 0);
-				DHD_PNO(("mscan : %d\n", batch_params.mscan));
+				ANDROID_INFO(("mscan : %d\n", batch_params.mscan));
 			} else if (!strncmp(param, PNO_PARAM_CHANNEL, strlen(PNO_PARAM_CHANNEL))) {
 				i = 0;
 				pos2 = value;
@@ -1238,7 +1244,7 @@ wls_parse_batching_cmd(struct net_device *dev, char *command, int total_len)
 					if (*token2 == 'A' || *token2 == 'B') {
 						batch_params.band = (*token2 == 'A')?
 							WLC_BAND_5G : WLC_BAND_2G;
-						DHD_PNO(("band : %s\n",
+						ANDROID_INFO(("band : %s\n",
 							(*token2 == 'A')? "A" : "B"));
 					} else {
 						if ((batch_params.nchan >= WL_NUMCHANNELS) ||
@@ -1251,13 +1257,13 @@ wls_parse_batching_cmd(struct net_device *dev, char *command, int total_len)
 						batch_params.chan_list[i++] =
 							simple_strtol(token2, NULL, 0);
 						batch_params.nchan++;
-						DHD_PNO(("channel :%d\n",
+						ANDROID_INFO(("channel :%d\n",
 							batch_params.chan_list[i-1]));
 					}
 				 }
 			} else if (!strncmp(param, PNO_PARAM_RTT, strlen(PNO_PARAM_RTT))) {
 				batch_params.rtt = simple_strtol(value, NULL, 0);
-				DHD_PNO(("rtt : %d\n", batch_params.rtt));
+				ANDROID_INFO(("rtt : %d\n", batch_params.rtt));
 			} else {
 				ANDROID_ERROR(("%s : unknown param: %s\n", __FUNCTION__, param));
 				err = BCME_ERROR;
@@ -1294,6 +1300,7 @@ wls_parse_batching_cmd(struct net_device *dev, char *command, int total_len)
 exit:
 	return err;
 }
+
 #ifndef WL_SCHED_SCAN
 static int wl_android_set_pno_setup(struct net_device *dev, char *command, int total_len)
 {
@@ -1327,7 +1334,7 @@ static int wl_android_set_pno_setup(struct net_device *dev, char *command, int t
 		0x00
 		};
 #endif /* PNO_SET_DEBUG */
-	DHD_PNO(("%s: command=%s, len=%d\n", __FUNCTION__, command, total_len));
+	ANDROID_INFO(("%s: command=%s, len=%d\n", __FUNCTION__, command, total_len));
 
 	if (total_len < (strlen(CMD_PNOSETUP_SET) + sizeof(cmd_tlv_t))) {
 		ANDROID_ERROR(("%s argument=%d less min size\n", __FUNCTION__, total_len));
@@ -1362,7 +1369,7 @@ static int wl_android_set_pno_setup(struct net_device *dev, char *command, int t
 			}
 			str_ptr++;
 			pno_time = simple_strtoul(str_ptr, &str_ptr, 16);
-			DHD_PNO(("%s: pno_time=%d\n", __FUNCTION__, pno_time));
+			ANDROID_INFO(("%s: pno_time=%d\n", __FUNCTION__, pno_time));
 
 			if (str_ptr[0] != 0) {
 				if ((str_ptr[0] != PNO_TLV_FREQ_REPEAT)) {
@@ -1372,7 +1379,7 @@ static int wl_android_set_pno_setup(struct net_device *dev, char *command, int t
 				}
 				str_ptr++;
 				pno_repeat = simple_strtoul(str_ptr, &str_ptr, 16);
-				DHD_PNO(("%s :got pno_repeat=%d\n", __FUNCTION__, pno_repeat));
+				ANDROID_INFO(("%s :got pno_repeat=%d\n", __FUNCTION__, pno_repeat));
 				if (str_ptr[0] != PNO_TLV_FREQ_EXPO_MAX) {
 					ANDROID_ERROR(("%s FREQ_EXPO_MAX corrupted field size\n",
 						__FUNCTION__));
@@ -1380,7 +1387,7 @@ static int wl_android_set_pno_setup(struct net_device *dev, char *command, int t
 				}
 				str_ptr++;
 				pno_freq_expo_max = simple_strtoul(str_ptr, &str_ptr, 16);
-				DHD_PNO(("%s: pno_freq_expo_max=%d\n",
+				ANDROID_INFO(("%s: pno_freq_expo_max=%d\n",
 					__FUNCTION__, pno_freq_expo_max));
 			}
 		}
@@ -1552,10 +1559,6 @@ int wl_android_wifi_on(struct net_device *dev)
 {
 	int ret = 0;
 	int retry = POWERUP_MAX_RETRY;
-#ifdef IAPSTA_PREINIT
-	int bytes_written = 0;
-	struct dhd_conf *conf;
-#endif
 
 	if (!dev) {
 		ANDROID_ERROR(("%s: dev is null\n", __FUNCTION__));
@@ -1604,15 +1607,6 @@ int wl_android_wifi_on(struct net_device *dev)
 			}
 		}
 #endif /* !BCMPCIE */
-
-#ifdef IAPSTA_PREINIT
-		conf = dhd_get_conf(dev);
-		if (conf) {
-			wl_android_ext_priv_cmd(dev, conf->iapsta_init, 0, &bytes_written);
-			wl_android_ext_priv_cmd(dev, conf->iapsta_config, 0, &bytes_written);
-			wl_android_ext_priv_cmd(dev, conf->iapsta_enable, 0, &bytes_written);
-		}
-#endif
 		g_wifi_on = TRUE;
 	}
 
@@ -1621,11 +1615,13 @@ exit:
 	dhd_net_if_unlock(dev);
 	return ret;
 
-#ifdef BCMSDIO
+#ifndef BCMPCIE
 err:
+#ifdef BCMSDIO
 	dhd_net_bus_devreset(dev, TRUE);
 	dhd_net_bus_suspend(dev);
 	dhd_net_wifi_platform_set_power(dev, FALSE, WIFI_TURNOFF_DELAY);
+#endif
 	printf("%s: Failed\n", __FUNCTION__);
 	dhd_net_if_unlock(dev);
 	return ret;
@@ -4203,6 +4199,38 @@ wl_android_make_hang_with_reason(struct net_device *dev, const char *string_num)
 }
 #endif /* DHD_HANG_SEND_UP_TEST */
 
+#ifdef WLMESH
+static int
+wl_android_set_rsdb_mode(struct net_device *dev, char *command, int total_len)
+{
+	int ret;
+	wl_config_t rsdb_mode_cfg = {-1, 0};
+	char smbuf[WLC_IOCTL_SMLEN];
+	s32 val = 1;
+
+	if (sscanf(command, "%*s %d", &rsdb_mode_cfg.config) != 1) {
+		DHD_ERROR(("%s: Failed to get Parameter\n", __FUNCTION__));
+		return -1;
+	}
+	DHD_INFO(("%s : RSDB_MODE = %d\n", __FUNCTION__, rsdb_mode_cfg.config));
+
+	ret = wldev_ioctl_set(dev, WLC_DOWN, &val, sizeof(s32));
+	if (ret < 0)
+		DHD_ERROR(("WLC_DOWN error %d\n", ret));
+
+	ret = wldev_iovar_setbuf(dev, "rsdb_mode", &rsdb_mode_cfg, sizeof(rsdb_mode_cfg),
+		smbuf, sizeof(smbuf), NULL);
+	if (ret < 0)
+		DHD_ERROR(("%s : set rsdb_mode error=%d\n", __FUNCTION__, ret));
+
+	ret = wldev_ioctl_set(dev, WLC_UP, &val, sizeof(s32));
+	if (ret < 0)
+		DHD_ERROR(("WLC_UP error %d\n", ret));
+
+	return ret;
+}
+#endif /* WLMESH */
+
 #ifdef SUPPORT_LQCM
 static int
 wl_android_lqcm_enable(struct net_device *net, int lqcm_enable)
@@ -4813,7 +4841,7 @@ wl_handle_private_cmd(struct net_device *net, char *command, u32 cmd_len)
 		bytes_written = BCME_DISABLED;
 #else	/* DISABLE_SETBAND */
 		uint band = *(command + strlen(CMD_SETBAND) + 1) - '0';
-		if (dhd_conf_get_band(dhd_get_pub(net)) != WLC_BAND_AUTO) {
+		if (dhd_conf_get_band(dhd_get_pub(net)) >= WLC_BAND_AUTO) {
 			printf("%s: Band is fixed in config.txt\n", __FUNCTION__);
 		} else
 			bytes_written = wl_cfg80211_set_if_band(net, band);
@@ -4900,6 +4928,16 @@ wl_handle_private_cmd(struct net_device *net, char *command, u32 cmd_len)
 	else if (strnicmp(command, CMD_P2P_DEV_ADDR, strlen(CMD_P2P_DEV_ADDR)) == 0) {
 		bytes_written = wl_android_get_p2p_dev_addr(net, command, priv_cmd.total_len);
 	}
+#ifdef WLMESH
+	else if (strnicmp(command, CMD_SAE_SET_PASSWORD, strlen(CMD_SAE_SET_PASSWORD)) == 0) {
+		int skip = strlen(CMD_SAE_SET_PASSWORD) + 1;
+		bytes_written = wl_cfg80211_set_sae_password(net, command + skip,
+			priv_cmd.total_len - skip);
+	}
+	else if (strnicmp(command, CMD_SET_RSDB_MODE, strlen(CMD_SET_RSDB_MODE)) == 0) {
+		bytes_written = wl_android_set_rsdb_mode(net, command, priv_cmd.total_len);
+	}
+#endif
 	else if (strnicmp(command, CMD_P2P_SET_NOA, strlen(CMD_P2P_SET_NOA)) == 0) {
 		int skip = strlen(CMD_P2P_SET_NOA) + 1;
 		bytes_written = wl_cfg80211_set_p2p_noa(net, command + skip,

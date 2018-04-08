@@ -205,6 +205,11 @@ do {									\
 #define IEEE80211_BAND_5GHZ NL80211_BAND_5GHZ
 #define IEEE80211_NUM_BANDS NUM_NL80211_BANDS
 #endif
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 8, 0))
+#ifdef WLMESH
+#undef WLMESH
+#endif
+#endif
 
 #define WL_SCAN_RETRY_MAX	3
 #define WL_NUM_PMKIDS_MAX	MAXPMKID
@@ -339,7 +344,10 @@ enum wl_status {
 enum wl_mode {
 	WL_MODE_BSS,
 	WL_MODE_IBSS,
-	WL_MODE_AP
+	WL_MODE_AP,
+#ifdef WLMESH
+	WL_MODE_MESH
+#endif
 };
 
 /* driver profile list */
@@ -735,7 +743,7 @@ struct bcm_cfg80211 {
 	bool pwr_save;
 	bool roam_on;		/* on/off switch for self-roaming */
 	bool scan_tried;	/* indicates if first scan attempted */
-#if defined(BCMSDIO) || defined(BCMPCIE)
+#if defined(BCMSDIO) || defined(BCMDBUS)
 	bool wlfc_on;
 #endif 
 	bool vsdb_mode;
@@ -846,6 +854,10 @@ struct bcm_cfg80211 {
 #ifdef STAT_REPORT
 	void *stat_report_info;
 #endif
+#ifdef WLMESH
+	char sae_password[SAE_MAX_PASSWD_LEN];
+	uint sae_password_len;
+#endif /* WLMESH */
 	int p2p_disconnected; // terence 20130703: Fix for wrong group_capab (timing issue)
 	struct ether_addr disconnected_bssid;
 };
@@ -1462,6 +1474,9 @@ extern s32 wl_cfg80211_set_wps_p2p_ie(struct net_device *net, char *buf, int len
 extern s32 wl_cfg80211_set_p2p_ps(struct net_device *net, char* buf, int len);
 extern s32 wl_cfg80211_set_p2p_ecsa(struct net_device *net, char* buf, int len);
 extern s32 wl_cfg80211_increase_p2p_bw(struct net_device *net, char* buf, int len);
+#ifdef WLMESH
+extern s32 wl_cfg80211_set_sae_password(struct net_device *net, char* buf, int len);
+#endif
 #ifdef WL11ULB
 extern s32 wl_cfg80211_set_ulb_mode(struct net_device *dev, int mode);
 extern s32 wl_cfg80211_set_ulb_bw(struct net_device *dev,
