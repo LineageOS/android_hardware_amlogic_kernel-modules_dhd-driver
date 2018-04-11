@@ -655,7 +655,7 @@ int
 dhd_common_socram_dump(dhd_pub_t *dhdp)
 {
 #ifdef BCMDBUS
-	return -1;
+	return 0;
 #else
 	return dhd_socram_dump(dhdp->bus);
 #endif /* BCMDBUS */

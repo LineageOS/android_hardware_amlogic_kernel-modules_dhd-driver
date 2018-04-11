@@ -12102,9 +12102,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 		bcmstrtok(&ptr, "\n", 0);
 		strncpy(fw_version, buf, FW_VER_STR_LEN);
 		fw_version[FW_VER_STR_LEN-1] = '\0';
-#if defined(BCMSDIO) || defined(BCMPCIE)
 		dhd_set_version_info(dhd, buf);
-#endif /* BCMSDIO || BCMPCIE */
 #ifdef WRITE_WLANINFO
 		sec_save_wlinfo(buf, EPI_VERSION_STR, dhd->info->nv_path, clm_version);
 #endif /* WRITE_WLANINFO */
@@ -17489,7 +17487,6 @@ bool dhd_os_check_if_up(dhd_pub_t *pub)
 	return pub->up;
 }
 
-#if defined(BCMSDIO) || defined(BCMPCIE)
 /* function to collect firmware, chip id and chip version info */
 void dhd_set_version_info(dhd_pub_t *dhdp, char *fw)
 {
@@ -17503,10 +17500,9 @@ void dhd_set_version_info(dhd_pub_t *dhdp, char *fw)
 		return;
 
 	i = snprintf(&info_string[i], sizeof(info_string) - i,
-		"\n  Chip: %x Rev %x Pkg %x", dhd_bus_chip_id(dhdp),
-		dhd_bus_chiprev_id(dhdp), dhd_bus_chippkg_id(dhdp));
+		"\n  Chip: %x Rev %x", dhd_conf_get_chip(dhdp),
+		dhd_conf_get_chiprev(dhdp));
 }
-#endif /* BCMSDIO || BCMPCIE */
 
 int dhd_ioctl_entry_local(struct net_device *net, wl_ioctl_t *ioc, int cmd)
 {
