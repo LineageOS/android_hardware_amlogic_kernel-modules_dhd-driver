@@ -17082,7 +17082,7 @@ int wl_cfg80211_hang(struct net_device *dev, u16 reason)
 
 s32 wl_cfg80211_down(struct net_device *dev)
 {
-	s32 err;
+	s32 err = 0;;
 	struct bcm_cfg80211 *cfg = NULL;
 	if (dev == NULL)
 		return err;
