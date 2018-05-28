@@ -9226,7 +9226,11 @@ dhd_allocate_if(dhd_pub_t *dhdpub, int ifidx, const char *name,
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0) */
 	}
 #else
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
 	ifp->net->destructor = free_netdev;
+#else
+	ifp->net->needs_free_netdev = true;
+#endif
 #endif /* WL_CFG80211 */
 	strncpy(ifp->name, ifp->net->name, IFNAMSIZ);
 	ifp->name[IFNAMSIZ - 1] = '\0';
@@ -19843,8 +19847,8 @@ static void dhd_sysfs_exit(dhd_info_t *dhd)
 		DHD_ERROR(("%s(): dhd is NULL \r\n", __FUNCTION__));
 		return;
 	}
-
-	if (&dhd->dhd_kobj != NULL)
+	/* Releae the kobject */
+       if (dhd->dhd_kobj.state_initialized)
 		kobject_put(&dhd->dhd_kobj);
 }
 
