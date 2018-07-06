@@ -64,27 +64,27 @@ const cihp_name_map_t chip_name_map [] = {
 	{BCM43362_CHIP_ID,	1,	DONT_CARE,	FALSE,	"bcm40181a2",		""},
 	{BCM4330_CHIP_ID,	4,	FW_TYPE_G,	FALSE,	"bcm40183b2",		""},
 	{BCM4330_CHIP_ID,	4,	FW_TYPE_AG,	FALSE,	"bcm40183b2_ag",	""},
-	{BCM43430_CHIP_ID,	0,	DONT_CARE,	FALSE,	"bcm43438a0",		""},
-	{BCM43430_CHIP_ID,	1,	DONT_CARE,	FALSE,	"bcm43438a1",		""},
-	{BCM43430_CHIP_ID,	2,	DONT_CARE,	FALSE,	"bcm43436b0",		""},
+	{BCM43430_CHIP_ID,	0,	DONT_CARE,	FALSE,	"bcm43438a0",		"nvram_ap6212.txt"},
+	{BCM43430_CHIP_ID,	1,	DONT_CARE,	FALSE,	"bcm43438a1",		"nvram_ap6212a.txt"},
+	{BCM43430_CHIP_ID,	2,	DONT_CARE,	FALSE,	"bcm43436b0",		"nvram_ap6236.txt"},
 	{BCM43012_CHIP_ID,	1,	DONT_CARE,	TRUE,	"bcm43013b0",		""},
 	{BCM4334_CHIP_ID,	3,	DONT_CARE,	FALSE,	"bcm4334b1_ag",		""},
 	{BCM43340_CHIP_ID,	2,	DONT_CARE,	FALSE,	"bcm43341b0_ag",	""},
 	{BCM43341_CHIP_ID,	2,	DONT_CARE,	FALSE,	"bcm43341b0_ag",	""},
 	{BCM4324_CHIP_ID,	5,	DONT_CARE,	FALSE,	"bcm43241b4_ag",	""},
 	{BCM4335_CHIP_ID,	2,	DONT_CARE,	FALSE,	"bcm4339a0_ag",		""},
-	{BCM4339_CHIP_ID,	1,	DONT_CARE,	FALSE,	"bcm4339a0_ag",		""},
-	{BCM4345_CHIP_ID,	6,	DONT_CARE,	FALSE,	"bcm43455c0_ag",	""},
+	{BCM4339_CHIP_ID,	1,	DONT_CARE,	FALSE,	"bcm4339a0_ag",		"nvram_ap6335.txt"},
+	{BCM4345_CHIP_ID,	6,	DONT_CARE,	FALSE,	"bcm43455c0_ag",	"nvram_ap6255.txt"},
 	{BCM43454_CHIP_ID,	6,	DONT_CARE,	FALSE,	"bcm43455c0_ag",	""},
-	{BCM4345_CHIP_ID,	9,	DONT_CARE,	FALSE,	"bcm43456c5_ag",	""},
+	{BCM4345_CHIP_ID,	9,	DONT_CARE,	FALSE,	"bcm43456c5_ag",	"nvram_ap6256.txt"},
 	{BCM43454_CHIP_ID,	9,	DONT_CARE,	FALSE,	"bcm43455c5_ag",	""},
 	{BCM4354_CHIP_ID,	1,	DONT_CARE,	FALSE,	"bcm4354a1_ag",		""},
-	{BCM4354_CHIP_ID,	2,	DONT_CARE,	FALSE,	"bcm4356a2_ag",		""},
+	{BCM4354_CHIP_ID,	2,	DONT_CARE,	FALSE,	"bcm4356a2_ag",		"nvram_ap6356.txt"},
 	{BCM4356_CHIP_ID,	2,	DONT_CARE,	FALSE,	"bcm4356a2_ag",		""},
 	{BCM4371_CHIP_ID,	2,	DONT_CARE,	FALSE,	"bcm4356a2_ag",		""},
 	{BCM43569_CHIP_ID,	3,	DONT_CARE,	FALSE,	"bcm4358a3_ag",		""},
 	{BCM4359_CHIP_ID,	5,	DONT_CARE,	FALSE,	"bcm4359b1_ag",		""},
-	{BCM4359_CHIP_ID,	9,	DONT_CARE,	FALSE,	"bcm4359c0_ag",		""},
+	{BCM4359_CHIP_ID,	9,	DONT_CARE,	FALSE,	"bcm4359c0_ag",		"nvram_ap6398.txt"},
 	{BCM4362_CHIP_ID,	0,	DONT_CARE,	TRUE,	"bcm43752a0_ag",	""},
 #endif
 #ifdef BCMPCIE
@@ -632,7 +632,7 @@ dhd_conf_set_conf_name_by_chip(dhd_pub_t *dhd, char *conf_path)
 		}
 		i--;
 	}
-	name_ptr = conf_path[i];
+	name_ptr = &conf_path[i];
 
 	for (i = 0;  i < sizeof(chip_name_map)/sizeof(chip_name_map[0]);  i++) {
 		const cihp_name_map_t* row = &chip_name_map[i];
