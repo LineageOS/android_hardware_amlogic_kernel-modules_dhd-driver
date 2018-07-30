@@ -19,7 +19,8 @@ export CONFIG_BCMDHD = m
 export CONFIG_BCMDHD_OOB = y
 export CONFIG_VTS_SUPPORT = y
 
-DHDCFLAGS = -Wall -Wstrict-prototypes -Dlinux -DBCMDRIVER                 \
+DHDCFLAGS = -Wall -Wstrict-prototypes -Wno-maybe-uninitialized  \
+	-Dlinux -DBCMDRIVER                 \
 	-DBCMDONGLEHOST -DUNRELEASEDCHIP -DBCMDMA32 -DBCMFILEIMAGE            \
 	-DDHDTHREAD -DDHD_DEBUG -DSHOW_EVENTS -DBCMDBG -DGET_OTP_MAC_ENABLE   \
 	-DWIFI_ACT_FRAME -DARP_OFFLOAD_SUPPORT -DSUPPORT_PM2_ONLY             \
