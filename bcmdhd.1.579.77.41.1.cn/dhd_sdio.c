@@ -4703,20 +4703,46 @@ dhdsdio_download_state(dhd_bus_t *bus, bool enter)
 				(uint8 *)&bus->resetinstr, sizeof(bus->resetinstr));
 
 			if (bcmerror == BCME_OK) {
+#ifdef CONFIG_VMAP_STACK
+				char *tmp;
+				tmp = kmalloc(4, GFP_KERNEL);
+				if (!tmp)
+					goto fail;
+#else
 				uint32 tmp;
-
+#endif
 				/* verify write */
+#ifdef CONFIG_VMAP_STACK
 				bcmerror = dhdsdio_membytes(bus, FALSE, 0,
-				                            (uint8 *)&tmp, sizeof(tmp));
-
-				if (bcmerror == BCME_OK && tmp != bus->resetinstr) {
-					DHD_ERROR(("%s: Failed to write 0x%08x to addr 0\n",
+							(uint8 *)tmp, 4);
+#else
+				bcmerror = dhdsdio_membytes(bus, FALSE, 0,
+							(uint8 *)&tmp, sizeof(tmp));
+#endif
+#ifdef CONFIG_VMAP_STACK
+				if (bcmerror == BCME_OK && *(uint32*)tmp != bus->resetinstr)
+#else
+				if (bcmerror == BCME_OK && tmp != bus->resetinstr)
+#endif
+				{
+					DHD_ERROR(("%s: Filed to write 0x%08x to addr 0\n",
 					          __FUNCTION__, bus->resetinstr));
+#ifdef CONFIG_VMAP_STACK
 					DHD_ERROR(("%s: contents of addr 0 is 0x%08x\n",
-					          __FUNCTION__, tmp));
+							__FUNCTION__, *(uint32*)tmp));
+#else
+					DHD_ERROR(("%s: contents of addr 0 is 0x%08x\n",
+							__FUNCTION__, tmp));
+#endif
 					bcmerror = BCME_SDIO_ERROR;
+#ifdef CONFIG_VMAP_STACK
+					kfree(tmp);
+#endif
 					goto fail;
 				}
+#ifdef CONFIG_VMAP_STACK
+				kfree(tmp);
+#endif
 			}
 
 			/* now remove reset and halt and continue to run CR4 */
