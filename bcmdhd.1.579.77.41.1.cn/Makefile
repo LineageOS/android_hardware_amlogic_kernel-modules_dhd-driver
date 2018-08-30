@@ -36,6 +36,10 @@ DHDOFILES = aiutils.o siutils.o sbutils.o bcmutils.o bcmwifi_channels.o   \
 	bcmevent.o hndpmu.o linux_osl.o wldev_common.o wl_android.o           \
 	hnd_pktq.o hnd_pktpool.o dhd_config.o wl_android_ext.o
 
+ifeq ($(BCM_USB_COMPOSITE),true)
+DHDCFLAGS += -DBCMUSBDEV_COMPOSITE
+endif
+
 ifneq ($(CONFIG_BCMDHD_SDIO),)
 DHDCFLAGS += \
 	-DBCMSDIO -DMMC_SDIO_ABORT -DBCMLXSDMMC -DUSE_SDIOFIFO_IOVAR          \
