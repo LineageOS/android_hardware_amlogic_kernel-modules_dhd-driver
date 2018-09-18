@@ -7987,17 +7987,35 @@ dhd_ioctl_entry(struct net_device *net, struct ifreq *ifr, int cmd)
 			goto done;
 		}
 		ioc.cmd = compat_ioc.cmd;
-		ioc.buf = compat_ptr(compat_ioc.buf);
-		ioc.len = compat_ioc.len;
-		ioc.set = compat_ioc.set;
-		ioc.used = compat_ioc.used;
-		ioc.needed = compat_ioc.needed;
-		/* To differentiate between wl and dhd read 4 more byes */
-		if ((copy_from_user(&ioc.driver, (char *)ifr->ifr_data + sizeof(compat_wl_ioctl_t),
-			sizeof(uint)) != 0)) {
-			bcmerror = BCME_BADADDR;
-			goto done;
-		}
+		if (ioc.cmd & WLC_SPEC_FLAG) {
+			memset(&ioc, 0, sizeof(ioc));
+			/* Copy the ioc control structure part of ioctl request */
+			if (copy_from_user(&ioc, ifr->ifr_data, sizeof(wl_ioctl_t))) {
+				bcmerror = BCME_BADADDR;
+				goto done;
+			}
+			ioc.cmd &= ~WLC_SPEC_FLAG; /* Clear the FLAG */
+
+			/* To differentiate between wl and dhd read 4 more byes */
+			if ((copy_from_user(&ioc.driver, (char *)ifr->ifr_data + sizeof(wl_ioctl_t),
+				sizeof(uint)) != 0)) {
+				bcmerror = BCME_BADADDR;
+				goto done;
+			}
+
+		} else { /* ioc.cmd & WLC_SPEC_FLAG */
+			ioc.buf = compat_ptr(compat_ioc.buf);
+			ioc.len = compat_ioc.len;
+			ioc.set = compat_ioc.set;
+			ioc.used = compat_ioc.used;
+			ioc.needed = compat_ioc.needed;
+			/* To differentiate between wl and dhd read 4 more byes */
+			if ((copy_from_user(&ioc.driver, (char *)ifr->ifr_data + sizeof(compat_wl_ioctl_t),
+				sizeof(uint)) != 0)) {
+				bcmerror = BCME_BADADDR;
+				goto done;
+			}
+		} /* ioc.cmd & WLC_SPEC_FLAG */
 	} else
 #endif /* CONFIG_COMPAT */
 	{
@@ -8006,6 +8024,9 @@ dhd_ioctl_entry(struct net_device *net, struct ifreq *ifr, int cmd)
 			bcmerror = BCME_BADADDR;
 			goto done;
 		}
+#ifdef CONFIG_COMPAT
+		ioc.cmd &= ~WLC_SPEC_FLAG; /* make sure it was clear when it isn't a compat task*/
+#endif
 
 		/* To differentiate between wl and dhd read 4 more byes */
 		if ((copy_from_user(&ioc.driver, (char *)ifr->ifr_data + sizeof(wl_ioctl_t),

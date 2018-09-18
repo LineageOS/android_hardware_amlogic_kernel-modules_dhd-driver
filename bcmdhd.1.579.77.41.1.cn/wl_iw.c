@@ -244,7 +244,11 @@ dev_wlc_ioctl(
 	int ret;
 
 	memset(&ioc, 0, sizeof(ioc));
+#ifdef CONFIG_COMPAT
+	ioc.cmd = cmd | WLC_SPEC_FLAG;
+#else
 	ioc.cmd = cmd;
+#endif
 	ioc.buf = arg;
 	ioc.len = len;
 
@@ -728,7 +732,7 @@ wl_iw_get_range(
 
 	dwrq->length = sizeof(struct iw_range);
 	memset(range, 0, sizeof(*range));
-
+	memset(channels, 0, sizeof(channels));
 	/* We don't use nwids */
 	range->min_nwid = range->max_nwid = 0;
 
