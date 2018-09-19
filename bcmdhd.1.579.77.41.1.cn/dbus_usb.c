@@ -77,7 +77,9 @@ static void dbus_usb_ctl_complete(void *handle, int type, int status);
 static void dbus_usb_state_change(void *handle, int state);
 static struct dbus_irb* dbus_usb_getirb(void *handle, bool send);
 static void dbus_usb_rxerr_indicate(void *handle, bool on);
+#if !defined(BCM_REQUEST_FW)
 static int dbus_usb_resetcfg(usb_info_t *usbinfo);
+#endif
 static int dbus_usb_iovar_op(void *bus, const char *name,
 	void *params, int plen, void *arg, int len, bool set);
 static int dbus_iovar_process(usb_info_t* usbinfo, const char *name,
@@ -88,7 +90,7 @@ static int dhdusb_downloadvars(usb_info_t *bus, void *arg, int len);
 
 static int dbus_usb_dl_writeimage(usb_info_t *usbinfo, uint8 *fw, int fwlen);
 static int dbus_usb_dlstart(void *bus, uint8 *fw, int len);
-static bool dbus_usb_dlneeded(void *bus);
+static int dbus_usb_dlneeded(void *bus);
 static int dbus_usb_dlrun(void *bus);
 static int dbus_usb_rdl_dwnld_state(usb_info_t *usbinfo);
 
@@ -157,7 +159,8 @@ static dbus_intf_t	dbus_usb_intf; /** functions called by higher layer DBUS into
  */
 static void *dbus_usb_attach(dbus_pub_t *pub, void *cbarg, dbus_intf_callbacks_t *cbs);
 static void dbus_usb_detach(dbus_pub_t *pub, void *info);
-static void * dbus_usb_probe(void *arg, const char *desc, uint32 bustype, uint32 hdrlen);
+static void * dbus_usb_probe(void *arg, const char *desc, uint32 bustype,
+	uint16 bus_no, uint16 slot, uint32 hdrlen);
 
 /* functions */
 
@@ -166,7 +169,8 @@ static void * dbus_usb_probe(void *arg, const char *desc, uint32 bustype, uint32
  * lower level DBUS functions to call (in both dbus_usb.c and dbus_usb_os.c).
  */
 static void *
-dbus_usb_probe(void *arg, const char *desc, uint32 bustype, uint32 hdrlen)
+dbus_usb_probe(void *arg, const char *desc, uint32 bustype, uint16 bus_no,
+	uint16 slot, uint32 hdrlen)
 {
 	DBUSTRACE(("%s(): \n", __FUNCTION__));
 	if (probe_cb) {
@@ -186,7 +190,7 @@ dbus_usb_probe(void *arg, const char *desc, uint32 bustype, uint32 hdrlen)
 			dbus_usb_intf.dlrun = dbus_usb_dlrun;
 		}
 
-		disc_arg = probe_cb(probe_arg, "DBUS USB", USB_BUS, hdrlen);
+		disc_arg = probe_cb(probe_arg, "DBUS USB", USB_BUS, bus_no, slot, hdrlen);
 		return disc_arg;
 	}
 
@@ -259,10 +263,9 @@ dbus_usb_attach(dbus_pub_t *pub, void *cbarg, dbus_intf_callbacks_t *cbs)
 	usb_info->drvintf = g_dbusintf;
 
 	pub->bus = usb_info;
-#if  !defined(BCM_REQUEST_FW)
-
+#if !defined(BCM_REQUEST_FW)
 	if (!dbus_usb_resetcfg(usb_info)) {
-	usb_info->pub->busstate = DBUS_STATE_DL_DONE;
+		usb_info->pub->busstate = DBUS_STATE_DL_DONE;
 	}
 #endif
 	/* Return Lower layer info */
@@ -648,6 +651,7 @@ err:
 	return bcmerror;
 } /* dbus_usb_doiovar */
 
+#if !defined(BCM_REQUEST_FW)
 /**
  * After downloading firmware into dongle and starting it, we need to know if the firmware is
  * indeed up and running.
@@ -704,6 +708,7 @@ dbus_usb_resetcfg(usb_info_t *usbinfo)
 
 	return DBUS_OK;
 }
+#endif
 
 /** before firmware download, the dongle has to be prepared to receive the fw image */
 static int
@@ -864,11 +869,11 @@ dbus_usb_dlstart(void *bus, uint8 *fw, int len)
 	err = dbus_usb_rdl_dwnld_state(usbinfo);
 
 	if (DBUS_OK == err) {
-	err = dbus_usb_dl_writeimage(usbinfo, fw, len);
-	if (err == DBUS_OK)
-		usbinfo->pub->busstate = DBUS_STATE_DL_DONE;
-	else
-		usbinfo->pub->busstate = DBUS_STATE_DL_PENDING;
+		err = dbus_usb_dl_writeimage(usbinfo, fw, len);
+		if (err == DBUS_OK)
+			usbinfo->pub->busstate = DBUS_STATE_DL_DONE;
+		else
+			usbinfo->pub->busstate = DBUS_STATE_DL_PENDING;
 	} else
 		usbinfo->pub->busstate = DBUS_STATE_DL_PENDING;
 
@@ -948,18 +953,18 @@ dbus_usb_update_chipinfo(usb_info_t *usbinfo, uint32 chip)
 } /* dbus_usb_update_chipinfo */
 
 /** higher DBUS level (dbus.c) wants to know if firmware download is required. */
-static bool
+static int
 dbus_usb_dlneeded(void *bus)
 {
 	usb_info_t *usbinfo = BUS_INFO(bus, usb_info_t);
 	void *osinfo;
 	bootrom_id_t id;
-	bool dl_needed = TRUE;
+	int dl_needed = 1;
 
 	DBUSTRACE(("%s\n", __FUNCTION__));
 
 	if (usbinfo == NULL)
-		return FALSE;
+		return DBUS_ERR;
 
 	osinfo = usbinfo->usbosl_info;
 	ASSERT(osinfo);
@@ -972,7 +977,7 @@ dbus_usb_dlneeded(void *bus)
 	id.chiprev = ltoh32(id.chiprev);
 
 	if (FALSE == dbus_usb_update_chipinfo(usbinfo, id.chip)) {
-		dl_needed = FALSE;
+		dl_needed = DBUS_ERR;
 		goto exit;
 	}
 
@@ -982,7 +987,7 @@ dbus_usb_dlneeded(void *bus)
 		DBUSERR(("%s: Firmware already downloaded\n", __FUNCTION__));
 
 		dbus_usbos_dl_cmd(osinfo, DL_RESETCFG, &id, sizeof(bootrom_id_t));
-		dl_needed = FALSE;
+		dl_needed = DBUS_OK;
 		if (usbinfo->pub->busstate == DBUS_STATE_DL_PENDING)
 			usbinfo->pub->busstate = DBUS_STATE_DL_DONE;
 	} else {
@@ -1028,7 +1033,7 @@ dbus_usb_dlrun(void *bus)
 		if (usbinfo->pub->attrib.devid == TEST_CHIP)
 			dbus_usbos_wait(osinfo, USB_DLGO_SPINWAIT);
 
-		dbus_usb_resetcfg(usbinfo);
+//		dbus_usb_resetcfg(usbinfo);
 		/* The Donlge may go for re-enumeration. */
 	} else {
 		DBUSERR(("%s: Dongle not runnable\n", __FUNCTION__));

@@ -1036,9 +1036,13 @@ typedef struct dhd_pub {
 #if defined(STAT_REPORT)
 	void *stat_report_info;
 #endif
-	char		*clm_path;		/* module_param: path to clm vars file */
-	char		*conf_path;		/* module_param: path to config vars file */
+	char *clm_path;		/* module_param: path to clm vars file */
+	char *conf_path;		/* module_param: path to config vars file */
 	struct dhd_conf *conf;	/* Bus module handle */
+	void *adapter;			/* adapter information, interrupt, fw path etc. */
+#ifdef BCMDBUS
+	bool dhd_remove;
+#endif /* BCMDBUS */
 } dhd_pub_t;
 
 typedef struct {
@@ -1358,12 +1362,36 @@ typedef enum dhd_ioctl_recieved_status
  */
 void dhd_net_if_lock(struct net_device *dev);
 void dhd_net_if_unlock(struct net_device *dev);
-
 #if defined(MULTIPLE_SUPPLICANT)
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)) && 1
-extern struct mutex _dhd_sdio_mutex_lock_;
+extern void wl_android_post_init(void); // terence 20120530: fix critical section in dhd_open and dhdsdio_probe
 #endif
-#endif /* MULTIPLE_SUPPLICANT */
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)) && defined(MULTIPLE_SUPPLICANT)
+extern struct mutex _dhd_mutex_lock_;
+#define DHD_MUTEX_IS_LOCK_RETURN() \
+	if (mutex_is_locked(&_dhd_mutex_lock_) != 0) { \
+		printf("%s : probe is already running! return.\n", __FUNCTION__); \
+		return 0; \
+	}
+#define DHD_MUTEX_LOCK() \
+	do { \
+		if (mutex_is_locked(&_dhd_mutex_lock_) == 0) { \
+			printf("%s : no mutex held. set lock\n", __FUNCTION__); \
+		} else { \
+			printf("%s : mutex is locked!. wait for unlocking\n", __FUNCTION__); \
+		} \
+		mutex_lock(&_dhd_mutex_lock_); \
+	} while (0)
+#define DHD_MUTEX_UNLOCK() \
+	do { \
+		mutex_unlock(&_dhd_mutex_lock_); \
+		printf("%s : the lock is released.\n", __FUNCTION__); \
+	} while (0)
+#else
+#define DHD_MUTEX_IS_LOCK_RETURN(a)	do {} while (0)
+#define DHD_MUTEX_LOCK(a)	do {} while (0)
+#define DHD_MUTEX_UNLOCK(a)	do {} while (0)
+#endif
 
 typedef enum dhd_attach_states
 {
@@ -1397,7 +1425,11 @@ typedef enum dhd_attach_states
  * Returned structure should have bus and prot pointers filled in.
  * bus_hdrlen specifies required headroom for bus module header.
  */
-extern dhd_pub_t *dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen);
+extern dhd_pub_t *dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen
+#ifdef BCMDBUS
+	, void *adapter
+#endif
+);
 #if defined(WLP2P) && defined(WL_CFG80211)
 /* To allow attach/detach calls corresponding to p2p0 interface  */
 extern int dhd_attach_p2p(dhd_pub_t *);
@@ -2246,6 +2278,8 @@ extern void dhd_os_general_spin_unlock(dhd_pub_t *pub, unsigned long flags);
 extern void dhd_dump_to_kernelog(dhd_pub_t *dhdp);
 
 #ifdef BCMDBUS
+extern uint dhd_get_rxsz(dhd_pub_t *pub);
+extern void dhd_set_path(dhd_pub_t *pub);
 extern void dhd_bus_dump(dhd_pub_t *dhdp, struct bcmstrbuf *strbuf);
 extern void dhd_bus_clearcounts(dhd_pub_t *dhdp);
 #endif /* BCMDBUS */

@@ -45,6 +45,7 @@
 #include <dngl_stats.h>
 #include <dhd.h>
 #include <wl_cfgp2p.h>
+#include <wl_android.h>
 struct wl_conf;
 struct wl_iface;
 struct bcm_cfg80211;
@@ -858,8 +859,19 @@ struct bcm_cfg80211 {
 	char sae_password[SAE_MAX_PASSWD_LEN];
 	uint sae_password_len;
 #endif /* WLMESH */
+#if defined(RSSIAVG)
+	wl_rssi_cache_ctrl_t g_rssi_cache_ctrl;
+	wl_rssi_cache_ctrl_t g_connected_rssi_cache_ctrl;
+#endif
+#if defined(BSSCACHE)
+	wl_bss_cache_ctrl_t g_bss_cache_ctrl;
+#endif
 	int p2p_disconnected; // terence 20130703: Fix for wrong group_capab (timing issue)
 	struct ether_addr disconnected_bssid;
+	int autochannel;
+	int best_2g_ch;
+	int best_5g_ch;
+	uint handshaking;
 };
 
 #if defined(STRICT_GCC_WARNINGS) && defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == \
@@ -1667,4 +1679,5 @@ int wl_cfg80211_iface_count(struct net_device *dev);
 struct net_device* wl_get_ap_netdev(struct bcm_cfg80211 *cfg, char *ifname);
 struct net_device* wl_get_netdev_by_name(struct bcm_cfg80211 *cfg, char *ifname);
 int wl_cfg80211_get_vndr_ouilist(struct bcm_cfg80211 *cfg, uint8 *buf, int max_cnt);
+s32 wl_cfg80211_autochannel(struct net_device *dev, char* command, int total_len);
 #endif /* _wl_cfg80211_h_ */

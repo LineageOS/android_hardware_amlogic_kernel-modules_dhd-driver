@@ -41,11 +41,7 @@
 #include <dngl_stats.h>
 #include <dhd.h>
 #include <dhd_proto.h>
-#ifdef BCMDBUS
-#include <dbus.h>
-#else
 #include <dhd_bus.h>
-#endif /* BCMDBUS */
 #include <dhd_dbg.h>
 
 
@@ -53,6 +49,9 @@
 #include <wlfc_proto.h>
 #include <dhd_wlfc.h>
 #endif
+#ifdef BCMDBUS
+#include <dhd_config.h>
+#endif /* BCMDBUS */
 
 #ifdef DHD_ULP
 #include <dhd_ulp.h>
@@ -80,10 +79,6 @@ typedef struct dhd_prot {
 	unsigned char buf[WLC_IOCTL_MAXLEN + ROUND_UP_MARGIN];
 } dhd_prot_t;
 
-#if defined(BCMDBUS)
-extern int dhd_dbus_txdata(dhd_pub_t *dhdp, void *pktbuf);
-#endif /* BCMDBUS */
-
 static int
 dhdcdc_msg(dhd_pub_t *dhd)
 {
@@ -109,9 +104,9 @@ dhdcdc_msg(dhd_pub_t *dhd)
 #ifdef BCMDBUS
 	DHD_OS_IOCTL_RESP_LOCK(dhd);
 	prot->ctl_completed = FALSE;
-	err = dbus_send_ctl(dhd->dbus, (void *)&prot->msg, len);
+	err = dbus_send_ctl(dhd->bus, (void *)&prot->msg, len);
 	if (err) {
-		DHD_ERROR(("dbus_send_ctl error=0x%x\n", err));
+		DHD_ERROR(("dbus_send_ctl error=%d\n", err));
 		DHD_OS_IOCTL_RESP_UNLOCK(dhd);
 		DHD_OS_WAKE_UNLOCK(dhd);
 		return err;
@@ -171,7 +166,7 @@ dhdcdc_cmplt(dhd_pub_t *dhd, uint32 id, uint32 len)
 #ifdef BCMDBUS
 		DHD_OS_IOCTL_RESP_LOCK(dhd);
 		prot->ctl_completed = FALSE;
-		ret = dbus_recv_ctl(dhd->dbus, (uchar*)&prot->msg, cdc_len);
+		ret = dbus_recv_ctl(dhd->bus, (uchar*)&prot->msg, cdc_len);
 		if (ret) {
 			DHD_ERROR(("dbus_recv_ctl error=0x%x(%d)\n", ret, ret));
 			DHD_OS_IOCTL_RESP_UNLOCK(dhd);
@@ -594,7 +589,7 @@ dhd_prot_hdrpull(dhd_pub_t *dhd, int *ifidx, void *pktbuf, uchar *reorder_buf_in
 #ifdef BCMDBUS
 #ifndef DHD_WLFC_THREAD
 		dhd_wlfc_commit_packets(dhd,
-			(f_commitpkt_t)dhd_dbus_txdata, (void *)dhd, NULL, FALSE);
+			(f_commitpkt_t)dhd_bus_txdata, dhd->bus, NULL, FALSE);
 #endif /* DHD_WLFC_THREAD */
 #endif /* BCMDBUS */
 	}
@@ -682,6 +677,14 @@ dhd_sync_with_dongle(dhd_pub_t *dhd)
 	ret = dhd_wl_ioctl_cmd(dhd, WLC_GET_REVINFO, &revinfo, sizeof(revinfo), FALSE, 0);
 	if (ret < 0)
 		goto done;
+#if defined(BCMDBUS)
+	if (dhd_download_fw_on_driverload) {
+		dhd_conf_reset(dhd);
+		dhd_conf_set_chiprev(dhd, revinfo.chipnum, revinfo.chiprev);
+		dhd_conf_preinit(dhd);
+		dhd_conf_read_config(dhd, dhd->conf_path);
+	}
+#endif /* BCMDBUS */
 
 
 	DHD_SSSR_DUMP_INIT(dhd);

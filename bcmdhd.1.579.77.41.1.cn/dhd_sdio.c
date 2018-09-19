@@ -5841,8 +5841,7 @@ dhdsdio_readframes(dhd_bus_t *bus, uint maxframes, bool *finished)
 			dhdsdio_sendpendctl(bus);
 		} else if (bus->dotxinrx && (bus->clkstate == CLK_AVAIL) &&
 			!bus->fcstate && DATAOK(bus) &&
-			(pktq_mlen(&bus->txq, ~bus->flowcontrol) > bus->txinrx_thres) &&
-			bus->dhd->conf->tx_in_rx) {
+			(pktq_mlen(&bus->txq, ~bus->flowcontrol) > bus->txinrx_thres)) {
 			dhdsdio_sendfromq(bus, dhd_txbound);
 #ifdef DHDTCPACK_SUPPRESS
 			/* In TCPACK_SUP_DELAYTX mode, do txinrx only if
@@ -7661,10 +7660,6 @@ dhdsdio_chipmatch(uint16 chipid)
 	return FALSE;
 }
 
-#if defined(MULTIPLE_SUPPLICANT)
-extern void wl_android_post_init(void); // terence 20120530: fix critical section in dhd_open and dhdsdio_probe
-#endif
-
 static void *
 dhdsdio_probe(uint16 venid, uint16 devid, uint16 bus_no, uint16 slot,
 	uint16 func, uint bustype, void *regsva, osl_t * osh, void *sdh)
@@ -7675,17 +7670,7 @@ dhdsdio_probe(uint16 venid, uint16 devid, uint16 bus_no, uint16 slot,
 	struct ether_addr ea_addr;
 #endif
 
-#if defined(MULTIPLE_SUPPLICANT)
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25))
-	if (mutex_is_locked(&_dhd_sdio_mutex_lock_) == 0) {
-		DHD_ERROR(("%s : no mutex held. set lock\n", __FUNCTION__));
-	}
-	else {
-		DHD_ERROR(("%s : mutex is locked!. wait for unlocking\n", __FUNCTION__));
-	}
-	mutex_lock(&_dhd_sdio_mutex_lock_);
-#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)) */
-#endif 
+	DHD_MUTEX_LOCK();
 
 	/* Init global variables at run-time, not as part of the declaration.
 	 * This is required to support init/de-init of the driver. Initialization
@@ -7866,11 +7851,8 @@ dhdsdio_probe(uint16 venid, uint16 devid, uint16 bus_no, uint16 slot,
 
 #if defined(MULTIPLE_SUPPLICANT)
 	wl_android_post_init(); // terence 20120530: fix critical section in dhd_open and dhdsdio_probe
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25))
-	mutex_unlock(&_dhd_sdio_mutex_lock_);
-	DHD_ERROR(("%s : the lock is released.\n", __FUNCTION__));
-#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) */
-#endif 
+#endif /* MULTIPLE_SUPPLICANT */
+	DHD_MUTEX_UNLOCK();
 
 	return bus;
 
@@ -7878,12 +7860,7 @@ fail:
 	dhdsdio_release(bus, osh);
 
 forcereturn:
-#if defined(MULTIPLE_SUPPLICANT)
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25))
-	mutex_unlock(&_dhd_sdio_mutex_lock_);
-	DHD_ERROR(("%s : the lock is released.\n", __FUNCTION__));
-#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) */
-#endif 
+	DHD_MUTEX_UNLOCK();
 
 	return NULL;
 }
@@ -8511,33 +8488,14 @@ dhdsdio_disconnect(void *ptr)
 
 	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
 
-#if defined(MULTIPLE_SUPPLICANT)
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25))
-	if (mutex_is_locked(&_dhd_sdio_mutex_lock_) == 0) {
-		DHD_ERROR(("%s : no mutex held. set lock\n", __FUNCTION__));
-	}
-	else {
-		DHD_ERROR(("%s : mutex is locked!. wait for unlocking\n", __FUNCTION__));
-	}
-	mutex_lock(&_dhd_sdio_mutex_lock_);
-#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)) */
-#endif 
-
-
+	DHD_MUTEX_LOCK();
 	if (bus) {
 		ASSERT(bus->dhd);
 		/* Advertise bus remove during rmmod */
 		dhdsdio_advertise_bus_remove(bus->dhd);
 		dhdsdio_release(bus, bus->dhd->osh);
 	}
-
-#if defined(MULTIPLE_SUPPLICANT)
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25))
-	mutex_unlock(&_dhd_sdio_mutex_lock_);
-	DHD_ERROR(("%s : the lock is released.\n", __FUNCTION__));
-#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)) */
-#endif /* LINUX */
-
+	DHD_MUTEX_UNLOCK();
 
 	DHD_TRACE(("%s: Disconnected\n", __FUNCTION__));
 }

@@ -51,11 +51,7 @@
 #include <dhd_flowring.h>
 #endif
 
-#ifdef BCMDBUS
-#include <dbus.h>
-#else
 #include <dhd_bus.h>
-#endif /* BCMDBUS */
 #include <dhd_proto.h>
 #include <dhd_config.h>
 #include <bcmsdbus.h>
@@ -2400,21 +2396,11 @@ dhd_ioctl(dhd_pub_t * dhd_pub, dhd_ioctl_t *ioc, void *buf, uint buflen)
 
 				/* if still not found, try bus module */
 				if (ioc->cmd == DHD_GET_VAR) {
-#ifdef BCMDBUS
-					bcmerror = dbus_iovar_op(dhd_pub->dbus, buf,
-						arg, arglen, buf, buflen, IOV_GET);
-#else
 					bcmerror = dhd_bus_iovar_op(dhd_pub, buf,
 							arg, arglen, buf, buflen, IOV_GET);
-#endif /* BCMDBUS */
 				} else {
-#ifdef BCMDBUS
-					bcmerror = dbus_iovar_op(dhd_pub->dbus, buf,
-						NULL, 0, arg, arglen, IOV_SET);
-#else
 					bcmerror = dhd_bus_iovar_op(dhd_pub, buf,
 							NULL, 0, arg, arglen, IOV_SET);
-#endif /* BCMDBUS */
 				}
 				if (bcmerror != BCME_UNSUPPORTED) {
 					goto unlock_exit;
@@ -3614,7 +3600,7 @@ dhd_pktfilter_offload_set(dhd_pub_t * dhd, char *arg)
 					htod16(WL_PKT_FILTER_MFLAG_NEG);
 				(argv[i])++;
 			}
-			if (argv[i] == '\0') {
+			if (*argv[i] == '\0') {
 				printf("Pattern not provided\n");
 				goto fail;
 			}
@@ -4901,7 +4887,7 @@ dhd_apply_default_clm(dhd_pub_t *dhd, char *clm_path)
 	char iovbuf[WLC_IOCTL_SMLEN] = {0};
 	int status = FALSE;
 
-	if (clm_path[0] != '\0') {
+	if (clm_path && clm_path[0] != '\0') {
 		if (strlen(clm_path) > MOD_PARAM_PATHLEN) {
 			DHD_ERROR(("clm path exceeds max len\n"));
 			return BCME_ERROR;

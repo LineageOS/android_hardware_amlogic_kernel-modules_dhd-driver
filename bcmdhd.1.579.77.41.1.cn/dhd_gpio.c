@@ -112,8 +112,8 @@ dhd_wlan_set_power(int on
 			}
 		}
 #ifdef CUSTOMER_HW_AMLOGIC
-//		extern_wifi_set_enable(0);
-//		mdelay(200);
+		extern_wifi_set_enable(0);
+		mdelay(200);
 #endif
 	}
 

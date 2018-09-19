@@ -38,12 +38,7 @@
 #include <dngl_stats.h>
 #include <dhd.h>
 
-#ifdef BCMDBUS /* an abstraction layer that hides details of the underlying bus, eg \
-	Linux USB */
-#include <dbus.h>
-#else
 #include <dhd_bus.h>
-#endif /* BCMDBUS */
 
 #include <dhd_dbg.h>
 #include <dhd_config.h>
@@ -72,9 +67,6 @@
 #define WLFC_THREAD_RETRY_WAIT_MS          10000   /* 10 sec */
 #endif /* defined (DHD_WLFC_THREAD) */
 
-#if defined(BCMDBUS)
-extern int dhd_dbus_txdata(dhd_pub_t *dhdp, void *pktbuf);
-#endif
 
 #ifdef PROP_TXSTATUS
 
@@ -1005,8 +997,6 @@ _dhd_wlfc_send_signalonly_packet(athost_wl_status_info_t* ctx, wlfc_mac_descript
 
 #if defined(BCMPCIE)
 		rc = dhd_bus_txdata(dhdp->bus, p, ctx->host_ifidx);
-#elif defined(BCMDBUS)
-		rc = dhd_dbus_txdata(dhdp, p);
 #else
 		rc = dhd_bus_txdata(dhdp->bus, p);
 #endif

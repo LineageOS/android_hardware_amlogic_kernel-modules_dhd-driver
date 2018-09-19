@@ -7,9 +7,12 @@ ifeq ($(CONFIG_BCMDHD_PCIE),)
 $(info bcm SDIO driver configured)
 CONFIG_DHD_USE_STATIC_BUF :=y
 endif
-#CONFIG_BCMDHD_SDIOO := y
+
+#CONFIG_BCMDHD_SDIO := y
 #CONFIG_BCMDHD_PCIE := y
 #CONFIG_BCMDHD_USB := y
+
+#CONFIG_BCMDHD_CUSB := y
 CONFIG_BCMDHD_PROPTXSTATUS := y
 
 CONFIG_MACH_PLATFORM := y
@@ -19,37 +22,30 @@ export CONFIG_BCMDHD = m
 export CONFIG_BCMDHD_OOB = y
 export CONFIG_VTS_SUPPORT = y
 
-DHDCFLAGS = -Wall -Wstrict-prototypes -Wno-maybe-uninitialized  \
-	-Dlinux -DBCMDRIVER                 \
+DHDCFLAGS = -Wall -Wstrict-prototypes -Dlinux -DBCMDRIVER                 \
+	-Wno-maybe-uninitialized                                              \
 	-DBCMDONGLEHOST -DUNRELEASEDCHIP -DBCMDMA32 -DBCMFILEIMAGE            \
 	-DDHDTHREAD -DDHD_DEBUG -DSHOW_EVENTS -DBCMDBG -DGET_OTP_MAC_ENABLE   \
 	-DWIFI_ACT_FRAME -DARP_OFFLOAD_SUPPORT -DSUPPORT_PM2_ONLY             \
 	-DKEEP_ALIVE -DPKT_FILTER_SUPPORT -DPNO_SUPPORT -DDHDTCPACK_SUPPRESS  \
-	-DDHD_DONOT_FORWARD_BCMEVENT_AS_NETWORK_PKT -DRXFRAME_THREAD          \
-	-DTSQ_MULTIPLIER -DMFP                                                \
+	-DDHD_DONOT_FORWARD_BCMEVENT_AS_NETWORK_PKT                           \
+	-DMULTIPLE_SUPPLICANT -DTSQ_MULTIPLIER -DMFP                          \
 	-DWL_EXT_IAPSTA                                                       \
+	-DENABLE_INSMOD_NO_FW_LOAD                                            \
 	-I$(src) -I$(src)/include
 
 DHDOFILES = aiutils.o siutils.o sbutils.o bcmutils.o bcmwifi_channels.o   \
 	dhd_linux.o dhd_linux_platdev.o dhd_linux_sched.o dhd_pno.o           \
 	dhd_common.o dhd_ip.o dhd_linux_wq.o dhd_custom_gpio.o                \
 	bcmevent.o hndpmu.o linux_osl.o wldev_common.o wl_android.o           \
+	dhd_debug_linux.o dhd_debug.o dhd_mschdbg.o                           \
 	hnd_pktq.o hnd_pktpool.o dhd_config.o wl_android_ext.o
 
-ifeq ($(BCM_USB_COMPOSITE),true)
-DHDCFLAGS += -DBCMUSBDEV_COMPOSITE
-endif
-
+#BCMDHD_SDIO
 ifneq ($(CONFIG_BCMDHD_SDIO),)
-DHDCFLAGS += \
-	-DBCMSDIO -DMMC_SDIO_ABORT -DBCMLXSDMMC -DUSE_SDIOFIFO_IOVAR          \
+DHDCFLAGS += -DBCMSDIO -DMMC_SDIO_ABORT -DBCMLXSDMMC -DUSE_SDIOFIFO_IOVAR \
 	-DSDTEST -DBDC -DDHD_USE_IDLECOUNT -DCUSTOM_SDIO_F2_BLKSIZE=256       \
-	-DBCMSDIOH_TXGLOM -DBCMSDIOH_TXGLOM_EXT
-DHDCFLAGS += -DENABLE_INSMOD_NO_FW_LOAD
-
-DHDOFILES += bcmsdh.o bcmsdh_linux.o bcmsdh_sdmmc.o bcmsdh_sdmmc_linux.o  \
-	dhd_sdio.o dhd_cdc.o dhd_wlfc.o
-
+	-DBCMSDIOH_TXGLOM -DBCMSDIOH_TXGLOM_EXT -DRXFRAME_THREAD
 ifeq ($(CONFIG_BCMDHD_OOB),y)
 	DHDCFLAGS += -DOOB_INTR_ONLY -DCUSTOMER_OOB -DHW_OOB
 ifeq ($(CONFIG_BCMDHD_DISABLE_WOWLAN),y)
@@ -58,33 +54,39 @@ endif
 else
 	DHDCFLAGS += -DSDIO_ISR_THREAD
 endif
+
+DHDOFILES += bcmsdh.o bcmsdh_linux.o bcmsdh_sdmmc.o bcmsdh_sdmmc_linux.o  \
+	dhd_sdio.o dhd_cdc.o dhd_wlfc.o
 endif
 
+#BCMDHD_PCIE
 ifneq ($(CONFIG_BCMDHD_PCIE),)
-DHDCFLAGS += \
-	-DPCIE_FULL_DONGLE -DBCMPCIE -DCUSTOM_DPC_PRIO_SETTING=-1             \
+DHDCFLAGS += -DPCIE_FULL_DONGLE -DBCMPCIE -DCUSTOM_DPC_PRIO_SETTING=-1    \
 	-DDONGLE_ENABLE_ISOLATION
-DHDCFLAGS += -DENABLE_INSMOD_NO_FW_LOAD
+ifneq ($(CONFIG_PCI_MSI),)
+	DHDCFLAGS += -DDHD_USE_MSI
+endif
 DHDCFLAGS += -DDHD_PCIE_BAR1_WIN_BASE_FIX=0x200000
 
 DHDOFILES += dhd_pcie.o dhd_pcie_linux.o pcie_core.o dhd_flowring.o       \
 	dhd_msgbuf.o
-
-ifneq ($(CONFIG_PCI_MSI),)
-	DHDCFLAGS += -DDHD_USE_MSI
-endif
-ifeq ($(CONFIG_DHD_USE_STATIC_BUF),y)
-	DHDCFLAGS += -DDHD_USE_STATIC_CTRLBUF
-endif
 endif
 
+#BCMDHD_USB
 ifneq ($(CONFIG_BCMDHD_USB),)
 DHDCFLAGS += -DUSBOS_TX_THREAD -DBCMDBUS -DBCMTRXV2 -DDBUS_USB_LOOPBACK   \
 	-DBDC
+DHDCFLAGS += -DBCM_REQUEST_FW -DEXTERNAL_FW_PATH
+#DHDCFLAGS :=$(filter-out -DENABLE_INSMOD_NO_FW_LOAD,$(DHDCFLAGS))
+ifneq ($(CONFIG_BCMDHD_CUSB),)
+	DHDCFLAGS += -DBCMUSBDEV_COMPOSITE
+	DHDCFLAGS :=$(filter-out -DENABLE_INSMOD_NO_FW_LOAD,$(DHDCFLAGS))
+endif
 
 DHDOFILES += dbus.o dbus_usb.o dbus_usb_linux.o dhd_cdc.o dhd_wlfc.o
 endif
 
+#PROPTXSTATUS
 ifeq ($(CONFIG_BCMDHD_PROPTXSTATUS),y)
 ifneq ($(CONFIG_BCMDHD_USB),)
 	DHDCFLAGS += -DPROP_TXSTATUS
@@ -97,15 +99,16 @@ ifneq ($(CONFIG_CFG80211),)
 endif
 endif
 
+#VTS_SUPPORT
 ifeq ($(CONFIG_VTS_SUPPORT),y)
-DHDCFLAGS += \
-	-DGSCAN_SUPPORT -DRTT_SUPPORT -DCUSTOM_FORCE_NODFS_FLAG               \
+ifneq ($(CONFIG_CFG80211),)
+DHDCFLAGS += -DGSCAN_SUPPORT -DRTT_SUPPORT -DCUSTOM_FORCE_NODFS_FLAG      \
 	-DLINKSTAT_SUPPORT -DDEBUGABILITY -DDBG_PKT_MON -DPKT_FILTER_SUPPORT  \
 	-DAPF -DNDO_CONFIG_SUPPORT -DRSSI_MONITOR_SUPPORT -DDHD_WAKE_STATUS   \
 	-DCUSTOM_COUNTRY_CODE -DDHD_FW_COREDUMP -DEXPLICIT_DISCIF_CLEANUP
 
-DHDOFILES += dhd_debug_linux.o dhd_debug.o bcmxtlv.o dhd_rtt.o            \
-	bcm_app_utils.o
+DHDOFILES += bcmxtlv.o dhd_rtt.o bcm_app_utils.o
+endif
 endif
 
 # MESH support for kernel 3.10 later
@@ -118,6 +121,7 @@ endif
 	DHDCFLAGS :=$(filter-out -DDHD_FW_COREDUMP,$(DHDCFLAGS))
 	DHDCFLAGS :=$(filter-out -DSET_RANDOM_MAC_SOFTAP,$(DHDCFLAGS))
 endif
+
 ifeq ($(CONFIG_BCMDHD_SDIO),y)
 obj-$(CONFIG_BCMDHD) += dhd.o
 dhd-objs += $(DHDOFILES)
@@ -142,6 +146,7 @@ ifeq ($(CONFIG_BCMDHD_AG),y)
 endif
 
 ifeq ($(CONFIG_DHD_USE_STATIC_BUF),y)
+#	obj-m += dhd_static_buf.o
 	DHDCFLAGS += -DSTATIC_WL_PRIV_STRUCT -DENHANCED_STATIC_BUF
 	DHDCFLAGS += -DDHD_USE_STATIC_MEMDUMP -DCONFIG_DHD_USE_STATIC_BUF
 endif
@@ -168,10 +173,7 @@ ifneq ($(CONFIG_CFG80211),)
 endif
 EXTRA_CFLAGS = $(DHDCFLAGS)
 ifeq ($(CONFIG_BCMDHD),m)
-	DHDCFLAGS += -DMULTIPLE_SUPPLICANT
 EXTRA_LDFLAGS += --strip-debug
-else
-	DHDCFLAGS += -DBUILD_IN_KERNEL
 endif
 
 ARCH ?= arm64

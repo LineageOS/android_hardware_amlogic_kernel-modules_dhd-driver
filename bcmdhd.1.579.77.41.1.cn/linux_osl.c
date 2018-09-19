@@ -2696,6 +2696,7 @@ osl_pkt_orphan_partial(struct sk_buff *skb, int tsq)
 /* timer apis */
 /* Note: All timer api's are thread unsafe and should be protected with locks by caller */
 
+#ifdef REPORT_FATAL_TIMEOUTS
 osl_timer_t *
 osl_timer_init(osl_t *osh, const char *name, void (*fn)(void *arg), void *arg)
 {
@@ -2780,3 +2781,4 @@ osl_timer_del(osl_t *osh, osl_timer_t *t)
 	}
 	return (TRUE);
 }
+#endif

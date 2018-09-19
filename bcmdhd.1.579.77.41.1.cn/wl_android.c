@@ -1072,7 +1072,7 @@ wl_cfg80211_get_sta_info(struct net_device *dev, char* command, int total_len)
 error:
 	return bytes_written;
 }
-#endif /* CUSTOMER_HW4_PRIVATE_CMD */
+#endif
 
 #ifdef WBTEXT
 static int wl_android_wbtext(struct net_device *dev, char *command, int total_len)
@@ -1592,21 +1592,22 @@ int wl_android_wifi_on(struct net_device *dev)
 			ANDROID_ERROR(("\nfailed to power up wifi chip, max retry reached **\n\n"));
 			goto exit;
 		}
-#ifdef BCMSDIO
+#if defined(BCMSDIO) || defined(BCMDBUS)
 		ret = dhd_net_bus_devreset(dev, FALSE);
 		if (ret)
 			goto err;
+#ifdef BCMSDIO
 		dhd_net_bus_resume(dev, 1);
 #endif /* BCMSDIO */
-
-#ifndef BCMPCIE
+#endif /* BCMSDIO || BCMDBUS */
+#if defined(BCMSDIO) || defined(BCMDBUS)
 		if (!ret) {
 			if (dhd_dev_init_ioctl(dev) < 0) {
 				ret = -EFAULT;
 				goto err;
 			}
 		}
-#endif /* !BCMPCIE */
+#endif /* BCMSDIO || BCMDBUS */
 		g_wifi_on = TRUE;
 	}
 
@@ -1615,17 +1616,17 @@ exit:
 	dhd_net_if_unlock(dev);
 	return ret;
 
-#ifndef BCMPCIE
+#if defined(BCMSDIO) || defined(BCMDBUS)
 err:
-#ifdef BCMSDIO
 	dhd_net_bus_devreset(dev, TRUE);
+#ifdef BCMSDIO
 	dhd_net_bus_suspend(dev);
+#endif /* BCMSDIO */
 	dhd_net_wifi_platform_set_power(dev, FALSE, WIFI_TURNOFF_DELAY);
-#endif
 	printf("%s: Failed\n", __FUNCTION__);
 	dhd_net_if_unlock(dev);
 	return ret;
-#endif
+#endif /* BCMSDIO || BCMDBUS */
 }
 
 int wl_android_wifi_off(struct net_device *dev, bool on_failure)
@@ -1648,12 +1649,12 @@ int wl_android_wifi_off(struct net_device *dev, bool on_failure)
 	dhd_net_if_lock(dev);
 	printf("%s in 2: g_wifi_on=%d, on_failure=%d\n", __FUNCTION__, g_wifi_on, on_failure);
 	if (g_wifi_on || on_failure) {
-#if defined(BCMSDIO) || defined(BCMPCIE)
+#if defined(BCMSDIO) || defined(BCMPCIE) || defined(BCMDBUS)
 		ret = dhd_net_bus_devreset(dev, TRUE);
 #if  defined(BCMSDIO)
 		dhd_net_bus_suspend(dev);
 #endif /* BCMSDIO */
-#endif /* BCMSDIO || BCMPCIE */
+#endif /* BCMSDIO || BCMPCIE || BCMDBUS */
 		dhd_net_wifi_platform_set_power(dev, FALSE, WIFI_TURNOFF_DELAY);
 		g_wifi_on = FALSE;
 	}
@@ -2493,6 +2494,7 @@ wl_android_set_auto_channel(struct net_device *dev, const char* cmd_str,
 	uint32 band = WLC_BAND_2G;
 	uint32 buf_size;
 	char *pos = command;
+	int band_new, band_cur;
 
 	if (cmd_str) {
 		ANDROID_INFO(("Command: %s len:%d \n", cmd_str, (int)strlen(cmd_str)));
@@ -2512,20 +2514,22 @@ wl_android_set_auto_channel(struct net_device *dev, const char* cmd_str,
 				(channel == APCS_BAND_2G_LEGACY2)) {
 				band = WLC_BAND_2G;
 			} else {
-				ANDROID_ERROR(("Invalid argument\n"));
+				ANDROID_ERROR(("%s: Invalid argument\n", __FUNCTION__));
 				return -EINVAL;
 			}
 		}
 	} else {
 		/* If no argument is provided, default to 2G */
-		ANDROID_ERROR(("No argument given default to 2.4G scan\n"));
+		ANDROID_ERROR(("%s: No argument given default to 2.4G scan\n", __FUNCTION__));
 		band = WLC_BAND_2G;
 	}
-	ANDROID_INFO(("HAPD_AUTO_CHANNEL = %d, band=%d \n", channel, band));
+	ANDROID_INFO(("%s : HAPD_AUTO_CHANNEL = %d, band=%d \n", __FUNCTION__, channel, band));
+
+	ret = wldev_ioctl_set(dev, WLC_GET_BAND, &band_cur, sizeof(band_cur));
 
 	if ((ret =
 	     wldev_ioctl_get(dev, WLC_GET_SPECT_MANAGMENT, &spect, sizeof(spect))) < 0) {
-		ANDROID_ERROR(("ACS: error getting the spect\n"));
+		ANDROID_ERROR(("%s: ACS: error getting the spect\n", __FUNCTION__));
 		goto done;
 	}
 
@@ -2547,15 +2551,19 @@ wl_android_set_auto_channel(struct net_device *dev, const char* cmd_str,
 
 	reqbuf = kzalloc(CHANSPEC_BUF_SIZE, GFP_KERNEL);
 	if (reqbuf == NULL) {
-		ANDROID_ERROR(("failed to allocate chanspec buffer\n"));
+		ANDROID_ERROR(("%s: failed to allocate chanspec buffer\n", __FUNCTION__));
 		return -ENOMEM;
 	}
 
 	if (band == WLC_BAND_AUTO) {
-		ANDROID_INFO(("ACS full channel scan \n"));
+		ANDROID_INFO(("%s: ACS full channel scan \n", __func__));
 		reqbuf[0] = htod32(0);
 	} else if (band == WLC_BAND_5G) {
-		ANDROID_INFO(("ACS 5G band scan \n"));
+		band_new = band_cur==WLC_BAND_2G ? band_cur : WLC_BAND_5G;
+		ret = wldev_ioctl_set(dev, WLC_SET_BAND, &band_new, sizeof(band_new));
+		if (ret < 0)
+			WL_ERR(("WLC_SET_BAND error %d\n", ret));
+		ANDROID_INFO(("%s: ACS 5G band scan \n", __func__));
 		if ((ret = wl_cfg80211_get_chanspecs_5g(dev, reqbuf, CHANSPEC_BUF_SIZE)) < 0) {
 			ANDROID_ERROR(("ACS 5g chanspec retreival failed! \n"));
 			goto done;
@@ -2565,7 +2573,7 @@ wl_android_set_auto_channel(struct net_device *dev, const char* cmd_str,
 		 * If channel argument is not provided/ argument 20 is provided,
 		 * Restrict channel to 2GHz, 20MHz BW, No SB
 		 */
-		ANDROID_INFO(("ACS 2G band scan \n"));
+		ANDROID_INFO(("%s: ACS 2G band scan \n", __func__));
 		if ((ret = wl_cfg80211_get_chanspecs_2g(dev, reqbuf, CHANSPEC_BUF_SIZE)) < 0) {
 			ANDROID_ERROR(("ACS 2g chanspec retreival failed! \n"));
 			goto done;
@@ -2575,11 +2583,12 @@ wl_android_set_auto_channel(struct net_device *dev, const char* cmd_str,
 		goto done2;
 	}
 
-	buf_size = (band == WLC_BAND_AUTO) ? sizeof(int) : CHANSPEC_BUF_SIZE;
+	buf_size = CHANSPEC_BUF_SIZE;
 	ret = wldev_ioctl_set(dev, WLC_START_CHANNEL_SEL, (void *)reqbuf,
 		buf_size);
 	if (ret < 0) {
-		ANDROID_ERROR(("can't start auto channel scan, err = %d\n", ret));
+		ANDROID_ERROR(("%s: can't start auto channel scan, err = %d\n",
+			__FUNCTION__, ret));
 		channel = 0;
 		goto done;
 	}
@@ -2605,6 +2614,18 @@ wl_android_set_auto_channel(struct net_device *dev, const char* cmd_str,
 			chosen = dtoh32(chosen);
 		}
 
+		if ((ret == 0) && (dtoh32(chosen) != 0)) {
+			uint chip;
+			chip = dhd_conf_get_chip(dhd_get_pub(dev));
+			if (chip != BCM43143_CHIP_ID) {
+				u32 chanspec = 0;
+				chanspec = wl_chspec_driver_to_host(chosen);
+				ANDROID_INFO(("%s: selected chanspec = 0x%x\n", __FUNCTION__, chanspec));
+				chosen = wf_chspec_ctlchan(chanspec);
+				ANDROID_INFO(("%s: selected chosen = 0x%x\n", __FUNCTION__, chosen));
+			}
+		}
+
 		if (chosen) {
 			int chosen_band;
 			int apcs_band;
@@ -2619,12 +2640,15 @@ wl_android_set_auto_channel(struct net_device *dev, const char* cmd_str,
 #endif /* D11AC_IOTYPES */
 			apcs_band = (band == WLC_BAND_AUTO) ? WLC_BAND_2G : band;
 			chosen_band = (channel <= CH_MAX_2G_CHANNEL) ? WLC_BAND_2G : WLC_BAND_5G;
-			if (apcs_band == chosen_band) {
+			if (band == WLC_BAND_AUTO) {
+				printf("%s: selected channel = %d\n", __FUNCTION__, channel);
+				break;
+			} else if (apcs_band == chosen_band) {
 				printf("%s: selected channel = %d\n", __FUNCTION__, channel);
 				break;
 			}
 		}
-		ANDROID_INFO(("%d tried, ret = %d, chosen = 0x%x\n",
+		ANDROID_INFO(("%s: %d tried, ret = %d, chosen = 0x%x\n", __FUNCTION__,
 			(APCS_MAX_RETRY - retry), ret, chosen));
 		OSL_SLEEP(250);
 	}
@@ -2637,12 +2661,16 @@ done:
 		} else {
 			channel = APCS_DEFAULT_2G_CH;
 		}
-		ANDROID_ERROR(("ACS failed. Fall back to default channel (%d) \n", channel));
+		ANDROID_ERROR(("%s: ACS failed."
+			" Fall back to default channel (%d) \n", __FUNCTION__, channel));
 	}
 done2:
+	ret = wldev_ioctl_set(dev, WLC_SET_BAND, &band_cur, sizeof(band_cur));
+	if (ret < 0)
+		WL_ERR(("WLC_SET_BAND error %d\n", ret));
 	if (spect > 0) {
 		if ((ret = wl_cfg80211_set_spect(dev, spect) < 0)) {
-			ANDROID_ERROR(("ACS: error while setting spect\n"));
+			ANDROID_ERROR(("%s: ACS: error while setting spect\n", __FUNCTION__));
 		}
 	}
 
@@ -2656,7 +2684,7 @@ done2:
 		else
 			pos += snprintf(pos, total_len, "5g=");
 		pos += snprintf(pos, total_len, "%d", channel);
-		ANDROID_INFO(("command result is %s \n", command));
+		ANDROID_INFO(("%s: command result is %s \n", __FUNCTION__, command));
 		return strlen(command);
 	} else {
 		return ret;
@@ -3750,8 +3778,7 @@ wl_cfg80211_p2plo_offload(struct net_device *dev, char *cmd, char* buf, int len)
 }
 #endif /* P2P_LISTEN_OFFLOADING */
 
-#ifdef WL_CFG80211
-#ifdef BCM4359_CHIP
+#if defined(BCM4359_CHIP) && defined(WL_CFG80211)
 int
 wl_android_murx_bfe_cap(struct net_device *dev, int val)
 {
@@ -3793,7 +3820,6 @@ wl_android_murx_bfe_cap(struct net_device *dev, int val)
 	return err;
 }
 #endif /* BCM4359_CHIP */
-#endif
 
 #ifdef SUPPORT_AP_HIGHER_BEACONRATE
 int
@@ -4199,6 +4225,7 @@ wl_android_make_hang_with_reason(struct net_device *dev, const char *string_num)
 }
 #endif /* DHD_HANG_SEND_UP_TEST */
 
+#ifdef WL_CFG80211
 #ifdef WLMESH
 static int
 wl_android_set_rsdb_mode(struct net_device *dev, char *command, int total_len)
@@ -4230,6 +4257,7 @@ wl_android_set_rsdb_mode(struct net_device *dev, char *command, int total_len)
 	return ret;
 }
 #endif /* WLMESH */
+#endif /* WL_CFG80211 */
 
 #ifdef SUPPORT_LQCM
 static int
@@ -4852,6 +4880,14 @@ wl_handle_private_cmd(struct net_device *net, char *command, u32 cmd_len)
 		bytes_written = wl_android_get_band(net, command, priv_cmd.total_len);
 	}
 #ifdef WL_CFG80211
+	else if (strnicmp(command, CMD_SET_CSA, strlen(CMD_SET_CSA)) == 0) {
+		bytes_written = wl_android_set_csa(net, command, priv_cmd.total_len);
+	} else if (strnicmp(command, CMD_80211_MODE, strlen(CMD_80211_MODE)) == 0) {
+		bytes_written = wl_android_get_80211_mode(net, command, priv_cmd.total_len);
+	} else if (strnicmp(command, CMD_CHANSPEC, strlen(CMD_CHANSPEC)) == 0) {
+		bytes_written = wl_android_get_chanspec(net, command, priv_cmd.total_len);
+	}
+#endif /* WL_CFG80211 */
 	/* CUSTOMER_SET_COUNTRY feature is define for only GGSM model */
 	else if (strnicmp(command, CMD_COUNTRY, strlen(CMD_COUNTRY)) == 0) {
 		/*
@@ -4886,14 +4922,6 @@ wl_handle_private_cmd(struct net_device *net, char *command, u32 cmd_len)
 #endif /* FCC_PWR_LIMIT_2G */
 #endif /* CUSTOMER_HW4_PRIVATE_CMD */
 	}
-	else if (strnicmp(command, CMD_SET_CSA, strlen(CMD_SET_CSA)) == 0) {
-		bytes_written = wl_android_set_csa(net, command, priv_cmd.total_len);
-	} else if (strnicmp(command, CMD_80211_MODE, strlen(CMD_80211_MODE)) == 0) {
-		bytes_written = wl_android_get_80211_mode(net, command, priv_cmd.total_len);
-	} else if (strnicmp(command, CMD_CHANSPEC, strlen(CMD_CHANSPEC)) == 0) {
-		bytes_written = wl_android_get_chanspec(net, command, priv_cmd.total_len);
-	}
-#endif /* WL_CFG80211 */
 	else if (strnicmp(command, CMD_DATARATE, strlen(CMD_DATARATE)) == 0) {
 		bytes_written = wl_android_get_datarate(net, command, priv_cmd.total_len);
 	} else if (strnicmp(command, CMD_ASSOC_CLIENTS,	strlen(CMD_ASSOC_CLIENTS)) == 0) {
@@ -4928,6 +4956,7 @@ wl_handle_private_cmd(struct net_device *net, char *command, u32 cmd_len)
 	else if (strnicmp(command, CMD_P2P_DEV_ADDR, strlen(CMD_P2P_DEV_ADDR)) == 0) {
 		bytes_written = wl_android_get_p2p_dev_addr(net, command, priv_cmd.total_len);
 	}
+#ifdef WL_CFG80211
 #ifdef WLMESH
 	else if (strnicmp(command, CMD_SAE_SET_PASSWORD, strlen(CMD_SAE_SET_PASSWORD)) == 0) {
 		int skip = strlen(CMD_SAE_SET_PASSWORD) + 1;
@@ -4938,6 +4967,7 @@ wl_handle_private_cmd(struct net_device *net, char *command, u32 cmd_len)
 		bytes_written = wl_android_set_rsdb_mode(net, command, priv_cmd.total_len);
 	}
 #endif
+#endif /* WL_CFG80211 */
 	else if (strnicmp(command, CMD_P2P_SET_NOA, strlen(CMD_P2P_SET_NOA)) == 0) {
 		int skip = strlen(CMD_P2P_SET_NOA) + 1;
 		bytes_written = wl_cfg80211_set_p2p_noa(net, command + skip,
@@ -5203,17 +5233,15 @@ wl_handle_private_cmd(struct net_device *net, char *command, u32 cmd_len)
 		bytes_written = wl_cfg80211_get_sta_info(net, command, priv_cmd.total_len);
 	}
 #endif /* CUSTOMER_HW4_PRIVATE_CMD */
-#ifdef WL_CFG80211
 	else if (strnicmp(command, CMD_MURX_BFE_CAP,
 			strlen(CMD_MURX_BFE_CAP)) == 0) {
-#ifdef BCM4359_CHIP
+#if defined(BCM4359_CHIP) && defined(WL_CFG80211)
 		uint val = *(command + strlen(CMD_MURX_BFE_CAP) + 1) - '0';
 		bytes_written = wl_android_murx_bfe_cap(net, val);
 #else
 		return BCME_UNSUPPORTED;
 #endif /* BCM4359_CHIP */
 	}
-#endif
 #ifdef SUPPORT_AP_HIGHER_BEACONRATE
 	else if (strnicmp(command, CMD_GET_AP_BASICRATE, strlen(CMD_GET_AP_BASICRATE)) == 0) {
 		bytes_written = wl_android_get_ap_basicrate(net, command, priv_cmd.total_len);

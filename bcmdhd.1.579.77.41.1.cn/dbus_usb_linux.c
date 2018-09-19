@@ -82,6 +82,8 @@
 #include <linux/usb.h>
 #include <usbrdl.h>
 #include <linux/firmware.h>
+#include <dngl_stats.h>
+#include <dhd.h>
 
 #if defined(USBOS_THREAD) || defined(USBOS_TX_THREAD)
 
@@ -1295,8 +1297,18 @@ DBUS_USBOS_PROBE()
 	int wlan_if = -1;
 	bool intr_ep = FALSE;
 #endif /* BCMUSBDEV_COMPOSITE */
+	wifi_adapter_info_t *adapter;
 
-	printf("%s: Enter\n", __FUNCTION__);
+	DHD_MUTEX_LOCK();
+
+	DBUSERR(("%s: bus num(busnum)=%d, slot num (portnum)=%d\n", __FUNCTION__,
+		usb->bus->busnum, usb->portnum));
+	adapter = dhd_wifi_platform_attach_adapter(USB_BUS, usb->bus->busnum,
+		usb->portnum, WIFI_STATUS_POWER_ON);
+	if (adapter == NULL) {
+		DBUSERR(("%s: can't find adapter info for this chip\n", __FUNCTION__));
+		goto fail;
+	}
 
 #ifdef BCMUSBDEV_COMPOSITE
 	wlan_if = dbus_usbos_intf_wlan(usb);
@@ -1541,7 +1553,7 @@ DBUS_USBOS_PROBE()
 		DBUSERR(("full speed device detected\n"));
 	}
 	if (g_probe_info.dereged == FALSE && probe_cb) {
-		disc_arg = probe_cb(probe_arg, "", USB_BUS, 0);
+		disc_arg = probe_cb(probe_arg, "", USB_BUS, usb->bus->busnum, usb->portnum, 0);
 	}
 
 	g_probe_info.disc_cb_done = FALSE;
@@ -1549,7 +1561,7 @@ DBUS_USBOS_PROBE()
 #ifdef KERNEL26
 	intf->needs_remote_wakeup = 1;
 #endif /* KERNEL26 */
-	printf("%s: Exit ret=%d\n", __FUNCTION__, ret);
+	DHD_MUTEX_UNLOCK();
 
 	/* Success */
 #ifdef KERNEL26
@@ -1574,6 +1586,7 @@ fail:
 #endif /* BCMUSBDEV_COMPOSITE */
 #endif /* !KERNEL26 */
 
+	DHD_MUTEX_UNLOCK();
 #ifdef KERNEL26
 	usb_set_intfdata(intf, NULL);
 	return ret;
@@ -1593,7 +1606,10 @@ DBUS_USBOS_DISCONNECT()
 #endif
 	usbos_info_t *usbos_info;
 
-	printf("%s: Enter\n", __FUNCTION__);
+	DHD_MUTEX_LOCK();
+
+	DBUSERR(("%s: bus num(busnum)=%d, slot num (portnum)=%d\n", __FUNCTION__,
+		usb->bus->busnum, usb->portnum));
 
 	if (probe_usb_init_data) {
 		usbos_info = (usbos_info_t *) probe_usb_init_data->usbos_info;
@@ -1616,7 +1632,7 @@ DBUS_USBOS_DISCONNECT()
 		usb_dec_dev_use(usb);
 #endif /* !KERNEL26 */
 	}
-	printf("%s: Exit\n", __FUNCTION__);
+	DHD_MUTEX_UNLOCK();
 } /* dbus_usbos_disconnect */
 
 #define LOOPBACK_PKT_START 0xBABE1234
@@ -2560,10 +2576,12 @@ dbus_bus_osl_deregister()
 {
 	g_probe_info.dereged = TRUE;
 
+	DHD_MUTEX_LOCK();
 	if (disconnect_cb && disc_arg && (g_probe_info.disc_cb_done == FALSE)) {
 		disconnect_cb(disc_arg);
 		disc_arg = NULL;
 	}
+	DHD_MUTEX_UNLOCK();
 
 	USB_DEREGISTER();
 
