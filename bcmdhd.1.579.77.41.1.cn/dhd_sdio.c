@@ -437,7 +437,7 @@ typedef struct dhd_bus {
 #endif /* defined (BT_OVER_SDIO) */
 	uint		txglomframes;	/* Number of tx glom frames (superframes) */
 	uint		txglompkts;		/* Number of packets from tx glom frames */
-	uint8		*membuf;		/* Buffer for receiving big glom packet */
+	uint8		*membuf;		/* Buffer for dhdsdio_membytes */
 } dhd_bus_t;
 
 
@@ -2762,13 +2762,15 @@ dhd_bus_txctl(struct dhd_bus *bus, uchar *msg, uint msglen)
 
 
 	/* Need to lock here to protect txseq and SDIO tx calls */
+	dhd_os_sdlock(bus->dhd);
 	if (bus->dhd->conf->txctl_tmo_fix > 0 && !TXCTLOK(bus)) {
 		bus->ctrl_wait = TRUE;
+		dhd_os_sdunlock(bus->dhd);
 		wait_event_interruptible_timeout(bus->ctrl_tx_wait, TXCTLOK(bus),
 			msecs_to_jiffies(bus->dhd->conf->txctl_tmo_fix));
+		dhd_os_sdlock(bus->dhd);
 		bus->ctrl_wait = FALSE;
 	}
-	dhd_os_sdlock(bus->dhd);
 
 	BUS_WAKE(bus);
 
@@ -3361,6 +3363,7 @@ dhdsdio_membytes(dhd_bus_t *bus, bool write, uint32 address, uint8 *data, uint s
 	int bcmerror = 0;
 	uint32 sdaddr;
 	uint dsize;
+	uint8 *pdata;
 
 	/* In remap mode, adjust address beyond socram and redirect
 	 * to devram at SOCDEVRAM_BP_ADDR since remap address > orig_ramsize
@@ -3377,10 +3380,6 @@ dhdsdio_membytes(dhd_bus_t *bus, bool write, uint32 address, uint8 *data, uint s
 		dsize = (SBSDIO_SB_OFT_ADDR_LIMIT - sdaddr);
 	else
 		dsize = size;
-	if (dsize > MAX_MEM_BUF) {
-		DHD_ERROR(("%s: dsize %d > %d\n", __FUNCTION__, dsize, MAX_MEM_BUF));
-		goto xfer_done;
-	}
 
 	/* Set the backplane window to include the start address */
 	if ((bcmerror = dhdsdio_set_siaddr_window(bus, address))) {
@@ -3393,14 +3392,20 @@ dhdsdio_membytes(dhd_bus_t *bus, bool write, uint32 address, uint8 *data, uint s
 		DHD_INFO(("%s: %s %d bytes at offset 0x%08x in window 0x%08x\n",
 		          __FUNCTION__, (write ? "write" : "read"), dsize, sdaddr,
 		          (address & SBSDIO_SBWINDOW_MASK)));
-		if (write)
-			memcpy(bus->membuf, data, dsize);
-		if ((bcmerror = bcmsdh_rwdata(bus->sdh, write, sdaddr, bus->membuf, dsize))) {
+		if (dsize <= MAX_MEM_BUF) {
+			pdata = bus->membuf;
+			if (write)
+				memcpy(bus->membuf, data, dsize);
+		} else {
+			pdata = data;
+		}
+		if ((bcmerror = bcmsdh_rwdata(bus->sdh, write, sdaddr, pdata, dsize))) {
 			DHD_ERROR(("%s: membytes transfer failed\n", __FUNCTION__));
 			break;
 		}
-		if (!write)
+		if (dsize <= MAX_MEM_BUF && !write) {
 			memcpy(data, bus->membuf, dsize);
+		}
 
 		/* Adjust for next transfer (if any) */
 		if ((size -= dsize)) {
@@ -6605,7 +6610,7 @@ dhdsdio_dpc(dhd_bus_t *bus)
 		goto clkwait;
 
 	/* Pending interrupt indicates new device status */
-	if (bus->ipend) {
+	if (bus->ipend || (bus->ctrl_frame_stat && bus->dhd->conf->txctl_tmo_fix)) {
 		bus->ipend = FALSE;
 #if defined(BT_OVER_SDIO)
 	bcmsdh_btsdio_process_f3_intr();
@@ -6728,7 +6733,8 @@ clkwait:
 	 * or clock availability.  (Allows tx loop to check ipend if desired.)
 	 * (Unless register access seems hosed, as we may not be able to ACK...)
 	 */
-	if (!bus->dhd->conf->oob_enabled_later && bus->intr && bus->intdis && !bcmsdh_regfail(sdh)) {
+	if (bus->intr && bus->intdis && !bcmsdh_regfail(sdh) &&
+			!(bus->dhd->conf->oob_enabled_later && !bus->ctrl_frame_stat)) {
 		DHD_INTR(("%s: enable SDIO interrupts, rxdone %d framecnt %d\n",
 		          __FUNCTION__, rxdone, framecnt));
 		bus->intdis = FALSE;
@@ -6786,7 +6792,7 @@ clkwait:
 	}
 	/* Resched the DPC if ctrl cmd is pending on bus credit */
 	if (bus->ctrl_frame_stat) {
-		if (bus->dhd->conf->txctl_tmo_fix > 0) {
+		if (bus->dhd->conf->txctl_tmo_fix) {
 			set_current_state(TASK_INTERRUPTIBLE);
 			if (!kthread_should_stop())
 				schedule_timeout(1);
@@ -6834,7 +6840,8 @@ exit:
 		 * or clock availability.  (Allows tx loop to check ipend if desired.)
 		 * (Unless register access seems hosed, as we may not be able to ACK...)
 		 */
-		if (bus->dhd->conf->oob_enabled_later && bus->intr && bus->intdis && !bcmsdh_regfail(sdh)) {
+		if (bus->intr && bus->intdis && !bcmsdh_regfail(sdh) &&
+				(bus->dhd->conf->oob_enabled_later && !bus->ctrl_frame_stat)) {
 			DHD_INTR(("%s: enable SDIO interrupts, rxdone %d framecnt %d\n",
 					  __FUNCTION__, rxdone, framecnt));
 			bus->intdis = FALSE;
