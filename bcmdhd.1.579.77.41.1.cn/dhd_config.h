@@ -103,14 +103,7 @@ typedef struct mchan_params {
 
 enum in4way_flags {
 	NO_SCAN_IN4WAY	= (1 << (0)),
-	NO_BTC_IN4WAY	= (1 << (1)),
-	DONT_DELETE_GC_AFTER_WPS	= (1 << (2))
-};
-
-enum eapol_status {
-	EAPOL_STATUS_NONE = 0,
-	EAPOL_STATUS_WPS_DONE,
-	EAPOL_STATUS_M4
+	NO_BTC_IN4WAY	= (1 << (1))
 };
 
 typedef struct dhd_conf {
@@ -211,9 +204,7 @@ typedef struct dhd_conf {
 	struct mchan_params mchan[MCHAN_MAX_NUM];
 	char *wl_preinit;
 	int tsq;
-	uint eapol_status;
 	uint in4way;
-	uint max_wait_gc_time;
 } dhd_conf_t;
 
 #ifdef BCMSDIO
@@ -252,9 +243,6 @@ int dhd_conf_set_chiprev(dhd_pub_t *dhd, uint chip, uint chiprev);
 uint dhd_conf_get_chip(void *context);
 uint dhd_conf_get_chiprev(void *context);
 int dhd_conf_get_pm(dhd_pub_t *dhd);
-void dhd_conf_set_eapol_status(dhd_pub_t *dhd, char *ifname,
-	char *dump_data);
-
 #ifdef PROP_TXSTATUS
 int dhd_conf_get_disable_proptx(dhd_pub_t *dhd);
 #endif

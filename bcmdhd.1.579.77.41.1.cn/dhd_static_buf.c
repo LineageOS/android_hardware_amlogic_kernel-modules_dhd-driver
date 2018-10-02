@@ -272,6 +272,7 @@ int bcmdhd_init_wlan_mem(void)
 {
 	int i;
 	int j;
+
 	printk(KERN_ERR "%s(): %s\n", __func__, DHD_STATIC_VERSION_STR);
 
 	for (i = 0; i < DHD_SKB_1PAGE_BUF_NUM; i++) {
