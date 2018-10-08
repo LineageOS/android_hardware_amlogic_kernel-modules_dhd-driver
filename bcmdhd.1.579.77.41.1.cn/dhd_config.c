@@ -1215,6 +1215,39 @@ dhd_conf_set_ap_in_suspend(dhd_pub_t *dhd, int suspend)
 	return mode;
 }
 
+void
+dhd_conf_set_eapol_status(dhd_pub_t *dhd, char *ifname, char *dump_data)
+{
+	unsigned char type;
+	int pair, ack, mic, kerr, req, sec, install;
+	unsigned short us_tmp;
+
+	if (!(dhd->conf->in4way&DONT_DELETE_GC_AFTER_WPS) || strncmp(ifname, "p2p", 3)) {
+		return;
+	}
+
+	type = dump_data[15];
+	if ((type == 0) && (dump_data[22] == 254) && (dump_data[30] == 5)) {
+		dhd->conf->eapol_status = EAPOL_STATUS_WPS_DONE;
+		CONFIG_TRACE(("EAP Packet, WSC Done\n"));
+	} else if (type == 3 && dump_data[18] == 2) {
+		us_tmp = (dump_data[19] << 8) | dump_data[20];
+		pair =  0 != (us_tmp & 0x08);
+		ack = 0  != (us_tmp & 0x80);
+		mic = 0  != (us_tmp & 0x100);
+		kerr =  0 != (us_tmp & 0x400);
+		req = 0  != (us_tmp & 0x800);
+		sec = 0  != (us_tmp & 0x200);
+		install  = 0 != (us_tmp & 0x40);
+		if (pair && !install && !ack && mic && sec && !req && !kerr) {
+			dhd->conf->eapol_status = EAPOL_STATUS_M4;
+			CONFIG_TRACE(("EAPOL Packet, 4-way handshake, M4\n"));
+		}
+	}
+
+	return;
+}
+
 #ifdef PROP_TXSTATUS
 int
 dhd_conf_get_disable_proptx(dhd_pub_t *dhd)
@@ -1974,6 +2007,7 @@ dhd_conf_read_sdio_params(dhd_pub_t *dhd, char *full_param, uint len_param)
 		conf->sd_f2_blocksize = (int)simple_strtol(data, NULL, 10);
 		printf("%s: sd_f2_blocksize = %d\n", __FUNCTION__, conf->sd_f2_blocksize);
 	}
+#if defined(HW_OOB)
 	else if (!strncmp("oob_enabled_later=", full_param, len_param)) {
 		if (!strncmp(data, "0", 1))
 			conf->oob_enabled_later = FALSE;
@@ -1981,6 +2015,7 @@ dhd_conf_read_sdio_params(dhd_pub_t *dhd, char *full_param, uint len_param)
 			conf->oob_enabled_later = TRUE;
 		printf("%s: oob_enabled_later = %d\n", __FUNCTION__, conf->oob_enabled_later);
 	}
+#endif
 	else if (!strncmp("dpc_cpucore=", full_param, len_param)) {
 		conf->dpc_cpucore = (int)simple_strtol(data, NULL, 10);
 		printf("%s: dpc_cpucore = %d\n", __FUNCTION__, conf->dpc_cpucore);
@@ -2027,7 +2062,7 @@ dhd_conf_read_sdio_params(dhd_pub_t *dhd, char *full_param, uint len_param)
 		printf("%s: deferred_tx_len = %d\n", __FUNCTION__, conf->deferred_tx_len);
 	}
 	else if (!strncmp("txctl_tmo_fix=", full_param, len_param)) {
-		conf->txctl_tmo_fix = (int)simple_strtol(data, NULL, 10);
+		conf->txctl_tmo_fix = (int)simple_strtol(data, NULL, 0);
 		printf("%s: txctl_tmo_fix = %d\n", __FUNCTION__, conf->txctl_tmo_fix);
 	}
 	else if (!strncmp("tx_max_offset=", full_param, len_param)) {
@@ -2267,6 +2302,10 @@ dhd_conf_read_others(dhd_pub_t *dhd, char *full_param, uint len_param)
 	else if (!strncmp("in4way=", full_param, len_param)) {
 		conf->in4way = (int)simple_strtol(data, NULL, 0);
 		printf("%s: in4way = 0x%x\n", __FUNCTION__, conf->in4way);
+	}
+	else if (!strncmp("max_wait_gc_time=", full_param, len_param)) {
+		conf->max_wait_gc_time = (int)simple_strtol(data, NULL, 0);
+		printf("%s: max_wait_gc_time = %d\n", __FUNCTION__, conf->max_wait_gc_time);
 	}
 	else if (!strncmp("wl_preinit=", full_param, len_param)) {
 		if (!(conf->wl_preinit = kmalloc(len_param+1, GFP_KERNEL))) {
@@ -2530,8 +2569,8 @@ dhd_conf_set_wl_preinit(dhd_pub_t *dhd, char *data)
 	char name[32], *pch, *pick_tmp, *pick_tmp2;
 
 	/* Process wl_preinit:
-	 * wl_preinit=[cmd]/[val], [cmd]/[val] \
-	 * Ex: wl_preinit=86/0, mpc/0
+	 * wl_preinit=[cmd]=[val], [cmd]=[val]
+	 * Ex: wl_preinit=86=0, mpc=0
 	 */
 	pick_tmp = data;
 	while (pick_tmp && (pick_tmp2 = bcmstrtok(&pick_tmp, ",", 0)) != NULL) {
@@ -2701,13 +2740,15 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 	conf->txglom_ext = FALSE;
 	conf->tx_max_offset = 0;
 	conf->txglomsize = SDPCM_DEFGLOM_SIZE;
-	conf->txctl_tmo_fix = 300;
+	conf->txctl_tmo_fix = -1;
 	conf->txglom_mode = SDPCM_TXGLOM_CPY;
 	conf->deferred_tx_len = 0;
 	conf->dhd_txminmax = 1;
 	conf->txinrx_thres = -1;
 	conf->sd_f2_blocksize = 0;
+#if defined(HW_OOB)
 	conf->oob_enabled_later = FALSE;
+#endif
 	conf->orphan_move = 0;
 #endif
 #ifdef BCMPCIE
@@ -2747,6 +2788,7 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 	conf->ctrl_resched = 2;
 	conf->dhd_ioctl_timeout_msec = 0;
 	conf->in4way = NO_SCAN_IN4WAY;
+	conf->max_wait_gc_time = 300;
 #ifdef ISAM_PREINIT
 	memset(conf->isam_init, 0, sizeof(conf->isam_init));
 	memset(conf->isam_config, 0, sizeof(conf->isam_config));
@@ -2758,9 +2800,11 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 #ifdef CUSTOMER_HW_AMLOGIC
 	dhd_slpauto = FALSE;
 #endif
-	if (conf->chip == BCM4354_CHIP_ID || conf->chip == BCM4356_CHIP_ID ||
-			conf->chip == BCM4371_CHIP_ID || conf->chip == BCM43569_CHIP_ID ||
-			conf->chip == BCM4359_CHIP_ID || conf->chip == BCM4362_CHIP_ID) {
+	if (conf->chip == BCM4335_CHIP_ID || conf->chip == BCM4339_CHIP_ID ||
+			conf->chip == BCM4354_CHIP_ID || conf->chip == BCM4356_CHIP_ID ||
+			conf->chip == BCM4345_CHIP_ID || conf->chip == BCM4371_CHIP_ID ||
+			conf->chip == BCM43569_CHIP_ID || conf->chip == BCM4359_CHIP_ID ||
+			conf->chip == BCM4362_CHIP_ID) {
 #ifdef DHDTCPACK_SUPPRESS
 #ifdef BCMSDIO
 		conf->tcpack_sup_mode = TCPACK_SUP_REPLACE;
@@ -2776,7 +2820,6 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 		conf->dhd_txminmax = -1;
 		conf->txinrx_thres = 128;
 		conf->sd_f2_blocksize = CUSTOM_SDIO_F2_BLKSIZE;
-		conf->oob_enabled_later = TRUE;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0))
 		conf->orphan_move = 1;
 #else

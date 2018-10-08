@@ -4696,38 +4696,25 @@ static const char *_get_packet_type_str(uint16 type)
 
 	return packet_type_info[n].str;
 }
-#endif /* DHD_RX_DUMP || DHD_TX_DUMP */
 
-#if defined(DHD_TX_DUMP)
 void
-dhd_tx_dump(struct net_device *ndev, osl_t *osh, void *pkt)
+dhd_trx_dump(struct net_device *ndev, uint8 *dump_data, uint datalen, bool tx)
 {
-	uint8 *dump_data;
 	uint16 protocol;
 	char *ifname;
 
-	dump_data = PKTDATA(osh, pkt);
 	protocol = (dump_data[12] << 8) | dump_data[13];
 	ifname = ndev ? ndev->name : "N/A";
 
-	DHD_ERROR(("TX DUMP[%s] - %s\n", ifname, _get_packet_type_str(protocol)));
-
-#if defined(DHD_TX_FULL_DUMP)
-	{
-		int i;
-		uint datalen;
-		datalen = PKTLEN(osh, pkt);
-
-		for (i = 0; i < datalen; i++) {
-			printk("%02X ", dump_data[i]);
-			if ((i & 15) == 15)
-				printk("\n");
-		}
-		printk("\n");
+	if (protocol != ETHER_TYPE_BRCM) {
+		DHD_ERROR(("%s DUMP[%s] - %s\n", tx?"Tx":"Rx", ifname,
+			_get_packet_type_str(protocol)));
+#if defined(DHD_TX_FULL_DUMP) || defined(DHD_RX_FULL_DUMP)
+		prhex("Data", dump_data, datalen);
+#endif /* DHD_TX_FULL_DUMP || DHD_RX_FULL_DUMP */
 	}
-#endif /* DHD_TX_FULL_DUMP */
 }
-#endif /* DHD_TX_DUMP */
+#endif /* DHD_TX_DUMP || DHD_RX_DUMP */
 
 /*  This routine do not support Packet chain feature, Currently tested for
  *  proxy arp feature
@@ -4890,6 +4877,7 @@ __dhd_sendpkt(dhd_pub_t *dhdp, int ifidx, void *pktbuf)
 #if defined(DHD_8021X_DUMP)
 			dhd_dump_eapol_4way_message(dhd_ifname(dhdp, ifidx), pktdata, TRUE);
 #endif /* DHD_8021X_DUMP */
+			dhd_conf_set_eapol_status(dhdp, dhd_ifname(dhdp, ifidx), pktdata);
 		}
 
 		if (ntoh16(eh->ether_type) == ETHER_TYPE_IP) {
@@ -4942,7 +4930,8 @@ __dhd_sendpkt(dhd_pub_t *dhdp, int ifidx, void *pktbuf)
 #endif
 
 #if defined(DHD_TX_DUMP)
-	dhd_tx_dump(dhd_idx2net(dhdp, ifidx), dhdp->osh, pktbuf);
+	dhd_trx_dump(dhd_idx2net(dhdp, ifidx), PKTDATA(dhdp->osh, pktbuf),
+		PKTLEN(dhdp->osh, pktbuf), TRUE);
 #endif
 	/* terence 20150901: Micky add to ajust the 802.1X priority */
 	/* Set the 802.1X packet with the highest priority 7 */
@@ -5717,10 +5706,7 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 	void *skbhead = NULL;
 	void *skbprev = NULL;
 	uint16 protocol;
-#if defined(DHD_RX_DUMP) || defined(DHD_8021X_DUMP) || defined(DHD_DHCP_DUMP) || \
-	defined(DHD_ICMP_DUMP) || defined(DHD_WAKE_STATUS)
 	unsigned char *dump_data;
-#endif /* DHD_RX_DUMP || DHD_8021X_DUMP || DHD_DHCP_DUMP || DHD_ICMP_DUMP || DHD_WAKE_STATUS */
 #ifdef DHD_MCAST_REGEN
 	uint8 interface_role;
 	if_flow_lkup_t *if_flow_lkup;
@@ -5951,10 +5937,7 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 		eth = skb->data;
 		len = skb->len;
 
-#if defined(DHD_RX_DUMP) || defined(DHD_8021X_DUMP) || defined(DHD_DHCP_DUMP) || \
-	defined(DHD_ICMP_DUMP) || defined(DHD_WAKE_STATUS)
 		dump_data = skb->data;
-#endif /* DHD_RX_DUMP || DHD_8021X_DUMP || DHD_DHCP_DUMP || DHD_ICMP_DUMP || DHD_WAKE_STATUS */
 
 		protocol = (skb->data[12] << 8) | skb->data[13];
 		if (protocol == ETHER_TYPE_802_1X) {
@@ -5962,6 +5945,7 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 #ifdef DHD_8021X_DUMP
 			dhd_dump_eapol_4way_message(dhd_ifname(dhdp, ifidx), dump_data, FALSE);
 #endif /* DHD_8021X_DUMP */
+			dhd_conf_set_eapol_status(dhdp, dhd_ifname(dhdp, ifidx), dump_data);
 		}
 
 		if (protocol != ETHER_TYPE_BRCM && protocol == ETHER_TYPE_IP) {
@@ -5973,33 +5957,7 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 #endif /* DHD_ICMP_DUMP */
 		}
 #ifdef DHD_RX_DUMP
-		DHD_ERROR(("RX DUMP[%s] - %s\n",
-			dhd_ifname(dhdp, ifidx), _get_packet_type_str(protocol)));
-		if (protocol != ETHER_TYPE_BRCM) {
-			if (dump_data[0] == 0xFF) {
-				DHD_ERROR(("%s: BROADCAST\n", __FUNCTION__));
-
-				if ((dump_data[12] == 8) &&
-					(dump_data[13] == 6)) {
-					DHD_ERROR(("%s: ARP %d\n",
-						__FUNCTION__, dump_data[0x15]));
-				}
-			} else if (dump_data[0] & 1) {
-				DHD_ERROR(("%s: MULTICAST: " MACDBG "\n",
-					__FUNCTION__, MAC2STRDBG(dump_data)));
-			}
-#ifdef DHD_RX_FULL_DUMP
-			{
-				int k;
-				for (k = 0; k < skb->len; k++) {
-					printk("%02X ", dump_data[k]);
-					if ((k & 15) == 15)
-						printk("\n");
-				}
-				printk("\n");
-			}
-#endif /* DHD_RX_FULL_DUMP */
-		}
+		dhd_trx_dump(dhd_idx2net(dhdp, ifidx), dump_data, skb->len, FALSE);
 #endif /* DHD_RX_DUMP */
 #if defined(DHD_WAKE_STATUS) && defined(DHD_WAKEPKT_DUMP)
 		if (pkt_wake) {
@@ -7791,12 +7749,12 @@ dhd_ioctl_entry(struct net_device *net, struct ifreq *ifr, int cmd)
 			goto done;
 		}
 	}
-
+/*
 	if (!capable(CAP_NET_ADMIN)) {
 		bcmerror = BCME_EPERM;
 		goto done;
 	}
-
+*/
 	/* Take backup of ioc.buf and restore later */
 	ioc_buf_user = ioc.buf;
 
@@ -10996,7 +10954,6 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 	DHD_TRACE(("Enter %s\n", __FUNCTION__));
 
 #ifdef DHDTCPACK_SUPPRESS
-	printf("%s: Set tcpack_sup_mode %d\n", __FUNCTION__, dhd->conf->tcpack_sup_mode);
 	dhd_tcpack_suppress_set(dhd, dhd->conf->tcpack_sup_mode);
 #endif
 	dhd->op_mode = 0;

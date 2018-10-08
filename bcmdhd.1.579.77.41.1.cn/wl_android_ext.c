@@ -3020,66 +3020,126 @@ wl_ext_dhcpc_dump(struct net_device *dev, char *command, int total_len)
 }
 #endif
 
-/*
-dhd_priv dhd [string] ==> Not ready
-1. Get dhd val:
-  Ex: dhd_priv dhd bussleep
-2. Set dhd val:
-  Ex: dhd_priv dhd bussleep 1
+static int
+wl_ext_rsdb_mode(struct net_device *dev, char *data, char *command,
+	int total_len)
+{
+	s8 iovar_buf[WLC_IOCTL_SMLEN];
+	wl_config_t rsdb_mode_cfg = {1, 0}, *rsdb_p;
+	int ret = 0;
 
-dhd_priv wl [WLC_GET_PM]  ==> Ready to get int val
-dhd_priv wl [WLC_SET_PM] [int]  ==> Ready to set int val
-dhd_priv wl [string]  ==> Ready to get int val
-dhd_priv wl [string] [int]  ==> Ready to set int val
-Ex: get/set WLC_PM
+	ANDROID_TRACE(("%s: Enter\n", __FUNCTION__));
+
+	if (data) {
+		rsdb_mode_cfg.config = (int)simple_strtol(data, NULL, 0);
+		ret = wl_ext_iovar_setbuf(dev, "rsdb_mode", (char *)&rsdb_mode_cfg,
+			sizeof(rsdb_mode_cfg), iovar_buf, WLC_IOCTL_SMLEN, NULL);
+		printf("%s: rsdb_mode %d\n", __FUNCTION__, rsdb_mode_cfg.config);
+	} else {
+		ret = wl_ext_iovar_getbuf(dev, "rsdb_mode", NULL, 0,
+			iovar_buf, WLC_IOCTL_SMLEN, NULL);
+		if (!ret) {
+			rsdb_p = (wl_config_t *) iovar_buf;
+			ret = snprintf(command, total_len, "%d", rsdb_p->config);
+			ANDROID_TRACE(("%s: command result is %s\n", __FUNCTION__,
+				command));
+		}
+	}
+
+	return ret;
+}
+
+typedef int (wl_ext_tpl_parse_t)(struct net_device *dev, char *data, char *command,
+	int total_len);
+
+typedef struct wl_ext_iovar_tpl_t {
+	int get;
+	int set;
+	char *name;
+	wl_ext_tpl_parse_t *parse;
+} wl_ext_iovar_tpl_t;
+
+const wl_ext_iovar_tpl_t wl_ext_iovar_tpl_list[] = {
+	{WLC_GET_VAR,	WLC_SET_VAR,	"rsdb_mode",	wl_ext_rsdb_mode},
+};
+
+/*
+Ex: dhd_priv wl [cmd] [val]
   dhd_priv wl 85
   dhd_priv wl 86 1
-Ex: get/set mpc
   dhd_priv wl mpc
   dhd_priv wl mpc 1
 */
 int
-wl_ext_iovar(struct net_device *dev, char *command, int total_len)
+wl_ext_wl_iovar(struct net_device *dev, char *command, int total_len)
 {
-	int ret = 0;
-	char wl[3]="\0", arg[20]="\0", cmd_str[20]="\0", val_str[20]="\0";
-	int cmd=-1, val=0;
+	int cmd, val, ret = -1, i;
+	char name[32], *pch, *pick_tmp, *data;
 	int bytes_written=-1;
+	const wl_ext_iovar_tpl_t *tpl = wl_ext_iovar_tpl_list;
+	int tpl_count = ARRAY_SIZE(wl_ext_iovar_tpl_list);
 
 	ANDROID_TRACE(("%s: cmd %s\n", __FUNCTION__, command));
+	pick_tmp = command;
 
-	sscanf(command, "%s %d %s", wl, &cmd, arg);
-	if (cmd < 0)
-		sscanf(command, "%s %s %s", wl, cmd_str, val_str);
+	pch = bcmstrtok(&pick_tmp, " ", 0); // pick wl
+	if (!pch || strncmp(pch, "wl", 2))
+		goto exit;
 
-	if (!strcmp(wl, "wl")) {
-		if (cmd>=0 && cmd!=WLC_GET_VAR && cmd!=WLC_SET_VAR) {
-			ret = sscanf(arg, "%d", &val);
-			if (ret > 0) { // set
-				ret = wl_ext_ioctl(dev, cmd, &val, sizeof(val), TRUE);
-			} else { // get
-				ret = wl_ext_ioctl(dev, cmd, &val, sizeof(val), FALSE);
-				if (!ret) {
-					bytes_written = snprintf(command, total_len, "%d", val);
-					ANDROID_TRACE(("%s: command result is %s\n", __FUNCTION__, command));
-					ret = bytes_written;
-				}
+	pch = bcmstrtok(&pick_tmp, " ", 0); // pick cmd
+	if (!pch)
+		goto exit;
+
+	memset(name, 0 , sizeof (name));
+	cmd = (int)simple_strtol(pch, NULL, 0);
+	if (cmd == 0) {
+		strcpy(name, pch);
+	}
+	data = bcmstrtok(&pick_tmp, " ", 0); // pick data
+	if (data && cmd == 0) {
+		cmd = WLC_SET_VAR;
+	} else if (cmd == 0) {
+		cmd = WLC_GET_VAR;
+	}
+
+	/* look for a matching code in the table */
+	for (i = 0; i < tpl_count; i++, tpl++) {
+		if ((tpl->get == cmd || tpl->set == cmd) && !strcmp(tpl->name, name))
+			break;
+	}
+	if (i < tpl_count && tpl->parse) {
+		ret = tpl->parse(dev, data, command, total_len);
+	} else {
+		if (cmd == WLC_SET_VAR) {
+			val = (int)simple_strtol(data, NULL, 0);
+			ANDROID_TRACE(("%s: set %s %d\n", __FUNCTION__, name, val));
+			ret = wl_ext_iovar_setint(dev, name, val);
+		} else if (cmd == WLC_GET_VAR) {
+			ANDROID_TRACE(("%s: get %s\n", __FUNCTION__, name));
+			ret = wl_ext_iovar_getint(dev, name, &val);
+			if (!ret) {
+				bytes_written = snprintf(command, total_len, "%d", val);
+				ANDROID_TRACE(("%s: command result is %s\n", __FUNCTION__,
+					command));
+				ret = bytes_written;
 			}
-		} else if (strlen(cmd_str)) {
-			ret = sscanf(val_str, "%d", &val);
-			if (ret > 0) { // set
-				ret = wl_ext_iovar_setint(dev, cmd_str, val);
-			} else { // get
-				ret = wl_ext_iovar_getint(dev, cmd_str, &val);
-				if (!ret) {
-					bytes_written = snprintf(command, total_len, "%d", val);
-					ANDROID_TRACE(("%s: command result is %s\n", __FUNCTION__, command));
-					ret = bytes_written;
-				}
+		} else if (data) {
+			val = (int)simple_strtol(data, NULL, 0);
+			ANDROID_TRACE(("%s: set %d %d\n", __FUNCTION__, cmd, val));
+			ret = wl_ext_ioctl(dev, cmd, &val, sizeof(val), TRUE);
+		} else {
+			ANDROID_TRACE(("%s: get %d\n", __FUNCTION__, cmd));
+			ret = wl_ext_ioctl(dev, cmd, &val, sizeof(val), FALSE);
+			if (!ret) {
+				bytes_written = snprintf(command, total_len, "%d", val);
+				ANDROID_TRACE(("%s: command result is %s\n", __FUNCTION__,
+					command));
+				ret = bytes_written;
 			}
 		}
 	}
 
+exit:
 	return ret;
 }
 
@@ -3159,7 +3219,7 @@ int wl_android_ext_priv_cmd(struct net_device *net, char *command,
 	}
 #endif
 	else if (strnicmp(command, CMD_WL, strlen(CMD_WL)) == 0) {
-		*bytes_written = wl_ext_iovar(net, command, total_len);
+		*bytes_written = wl_ext_wl_iovar(net, command, total_len);
 	}
 	else
 		ret = -1;
