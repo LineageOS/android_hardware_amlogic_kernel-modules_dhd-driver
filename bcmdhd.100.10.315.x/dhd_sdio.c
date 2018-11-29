@@ -786,6 +786,11 @@ static int _dhdsdio_download_btfw(struct dhd_bus *bus);
 static int dhd_bus_ulp_reinit_fw(dhd_bus_t *bus);
 #endif /* DHD_ULP */
 
+#ifdef DHD_WAKE_STATUS
+int bcmsdh_get_total_wake(bcmsdh_info_t *bcmsdh);
+int bcmsdh_set_get_wake(bcmsdh_info_t *bcmsdh, int flag);
+#endif /* DHD_WAKE_STATUS */
+
 static void
 dhdsdio_tune_fifoparam(struct dhd_bus *bus)
 {
@@ -7022,7 +7027,7 @@ clkwait:
 	} else if (bus->clkstate == CLK_PENDING) {
 		/* Awaiting I_CHIPACTIVE; don't resched */
 	} else if (bus->intstatus || bus->ipend ||
-	           (!bus->fcstate && pktq_mlen(&bus->txq, ~bus->flowcontrol) && DATAOK(bus)) ||
+			(!bus->fcstate && pktq_mlen(&bus->txq, ~bus->flowcontrol) && DATAOK(bus)) ||
 			PKT_AVAILABLE(bus, bus->intstatus)) {  /* Read multiple frames */
 		resched = TRUE;
 	}
@@ -10343,6 +10348,9 @@ int dhd_get_idletime(dhd_pub_t *dhd)
 wake_counts_t*
 dhd_bus_get_wakecount(dhd_pub_t *dhd)
 {
+	if (!dhd->bus) {
+		return NULL;
+	}
 	return &dhd->bus->wake_counts;
 }
 int

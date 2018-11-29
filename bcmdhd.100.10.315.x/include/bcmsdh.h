@@ -74,6 +74,10 @@ struct bcmsdh_info
 	uint32	sbwad;		/* Save backplane window address */
 	void	*os_cxt;        /* Pointer to per-OS private data */
 	bool	force_sbwad_calc; /* forces calculation of sbwad instead of using cached value */
+#ifdef DHD_WAKE_STATUS
+	unsigned int	total_wake_count;
+	int		pkt_wake;
+#endif /* DHD_WAKE_STATUS */
 };
 
 /* Detach - freeup resources allocated in attach */

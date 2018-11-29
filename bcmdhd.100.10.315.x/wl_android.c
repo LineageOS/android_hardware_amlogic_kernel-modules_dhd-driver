@@ -112,10 +112,6 @@ uint android_msg_level = ANDROID_ERROR_LEVEL;
 #define CMD_SETBAND		"SETBAND"
 #define CMD_GETBAND		"GETBAND"
 #define CMD_COUNTRY		"COUNTRY"
-#ifdef WLMESH
-#define CMD_SAE_SET_PASSWORD "SAE_SET_PASSWORD"
-#define CMD_SET_RSDB_MODE "RSDB_MODE"
-#endif
 #define CMD_P2P_SET_NOA		"P2P_SET_NOA"
 #define CMD_P2P_GET_NOA			"P2P_GET_NOA"
 #define CMD_P2P_SD_OFFLOAD		"P2P_SD_"
@@ -4981,16 +4977,6 @@ wl_handle_private_cmd(struct net_device *net, char *command, u32 cmd_len)
 	else if (strnicmp(command, CMD_P2P_DEV_ADDR, strlen(CMD_P2P_DEV_ADDR)) == 0) {
 		bytes_written = wl_android_get_p2p_dev_addr(net, command, priv_cmd.total_len);
 	}
-#ifdef WLMESH
-	else if (strnicmp(command, CMD_SAE_SET_PASSWORD, strlen(CMD_SAE_SET_PASSWORD)) == 0) {
-		int skip = strlen(CMD_SAE_SET_PASSWORD) + 1;
-		bytes_written = wl_cfg80211_set_sae_password(net, command + skip,
-			priv_cmd.total_len - skip);
-	}
-	else if (strnicmp(command, CMD_SET_RSDB_MODE, strlen(CMD_SET_RSDB_MODE)) == 0) {
-		bytes_written = wl_android_set_rsdb_mode(net, command, priv_cmd.total_len);
-	}
-#endif
 	else if (strnicmp(command, CMD_P2P_SET_NOA, strlen(CMD_P2P_SET_NOA)) == 0) {
 		int skip = strlen(CMD_P2P_SET_NOA) + 1;
 		bytes_written = wl_cfg80211_set_p2p_noa(net, command + skip,

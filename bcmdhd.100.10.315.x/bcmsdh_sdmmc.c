@@ -1163,7 +1163,7 @@ sdioh_request_packet_chain(sdioh_info_t *sd, uint fix_inc, uint write, uint func
 			 * a restriction on max tx/glom count (based on host->max_segs).
 			 */
 			if (sg_count >= ARRAYSIZE(sd->sg_list)) {
-				sd_err(("%s: sg list entries(%u) exceed limit(%lu),"
+				sd_err(("%s: sg list entries(%u) exceed limit(%zu),"
 					" sd blk_size=%u\n",
 					__FUNCTION__, sg_count, ARRAYSIZE(sd->sg_list), blk_size));
 				return (SDIOH_API_RC_FAIL);

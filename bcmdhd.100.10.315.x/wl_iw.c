@@ -128,6 +128,7 @@ extern int dhd_wait_pend8021x(struct net_device *dev);
 #define IW_EVENT_IDX(cmd)	((cmd) - IWEVFIRST)
 #endif /* WIRELESS_EXT < 19 */
 
+
 #ifndef WL_ESCAN
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
 #define DAEMONIZE(a)	do { \
