@@ -13826,8 +13826,10 @@ err:
 void
 dhd_os_close_image(void *image)
 {
-	if (image)
-		filp_close((struct file *)image, NULL);
+	struct file *filp = image;
+
+	if (filp && filp->f_op)
+		filp_close(filp, NULL);
 }
 
 void
