@@ -647,6 +647,8 @@ dbus_get_fw_nvram(dhd_bus_t *dhd_bus, char *pfw_path, char *pnv_path)
 	if (nv_image)
 		dhd_os_close_image(nv_image);
 
+	nv_image = NULL;
+
 	/* For Get first block of fw to calculate total_len */
 	file_exists = ((pfw_path != NULL) && (pfw_path[0] != '\0'));
 	if (file_exists) {
