@@ -31,6 +31,7 @@ extern int wifi_irq_trigger_level(void);
 extern u8 *wifi_get_mac(void);
 #endif
 extern  void sdio_reinit(void);
+extern void set_usb_bt_power(int is_power);
 extern void extern_wifi_set_enable(int is_on);
 extern void pci_remove_reinit(unsigned int vid, unsigned int pid, int delBus);
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0))
@@ -63,6 +64,12 @@ dhd_wlan_set_power(int on
 		extern_wifi_set_enable(1);
 		mdelay(200);
 //		sdio_reinit();
+#endif
+#ifdef BCMDBUS
+		set_usb_bt_power(0);
+		mdelay(200);
+		set_usb_bt_power(1);
+		mdelay(200);
 #endif
 #endif
 #if defined(BUS_POWER_RESTORE)
@@ -115,8 +122,14 @@ dhd_wlan_set_power(int on
 			}
 		}
 #ifdef CUSTOMER_HW_AMLOGIC
-//		extern_wifi_set_enable(0);
-//		mdelay(200);
+#ifdef BCMSIDO
+		extern_wifi_set_enable(0);
+		mdelay(200);
+#endif
+#ifdef BCMDBUS
+		set_usb_bt_power(0);
+		mdelay(200);
+#endif
 #endif
 	}
 
