@@ -1244,10 +1244,10 @@ sdioh_request_packet_chain(sdioh_info_t *sd, uint fix_inc, uint write, uint func
 					goto txglomfail;
 				}
 			}
-			
+
 			bcopy(buf, (localbuf + local_plen), pkt_len);
 			local_plen += pkt_len;
-			if (PKTNEXT(sd->osh, pnext)) 	
+			if (PKTNEXT(sd->osh, pnext))
 				continue;
 
 			buf = localbuf;

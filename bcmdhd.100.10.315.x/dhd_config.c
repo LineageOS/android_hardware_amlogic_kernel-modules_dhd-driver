@@ -46,6 +46,15 @@ uint config_msg_level = CONFIG_ERROR_LEVEL;
 #define htodchanspec(i) i
 #define dtohchanspec(i) i
 
+#define MAX_EVENT_BUF_NUM 16
+typedef struct eventmsg_buf {
+	u16 num;
+	struct {
+		u16 type;
+		bool set;
+	} event [MAX_EVENT_BUF_NUM];
+} eventmsg_buf_t;
+
 typedef struct cihp_name_map_t {
 	uint chip;
 	uint chiprev;
@@ -792,7 +801,8 @@ dhd_conf_set_country(dhd_pub_t *dhd, wl_country_t *cspec)
 	memset(&dhd->dhd_cspec, 0, sizeof(wl_country_t));
 
 	printf("%s: set country %s, revision %d\n", __FUNCTION__, cspec->ccode, cspec->rev);
-	dhd_conf_set_bufiovar(dhd, WLC_SET_VAR, "country", (char *)cspec, sizeof(wl_country_t), FALSE);
+	bcmerror = dhd_conf_set_bufiovar(dhd, WLC_SET_VAR, "country", (char *)cspec,
+		sizeof(wl_country_t), FALSE);
 	dhd_conf_get_country(dhd, cspec);
 	printf("Country code: %s (%s/%d)\n", cspec->country_abbrev, cspec->ccode, cspec->rev);
 
@@ -885,6 +895,85 @@ dhd_conf_set_roam(dhd_pub_t *dhd)
 	}
 
 	return bcmerror;
+}
+
+void
+dhd_conf_add_to_eventbuffer(struct eventmsg_buf *ev, u16 event, bool set)
+{
+	if (!ev || (event > WLC_E_LAST))
+		return;
+
+	if (ev->num < MAX_EVENT_BUF_NUM) {
+		ev->event[ev->num].type = event;
+		ev->event[ev->num].set = set;
+		ev->num++;
+	} else {
+		CONFIG_ERROR(("evenbuffer doesn't support > %u events. Update"
+			" the define MAX_EVENT_BUF_NUM \n", MAX_EVENT_BUF_NUM));
+		ASSERT(0);
+	}
+}
+
+s32
+dhd_conf_apply_eventbuffer(dhd_pub_t *dhd, eventmsg_buf_t *ev)
+{
+	char eventmask[WL_EVENTING_MASK_LEN];
+	int i, ret = 0;
+
+	if (!ev || (!ev->num))
+		return -EINVAL;
+
+	/* Read event_msgs mask */
+	ret = dhd_conf_get_iovar(dhd, WLC_GET_VAR, "event_msgs", eventmask, sizeof(eventmask), 0);
+	if (unlikely(ret)) {
+		CONFIG_ERROR(("Get event_msgs error (%d)\n", ret));
+		goto exit;
+	}
+
+	/* apply the set bits */
+	for (i = 0; i < ev->num; i++) {
+		if (ev->event[i].set)
+			setbit(eventmask, ev->event[i].type);
+		else
+			clrbit(eventmask, ev->event[i].type);
+	}
+
+	/* Write updated Event mask */
+	ret = dhd_conf_set_bufiovar(dhd, WLC_SET_VAR, "event_msgs", eventmask,
+		sizeof(eventmask), FALSE);
+	if (unlikely(ret)) {
+		CONFIG_ERROR(("Set event_msgs error (%d)\n", ret));
+	}
+
+exit:
+	return ret;
+}
+
+int
+dhd_conf_enable_roam_offload(dhd_pub_t *dhd, int enable)
+{
+	int err;
+	eventmsg_buf_t ev_buf;
+
+	if (dhd->conf->roam_off_suspend)
+		return 0;
+
+	err = dhd_conf_set_intiovar(dhd, WLC_SET_VAR, "roam_offload", enable, 0, FALSE);
+	if (err)
+		return err;
+
+	bzero(&ev_buf, sizeof(eventmsg_buf_t));
+	dhd_conf_add_to_eventbuffer(&ev_buf, WLC_E_PSK_SUP, !enable);
+	dhd_conf_add_to_eventbuffer(&ev_buf, WLC_E_ASSOC_REQ_IE, !enable);
+	dhd_conf_add_to_eventbuffer(&ev_buf, WLC_E_ASSOC_RESP_IE, !enable);
+	dhd_conf_add_to_eventbuffer(&ev_buf, WLC_E_REASSOC, !enable);
+	dhd_conf_add_to_eventbuffer(&ev_buf, WLC_E_JOIN, !enable);
+	dhd_conf_add_to_eventbuffer(&ev_buf, WLC_E_ROAM, !enable);
+	err = dhd_conf_apply_eventbuffer(dhd, &ev_buf);
+
+	CONFIG_TRACE(("%s: roam_offload %d\n", __FUNCTION__, enable));
+
+	return err;
 }
 
 void
@@ -1160,59 +1249,87 @@ dhd_conf_get_pm(dhd_pub_t *dhd)
 	return -1;
 }
 
-#define AP_IN_SUSPEND 1
-#define AP_DOWN_IN_SUSPEND 2
-int
-dhd_conf_get_ap_mode_in_suspend(dhd_pub_t *dhd)
+uint
+dhd_conf_get_insuspend(dhd_pub_t *dhd)
 {
-	int mode = 0;
+	uint mode = 0;
 
-	/* returned ap_in_suspend value:
-	 * 0: nothing
-	 * 1: ap enabled in suspend
-	 * 2: ap enabled, but down in suspend
-	 */
-	if (dhd->op_mode & DHD_FLAG_HOSTAP_MODE) {
-		mode = dhd->conf->ap_in_suspend;
+	if (dhd->op_mode & DHD_FLAG_STA_MODE) {
+		mode = dhd->conf->insuspend &
+			(NO_EVENT_IN_SUSPEND | NO_TXDATA_IN_SUSPEND | ROAM_OFFLOAD_IN_SUSPEND);
+	} else if (dhd->op_mode & DHD_FLAG_HOSTAP_MODE) {
+		mode = dhd->conf->insuspend &
+			(NO_EVENT_IN_SUSPEND | NO_TXDATA_IN_SUSPEND | AP_DOWN_IN_SUSPEND);
 	}
 
 	return mode;
 }
 
 int
-dhd_conf_set_ap_in_suspend(dhd_pub_t *dhd, int suspend)
+dhd_conf_set_suspend_resume(dhd_pub_t *dhd, int suspend)
 {
-	int mode = 0;
-	uint wl_down = 1;
+	uint mode = 0, wl_down = 1;
+	struct dhd_conf *conf = dhd->conf;
 
-	mode = dhd_conf_get_ap_mode_in_suspend(dhd);
+	mode = dhd_conf_get_insuspend(dhd);
 	if (mode)
-		printf("%s: suspend %d, mode %d\n", __FUNCTION__, suspend, mode);
+		printf("%s: op_mode %d, suspend %d, mode 0x%x\n", __FUNCTION__,
+			dhd->op_mode, suspend, mode);
+
 	if (suspend) {
-		if (mode == AP_IN_SUSPEND) {
-#ifdef SUSPEND_EVENT
-			if (dhd->conf->suspend_eventmask_enable) {
-				char *eventmask = dhd->conf->suspend_eventmask;
-				dhd_conf_set_bufiovar(dhd, WLC_SET_VAR, "event_msgs", eventmask, sizeof(eventmask), TRUE);
+		if (dhd->op_mode & DHD_FLAG_STA_MODE) {
+			if (mode & ROAM_OFFLOAD_IN_SUSPEND)
+				dhd_conf_enable_roam_offload(dhd, 1);
+		} else if (dhd->op_mode & DHD_FLAG_HOSTAP_MODE) {
+			if (mode & AP_DOWN_IN_SUSPEND) {
+				dhd_wl_ioctl_cmd(dhd, WLC_DOWN, (char *)&wl_down,
+					sizeof(wl_down), TRUE, 0);
 			}
-#endif
-		} else if (mode == AP_DOWN_IN_SUSPEND)
-			dhd_wl_ioctl_cmd(dhd, WLC_DOWN, (char *)&wl_down, sizeof(wl_down), TRUE, 0);
-	} else {
-		if (mode == AP_IN_SUSPEND) {
-#ifdef SUSPEND_EVENT
-			if (dhd->conf->suspend_eventmask_enable) {
-				char *eventmask = dhd->conf->resume_eventmask;
-				dhd_conf_set_bufiovar(dhd, WLC_SET_VAR, "event_msgs", eventmask, sizeof(eventmask), TRUE);
-			}
-#endif
-		} else if (mode == AP_DOWN_IN_SUSPEND) {
-			wl_down = 0;
-			dhd_wl_ioctl_cmd(dhd, WLC_UP, (char *)&wl_down, sizeof(wl_down), TRUE, 0);
 		}
+#ifdef SUSPEND_EVENT
+		if (mode & NO_EVENT_IN_SUSPEND) {
+			char suspend_eventmask[WL_EVENTING_MASK_LEN];
+			if (!conf->suspended) {
+				dhd_conf_get_iovar(dhd, WLC_GET_VAR, "event_msgs",
+					conf->resume_eventmask, sizeof(conf->resume_eventmask), 0);
+			}
+			memset(suspend_eventmask, 0, sizeof(suspend_eventmask));
+			dhd_conf_set_bufiovar(dhd, WLC_SET_VAR, "event_msgs",
+				suspend_eventmask, sizeof(suspend_eventmask), FALSE);
+		}
+#endif
+		conf->suspended = TRUE;
+	} else {
+#ifdef SUSPEND_EVENT
+		if (mode & NO_EVENT_IN_SUSPEND) {
+			dhd_conf_set_bufiovar(dhd, WLC_SET_VAR, "event_msgs",
+				conf->resume_eventmask, sizeof(conf->resume_eventmask), FALSE);
+			if (dhd->op_mode & DHD_FLAG_STA_MODE) {
+				struct ether_addr bssid;
+				int ret = 0;
+				ret = dhd_wl_ioctl_cmd(dhd, WLC_GET_BSSID, &bssid,
+					sizeof(struct ether_addr), FALSE, 0);
+				if (ret != BCME_NOTASSOCIATED && !memcmp(&ether_null, &bssid, ETHER_ADDR_LEN)) {
+					CONFIG_TRACE(("%s: send disassoc\n", __FUNCTION__));
+					dhd_conf_set_intiovar(dhd, WLC_DISASSOC, "WLC_DISASSOC", 0, 0, FALSE);
+				}
+			}
+		}
+#endif
+		if (dhd->op_mode & DHD_FLAG_STA_MODE) {
+			if (mode & ROAM_OFFLOAD_IN_SUSPEND)
+				dhd_conf_enable_roam_offload(dhd, 0);
+		} else if (dhd->op_mode & DHD_FLAG_HOSTAP_MODE) {
+			if (mode & AP_DOWN_IN_SUSPEND) {
+				wl_down = 0;
+				dhd_wl_ioctl_cmd(dhd, WLC_UP, (char *)&wl_down,
+					sizeof(wl_down), TRUE, 0);
+			}
+		}
+		conf->suspended = FALSE;
 	}
 
-	return mode;
+	return 0;
 }
 
 #ifdef PROP_TXSTATUS
@@ -2099,24 +2216,15 @@ dhd_conf_read_pm_params(dhd_pub_t *dhd, char *full_param, uint len_param)
 	}
 	else if (!strncmp("xmit_in_suspend=", full_param, len_param)) {
 		if (!strncmp(data, "1", 1))
-			conf->xmit_in_suspend = TRUE;
+			conf->insuspend &= ~NO_TXDATA_IN_SUSPEND;
 		else
-			conf->xmit_in_suspend = FALSE;
-		printf("%s: xmit_in_suspend = %d\n", __FUNCTION__, conf->xmit_in_suspend);
+			conf->insuspend |= NO_TXDATA_IN_SUSPEND;
+		printf("%s: insuspend = 0x%x\n", __FUNCTION__, conf->insuspend);
 	}
-	else if (!strncmp("ap_in_suspend=", full_param, len_param)) {
-		conf->ap_in_suspend = (int)simple_strtol(data, NULL, 10);
-		printf("%s: ap_in_suspend = %d\n", __FUNCTION__, conf->ap_in_suspend);
+	else if (!strncmp("insuspend=", full_param, len_param)) {
+		conf->insuspend = (int)simple_strtol(data, NULL, 0);
+		printf("%s: insuspend = 0x%x\n", __FUNCTION__, conf->insuspend);
 	}
-#ifdef SUSPEND_EVENT
-	else if (!strncmp("suspend_eventmask_enable=", full_param, len_param)) {
-		if (!strncmp(data, "1", 1))
-			conf->suspend_eventmask_enable = TRUE;
-		else
-			conf->suspend_eventmask_enable = FALSE;
-		printf("%s: suspend_eventmask_enable = %d\n", __FUNCTION__, conf->suspend_eventmask_enable);
-	}
-#endif
 	else
 		return false;
 
@@ -2582,7 +2690,7 @@ dhd_conf_postinit_ioctls(dhd_pub_t *dhd)
 	dhd_conf_set_intiovar(dhd, WLC_SET_BAND, "WLC_SET_BAND", conf->band, 0, FALSE);
 	dhd_conf_set_intiovar(dhd, WLC_SET_VAR, "bcn_timeout", conf->bcn_timeout, 0, FALSE);
 	dhd_conf_set_intiovar(dhd, WLC_SET_PM, "PM", conf->pm, 0, FALSE);
-	dhd_conf_set_intiovar(dhd, WLC_SET_SRL, "WLC_SET_SRL", conf->srl, 0, TRUE);
+	dhd_conf_set_intiovar(dhd, WLC_SET_SRL, "WLC_SET_SRL", conf->srl, 0, FALSE);
 	dhd_conf_set_intiovar(dhd, WLC_SET_LRL, "WLC_SET_LRL", conf->lrl, 0, FALSE);
 	dhd_conf_set_bw_cap(dhd);
 	dhd_conf_set_roam(dhd);
@@ -2728,11 +2836,8 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 	conf->pm = -1;
 	conf->pm_in_suspend = -1;
 	conf->suspend_bcn_li_dtim = -1;
-	conf->xmit_in_suspend = TRUE;
-	conf->ap_in_suspend = 0;
+	conf->insuspend = 0;
 #ifdef SUSPEND_EVENT
-	conf->suspend_eventmask_enable = FALSE;
-	memset(&conf->suspend_eventmask, 0, sizeof(conf->suspend_eventmask));
 	memset(&conf->resume_eventmask, 0, sizeof(conf->resume_eventmask));
 #endif
 #ifdef IDHCP

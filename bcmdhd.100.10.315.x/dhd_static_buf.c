@@ -6,7 +6,7 @@
 #include <linux/err.h>
 #include <linux/skbuff.h>
 
-#define	DHD_STATIC_VERSION_STR		"100.10.315.1"
+#define	DHD_STATIC_VERSION_STR		"100.10.315.2"
 
 #define BCMDHD_SDIO
 #define BCMDHD_PCIE
@@ -52,7 +52,7 @@ enum dhd_prealloc_index {
 #define DHD_PREALLOC_OSL_BUF_SIZE	(STATIC_BUF_MAX_NUM * STATIC_BUF_SIZE)
 #define DHD_PREALLOC_WIPHY_ESCAN0_SIZE	(64 * 1024)
 #define DHD_PREALLOC_DHD_INFO_SIZE	(32 * 1024)
-#define DHD_PREALLOC_MEMDUMP_RAM_SIZE	(810 * 1024)
+#define DHD_PREALLOC_MEMDUMP_RAM_SIZE	(1290 * 1024)
 #define DHD_PREALLOC_DHD_WLFC_HANGER_SIZE	(73 * 1024)
 #define DHD_PREALLOC_WL_ESCAN_INFO_SIZE	(66 * 1024)
 #ifdef CONFIG_64BIT
@@ -416,7 +416,7 @@ err_mem_alloc:
 
 	if (wlan_static_wl_escan_info_buf)
 		kfree(wlan_static_wl_escan_info_buf);
-	
+
 #ifdef BCMDHD_PCIE
 	if (wlan_static_fw_verbose_ring_buf)
 		kfree(wlan_static_fw_verbose_ring_buf);
@@ -512,7 +512,7 @@ dhd_static_buf_exit(void)
 
 	if (wlan_static_wl_escan_info_buf)
 		kfree(wlan_static_wl_escan_info_buf);
-	
+
 #ifdef BCMDHD_PCIE
 	if (wlan_static_fw_verbose_ring_buf)
 		kfree(wlan_static_fw_verbose_ring_buf);

@@ -471,7 +471,6 @@ int wldev_set_country(
 	int error = -1;
 	wl_country_t cspec = {{0}, 0, {0}};
 	scb_val_t scbval;
-	char smbuf[WLC_IOCTL_SMLEN];
 #ifdef WL_CFG80211
 	struct wireless_dev *wdev = ndev_to_wdev(dev);
 	struct wiphy *wiphy = wdev->wiphy;
@@ -518,8 +517,7 @@ int wldev_set_country(
 		error = dhd_conf_map_country_list(dhd_get_pub(dev), &cspec);
 		if (error)
 			dhd_get_customized_country_code(dev, (char *)&cspec.country_abbrev, &cspec);
-		error = wldev_iovar_setbuf(dev, "country", &cspec, sizeof(cspec),
-			smbuf, sizeof(smbuf), NULL);
+		error = dhd_conf_set_country(dhd_get_pub(dev), &cspec);
 		if (error < 0) {
 			WLDEV_ERROR(("%s: set country for %s as %s rev %d failed\n",
 				__FUNCTION__, country_code, cspec.ccode, cspec.rev));

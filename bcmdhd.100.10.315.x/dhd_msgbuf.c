@@ -6834,6 +6834,7 @@ dhd_msgbuf_wait_ioctl_cmplt(dhd_pub_t *dhd, uint32 len, void *buf)
 			if (intstatus) {
 				DHD_ERROR(("%s: reschedule dhd_dpc, cnt=%d, intstatus=0x%x, intmask=0x%x\n",
 					__FUNCTION__, cnt, intstatus, intmask));
+				dhd->bus->intstatus = intstatus;
 				dhd->bus->ipend = TRUE;
 				dhd->bus->dpc_sched = TRUE;
 				dhd_sched_dpc(dhd);

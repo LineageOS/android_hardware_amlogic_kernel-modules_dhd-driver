@@ -5256,7 +5256,7 @@ int wl_android_init(void)
 {
 	int ret = 0;
 
-#ifdef ENABLE_INSMOD_NO_FW_LOAD
+#if defined(ENABLE_INSMOD_NO_FW_LOAD) || defined(BUS_POWER_RESTORE)
 	dhd_download_fw_on_driverload = FALSE;
 #endif /* ENABLE_INSMOD_NO_FW_LOAD */
 	if (!iface_name[0]) {

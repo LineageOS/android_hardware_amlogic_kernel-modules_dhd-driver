@@ -32,6 +32,21 @@
 #include <wl_escan.h>
 #endif
 
+#if defined(WL_WIRELESS_EXT)
+#define WL_PM_ENABLE_TIMEOUT 10000
+#if defined(STRICT_GCC_WARNINGS) && defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == \
+	4 && __GNUC_MINOR__ >= 6))
+#define BCM_SET_CONTAINER_OF(entry, ptr, type, member) \
+_Pragma("GCC diagnostic push") \
+_Pragma("GCC diagnostic ignored \"-Wcast-qual\"") \
+entry = container_of((ptr), type, member); \
+_Pragma("GCC diagnostic pop")
+#else
+#define BCM_SET_CONTAINER_OF(entry, ptr, type, member) \
+entry = container_of((ptr), type, member);
+#endif /* STRICT_GCC_WARNINGS */
+#endif /* defined(WL_WIRELESS_EXT) */
+
 #ifndef WL_CFG80211
 #define htod32(i) i
 #define htod16(i) i
@@ -252,6 +267,7 @@ typedef struct wl_apsta_params {
 	uint csa;
 	apstamode_t apstamode;
 	bool netif_change;
+	bool mesh_creating;
 	wait_queue_head_t netif_change_event;
 } wl_apsta_params_t;
 
@@ -487,13 +503,13 @@ set_channel:
 				if (bw == WL_CHANSPEC_BW_80)
 					goto change_bw;
 				wl_ext_ioctl(dev, WLC_SET_CHANNEL, &_chan, sizeof(_chan), 1);
-				printf("%s: channel %d\n", __FUNCTION__, _chan);
+				ANDROID_MSG(("%s: channel %d\n", __FUNCTION__, _chan));
 			} else if (err) {
 				ANDROID_ERROR(("%s: failed to set chanspec error %d\n",
 					__FUNCTION__, err));
 			} else
-				printf("%s: %s channel %d, 0x%x\n", __FUNCTION__,
-					dev->name, channel, chspec);
+				ANDROID_MSG(("%s: %s channel %d, 0x%x\n", __FUNCTION__,
+					dev->name, channel, chspec));
 		} else {
 			ANDROID_ERROR(("%s: failed to convert host chanspec to fw chanspec\n",
 				__FUNCTION__));
@@ -572,9 +588,8 @@ wl_ext_channels(struct net_device *dev, char* command, int total_len)
 		for (i = 0; i < dtoh32(list->count); i++) {
 			bytes_written += snprintf(command+bytes_written, total_len, " %d",
 				dtoh32(list->element[i]));
-			printf("%d ", dtoh32(list->element[i]));
 		}
-		printf("\n");
+		ANDROID_TRACE(("%s: command result is %s\n", __FUNCTION__, command));
 		ret = bytes_written;
 	}
 
@@ -678,23 +693,25 @@ wl_ext_keep_alive(struct net_device *dev, char *command, int total_len)
 			goto exit;
 		} else {
 			mkeep_alive_pktp = (wl_mkeep_alive_pkt_t *) buf;
-			printf("Id            :%d\n"
-					"Period (msec) :%d\n"
-					"Length        :%d\n"
-					"Packet        :0x",
-					mkeep_alive_pktp->keep_alive_id,
-					dtoh32(mkeep_alive_pktp->period_msec),
-					dtoh16(mkeep_alive_pktp->len_bytes));
-			for (i=0; i<mkeep_alive_pktp->len_bytes; i++) {
-				printf("%02x", mkeep_alive_pktp->data[i]);
+			if (android_msg_level & ANDROID_INFO_LEVEL) {
+				printf("Id            :%d\n"
+						"Period (msec) :%d\n"
+						"Length        :%d\n"
+						"Packet        :0x",
+						mkeep_alive_pktp->keep_alive_id,
+						dtoh32(mkeep_alive_pktp->period_msec),
+						dtoh16(mkeep_alive_pktp->len_bytes));
+				for (i=0; i<mkeep_alive_pktp->len_bytes; i++) {
+					printf("%02x", mkeep_alive_pktp->data[i]);
+				}
+				printf("\n");
 			}
-			printf("\n");
 		}
 		bytes_written = snprintf(command, total_len, "mkeep_alive_period_msec %d ",
 			dtoh32(mkeep_alive_pktp->period_msec));
 		bytes_written += snprintf(command+bytes_written, total_len, "0x");
 		for (i=0; i<mkeep_alive_pktp->len_bytes; i++) {
-			bytes_written += snprintf(command+bytes_written, total_len, "%x",
+			bytes_written += snprintf(command+bytes_written, total_len, "%02x",
 				mkeep_alive_pktp->data[i]);
 		}
 		ANDROID_TRACE(("%s: command result is %s\n", __FUNCTION__, command));
@@ -830,9 +847,9 @@ wl_ext_connect(struct net_device *dev, struct wl_conn_info *conn_info)
 	err = wl_ext_iovar_setbuf_bsscfg(dev, "join", ext_join_params,
 		join_params_size, iovar_buf, WLC_IOCTL_SMLEN, conn_info->bssidx, NULL);
 
-	printf("Connecting with " MACDBG " channel (%d) ssid \"%s\", len (%d)\n\n",
+	ANDROID_MSG(("Connecting with " MACDBG " channel (%d) ssid \"%s\", len (%d)\n\n",
 		MAC2STRDBG((u8*)(&ext_join_params->assoc.bssid)), conn_info->channel,
-		ext_join_params->ssid.SSID, ext_join_params->ssid.SSID_len);
+		ext_join_params->ssid.SSID, ext_join_params->ssid.SSID_len));
 
 	kfree(ext_join_params);
 	if (err) {
@@ -871,6 +888,79 @@ exit:
 	return err;
 
 }
+
+#if defined(WL_WIRELESS_EXT)
+void wl_ext_pm_work_handler(struct work_struct * work)
+{
+	struct wl_conn_info *conn_info;
+	s32 pm = PM_FAST;
+	dhd_pub_t *dhd;
+	BCM_SET_CONTAINER_OF(conn_info, work, struct wl_conn_info, pm_enable_work.work);
+
+	ANDROID_TRACE(("%s: Enter\n", __FUNCTION__));
+#if defined(STRICT_GCC_WARNINGS) && defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == \
+	4 && __GNUC_MINOR__ >= 6))
+_Pragma("GCC diagnostic push")
+_Pragma("GCC diagnostic ignored \"-Wcast-qual\"")
+#endif
+
+	dhd = (dhd_pub_t *)(conn_info->dhd);
+	if (!dhd || !conn_info->dhd->up) {
+		ANDROID_TRACE(("%s: dhd is null or not up\n", __FUNCTION__));
+		return;
+	}
+	if (dhd_conf_get_pm(dhd) >= 0)
+		pm = dhd_conf_get_pm(dhd);
+	wl_ext_ioctl(conn_info->dev, WLC_SET_PM, &pm, sizeof(pm), 1);
+#if defined(STRICT_GCC_WARNINGS) && defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == \
+	4 && __GNUC_MINOR__ >= 6))
+_Pragma("GCC diagnostic pop")
+#endif
+	DHD_PM_WAKE_UNLOCK(conn_info->dhd);
+
+}
+
+void wl_ext_add_remove_pm_enable_work(struct wl_conn_info *conn_info,
+	bool add)
+{
+	u16 wq_duration = 0;
+	s32 pm = PM_OFF;
+
+	if (conn_info == NULL || conn_info->dhd == NULL)
+		return;
+
+	mutex_lock(&conn_info->pm_sync);
+	/*
+	 * Make cancel and schedule work part mutually exclusive
+	 * so that while cancelling, we are sure that there is no
+	 * work getting scheduled.
+	 */
+
+	if (delayed_work_pending(&conn_info->pm_enable_work)) {
+		cancel_delayed_work_sync(&conn_info->pm_enable_work);
+		DHD_PM_WAKE_UNLOCK(conn_info->dhd);
+	}
+
+	if (add) {
+		wq_duration = (WL_PM_ENABLE_TIMEOUT);
+	}
+
+	/* It should schedule work item only if driver is up */
+	if (wq_duration && conn_info->dhd->up) {
+		if (dhd_conf_get_pm(conn_info->dhd) >= 0)
+			pm = dhd_conf_get_pm(conn_info->dhd);
+		wl_ext_ioctl(conn_info->dev, WLC_SET_PM, &pm, sizeof(pm), 1);
+		if (schedule_delayed_work(&conn_info->pm_enable_work,
+				msecs_to_jiffies((const unsigned int)wq_duration))) {
+			DHD_PM_WAKE_LOCK_TIMEOUT(conn_info->dhd, wq_duration);
+		} else {
+			ANDROID_ERROR(("%s: Can't schedule pm work handler\n", __FUNCTION__));
+		}
+	}
+	mutex_unlock(&conn_info->pm_sync);
+
+}
+#endif /* defined(WL_WIRELESS_EXT) */
 
 #ifdef WL_EXT_IAPSTA
 static int
@@ -1299,6 +1389,17 @@ wl_ext_wait_netif_change(struct wl_apsta_params *apsta_params,
 		rtnl_lock();
 }
 
+bool
+wl_ext_check_mesh_creating(struct net_device *net)
+{
+	struct dhd_pub *dhd = dhd_get_pub(net);
+	struct wl_apsta_params *apsta_params = dhd->iapsta_params;
+
+	if (apsta_params)
+		return apsta_params->mesh_creating;
+	return FALSE;
+}
+
 static void
 wl_ext_iapsta_preinit(struct net_device *dev, struct wl_apsta_params *apsta_params)
 {
@@ -1372,7 +1473,7 @@ wl_ext_iapsta_preinit(struct net_device *dev, struct wl_apsta_params *apsta_para
 			wl_config_t rsdb_mode_cfg = {0, 0};
 			if (apsta_params->rsdb)
 				rsdb_mode_cfg.config = 1;
-			printf("%s: set rsdb_mode %d\n", __FUNCTION__, rsdb_mode_cfg.config);
+			ANDROID_MSG(("%s: set rsdb_mode %d\n", __FUNCTION__, rsdb_mode_cfg.config));
 			wl_ext_ioctl(dev, WLC_DOWN, NULL, 0, 1);
 			wl_ext_iovar_setbuf(dev, "rsdb_mode", &rsdb_mode_cfg,
 				sizeof(rsdb_mode_cfg), iovar_buf, sizeof(iovar_buf), NULL);
@@ -1503,9 +1604,11 @@ wl_ext_iapsta_preinit(struct net_device *dev, struct wl_apsta_params *apsta_para
 		iface.ver = WL_INTERFACE_CREATE_VER;
 		iface.flags = WL_INTERFACE_CREATE_STA;
 		apsta_params->netif_change = FALSE;
+		apsta_params->mesh_creating = TRUE;
 		wl_ext_iovar_getbuf(dev, "interface_create", &iface, sizeof(iface),
 			iovar_buf, WLC_IOCTL_SMLEN, NULL);
 		wl_ext_wait_netif_change(apsta_params, TRUE);
+		apsta_params->mesh_creating = FALSE;
 	}
 	else if (apstamode == IMESHAP_MODE) {
 		wl_ext_ioctl(dev, WLC_DOWN, NULL, 0, 1);
@@ -1516,11 +1619,13 @@ wl_ext_iapsta_preinit(struct net_device *dev, struct wl_apsta_params *apsta_para
 		// don't set WLC_SET_AP to 0, some parameters will be reset, such as bcn_timeout and roam_off
 		bzero(&iface, sizeof(wl_interface_create_t));
 		iface.ver = WL_INTERFACE_CREATE_VER;
-		iface.flags = WL_INTERFACE_CREATE_AP;
+		iface.flags = WL_INTERFACE_CREATE_STA;
 		apsta_params->netif_change = FALSE;
+		apsta_params->mesh_creating = TRUE;
 		wl_ext_iovar_getbuf(dev, "interface_create", &iface, sizeof(iface),
 			iovar_buf, WLC_IOCTL_SMLEN, NULL);
 		wl_ext_wait_netif_change(apsta_params, TRUE);
+		apsta_params->mesh_creating = FALSE;
 	}
 	else if (apstamode == IMESHAPSTA_MODE) {
 		wl_ext_ioctl(dev, WLC_DOWN, NULL, 0, 1);
@@ -1540,9 +1645,11 @@ wl_ext_iapsta_preinit(struct net_device *dev, struct wl_apsta_params *apsta_para
 		iface.ver = WL_INTERFACE_CREATE_VER;
 		iface.flags = WL_INTERFACE_CREATE_STA;
 		apsta_params->netif_change = FALSE;
+		apsta_params->mesh_creating = TRUE;
 		wl_ext_iovar_getbuf(dev, "interface_create", &iface, sizeof(iface),
 			iovar_buf, WLC_IOCTL_SMLEN, NULL);
 		wl_ext_wait_netif_change(apsta_params, TRUE);
+		apsta_params->mesh_creating = FALSE;
 	}
 	else if (apstamode == IMESHAPAP_MODE) {
 		wl_ext_ioctl(dev, WLC_DOWN, NULL, 0, 1);
@@ -1582,7 +1689,7 @@ wl_ext_iapsta_preinit(struct net_device *dev, struct wl_apsta_params *apsta_para
 	wl_ext_get_ioctl_ver(dev, &apsta_params->ioctl_ver);
 	apsta_params->init = TRUE;
 
-	printf("%s: apstamode=%d\n", __FUNCTION__, apstamode);
+	ANDROID_MSG(("%s: apstamode=%d\n", __FUNCTION__, apstamode));
 }
 
 static int
@@ -2062,9 +2169,9 @@ wl_mesh_print_peer_info(mesh_peer_info_ext_t *mpi_ext,
 				mpi_ext->rssi);
 		} else {
 			bytes_written += snprintf(command+bytes_written, total_len,
-				"\n%d: %pM : %6s : %5s : %6s :"
+				"\n%2d: %pM : %6s : %5s : %6s :"
 				" %5s : %4s : %4s : %11s : %4s",
-				count, &mpi_ext->ea, "  NA  ", "  NA ", "  NA  ",
+				count, &mpi_ext->ea, "  NA  ", "  NA  ", "  NA  ",
 				"  NA ", " NA ", " NA ", "  TIMEDOUT ", " NA ");
 		}
 		mpi_ext++;
@@ -2138,7 +2245,8 @@ wl_ext_if_down(struct wl_apsta_params *apsta_params, struct wl_if_info *cur_if)
 	} bss_setbuf;
 	apstamode_t apstamode = apsta_params->apstamode;
 
-	printf("%s: %s[%c] Turning off\n", __FUNCTION__, cur_if->ifname, cur_if->prefix);
+	ANDROID_MSG(("%s: %s[%c] Turning off\n", __FUNCTION__,
+		cur_if->ifname, cur_if->prefix));
 
 	if (cur_if->ifmode == ISTA_MODE) {
 		wl_ext_ioctl(cur_if->dev, WLC_DISASSOC, NULL, 0, 1);
@@ -2178,12 +2286,13 @@ wl_ext_if_up(struct wl_apsta_params *apsta_params, struct wl_if_info *cur_if)
 	}
 
 	if (cur_if->channel >= 52 && cur_if->channel <= 148) {
-		printf("%s: %s[%c] skip DFS channel %d\n", __FUNCTION__,
-			cur_if->ifname, cur_if->prefix, cur_if->channel);
+		ANDROID_MSG(("%s: %s[%c] skip DFS channel %d\n", __FUNCTION__,
+			cur_if->ifname, cur_if->prefix, cur_if->channel));
 		return 0;
 	}
 
-	printf("%s: %s[%c] Turning on\n", __FUNCTION__, cur_if->ifname, cur_if->prefix);
+	ANDROID_MSG(("%s: %s[%c] Turning on\n", __FUNCTION__,
+		cur_if->ifname, cur_if->prefix));
 
 	wl_ext_set_chanspec(cur_if->dev, apsta_params->ioctl_ver, cur_if->channel,
 		&fw_chspec);
@@ -2256,7 +2365,7 @@ wl_ext_iapsta_disable(struct net_device *dev, char *command, int total_len)
 		return -1;
 	}
 
-	printf("%s: %s[%c] Disabling\n", __FUNCTION__, ifname, cur_if->prefix);
+	ANDROID_MSG(("%s: %s[%c] Disabling\n", __FUNCTION__, ifname, cur_if->prefix));
 
 	if (cur_if->ifmode == ISTA_MODE) {
 		wl_ext_ioctl(cur_if->dev, WLC_DISASSOC, NULL, 0, 1);
@@ -2327,7 +2436,7 @@ wl_ext_iapsta_disable(struct net_device *dev, char *command, int total_len)
 
 	cur_if->ifstate = IF_STATE_DISALBE;
 
-	printf("%s: %s[%c] disabled\n", __FUNCTION__, ifname, cur_if->prefix);
+	ANDROID_MSG(("%s: %s[%c] disabled\n", __FUNCTION__, ifname, cur_if->prefix));
 
 	return 0;
 }
@@ -2372,11 +2481,11 @@ wl_ext_triger_csa(struct wl_apsta_params *apsta_params, struct wl_if_info *cur_i
 	if (apsta_params->csa & CSA_DRV_BIT &&
 			(cur_if->ifmode == IAP_MODE || cur_if->ifmode == IMESH_MODE)) {
 		if (!cur_if->channel) {
-			printf("%s: %s[%c] skip channel %d\n", __FUNCTION__,
-				cur_if->ifname, cur_if->prefix, cur_if->channel);
+			ANDROID_MSG(("%s: %s[%c] skip channel %d\n", __FUNCTION__,
+				cur_if->ifname, cur_if->prefix, cur_if->channel));
 		} else if (cur_if->channel >= 52 && cur_if->channel <= 148) {
-			printf("%s: %s[%c] skip DFS channel %d\n", __FUNCTION__,
-				cur_if->ifname, cur_if->prefix, cur_if->channel);
+			ANDROID_MSG(("%s: %s[%c] skip DFS channel %d\n", __FUNCTION__,
+				cur_if->ifname, cur_if->prefix, cur_if->channel));
 			wl_ext_if_down(apsta_params, cur_if);
 		} else {
 			wl_chan_switch_t csa_arg;
@@ -2386,14 +2495,14 @@ wl_ext_triger_csa(struct wl_apsta_params *apsta_params, struct wl_if_info *cur_i
 			csa_arg.chspec = wl_ext_get_chanspec(apsta_params, cur_if->dev,
 				cur_if->channel);
 			if (csa_arg.chspec) {
-				printf("%s: Trigger CSA to channel %d(0x%x)\n", __FUNCTION__,
-					cur_if->channel, csa_arg.chspec);
+				ANDROID_MSG(("%s: Trigger CSA to channel %d(0x%x)\n", __FUNCTION__,
+					cur_if->channel, csa_arg.chspec));
 				wl_ext_iovar_setbuf(cur_if->dev, "csa", &csa_arg, sizeof(csa_arg),
 					iovar_buf, sizeof(iovar_buf), NULL);
 				OSL_SLEEP(500);
 				wl_ext_isam_status(cur_if->dev, NULL, 0);
 			} else {
-				printf("%s: fail to get chanspec\n", __FUNCTION__);
+				ANDROID_ERROR(("%s: fail to get chanspec\n", __FUNCTION__));
 			}
 		}
 	}
@@ -2433,21 +2542,21 @@ wl_ext_move_cur_channel(struct wl_apsta_params *apsta_params,
 		tmp_chan = wl_ext_get_chan(apsta_params, cur_if->dev);
 		if (apsta_params->rsdb && tmp_chan &&
 				wl_ext_diff_band(tmp_chan, target_chan)) {
-			printf("%s: %s[%c] keep on current channel %d\n", __FUNCTION__,
-				cur_if->ifname, cur_if->prefix, tmp_chan);
+			ANDROID_MSG(("%s: %s[%c] keep on current channel %d\n", __FUNCTION__,
+				cur_if->ifname, cur_if->prefix, tmp_chan));
 			cur_if->channel = 0;
 		} else {
-			printf("%s: %s[%c] channel=%d => %s[%c] channel=%d\n", __FUNCTION__,
+			ANDROID_MSG(("%s: %s[%c] channel=%d => %s[%c] channel=%d\n", __FUNCTION__,
 				cur_if->ifname, cur_if->prefix, cur_if->channel,
-				target_if->ifname, target_if->prefix, target_chan);
+				target_if->ifname, target_if->prefix, target_chan));
 			cur_if->channel = target_chan;
 		}
 	}
 exit:
 	if ((cur_if->ifmode == IAP_MODE || cur_if->ifmode == IMESH_MODE) &&
 			(cur_if->channel >= 52 && cur_if->channel <= 148)) {
-		printf("%s: %s[%c] skip DFS channel %d\n", __FUNCTION__,
-			cur_if->ifname, cur_if->prefix, cur_if->channel);
+		ANDROID_MSG(("%s: %s[%c] skip DFS channel %d\n", __FUNCTION__,
+			cur_if->ifname, cur_if->prefix, cur_if->channel));
 		cur_if->channel = 0;
 	}
 
@@ -2483,8 +2592,8 @@ wl_ext_move_other_channel(struct wl_apsta_params *apsta_params,
 	}
 
 	if (target_if) {
-		printf("%s: %s channel=%d => %s channel=%d\n", __FUNCTION__,
-			target_if->ifname, target_chan, cur_if->ifname, cur_if->channel);
+		ANDROID_MSG(("%s: %s channel=%d => %s channel=%d\n", __FUNCTION__,
+			target_if->ifname, target_chan, cur_if->ifname, cur_if->channel));
 		target_if->channel = cur_if->channel;
 		if (apsta_params->csa == 0) {
 			wl_ext_if_down(apsta_params, target_if);
@@ -2531,9 +2640,8 @@ wl_ext_enable_iface(struct net_device *dev, char *ifname)
 		return -1;
 	}
 
-	printf("%s: %s[%c] Enabling\n", __FUNCTION__, ifname, cur_if->prefix);
-
 	wl_ext_isam_status(cur_if->dev, NULL, 0);
+	ANDROID_MSG(("%s: %s[%c] Enabling\n", __FUNCTION__, ifname, cur_if->prefix));
 
 	wl_ext_move_cur_channel(apsta_params, dev, cur_if);
 	if (!cur_if->channel && cur_if->ifmode != ISTA_MODE) {
@@ -2615,8 +2723,8 @@ wl_ext_enable_iface(struct net_device *dev, char *ifname)
 		if (cur_if->hidden > 0) {
 			wl_ext_ioctl(cur_if->dev, WLC_SET_CLOSED, &cur_if->hidden,
 				sizeof(cur_if->hidden), 1);
-			printf("%s: Broadcast SSID: %s\n", __FUNCTION__,
-				cur_if->hidden ? "OFF":"ON");
+			ANDROID_MSG(("%s: Broadcast SSID: %s\n", __FUNCTION__,
+				cur_if->hidden ? "OFF":"ON"));
 		}
 	}
 
@@ -2664,7 +2772,7 @@ wl_ext_enable_iface(struct net_device *dev, char *ifname)
 		} else if (cur_if->ifmode == IAP_MODE) {
 			wl_ext_ioctl(cur_if->dev, WLC_SET_SSID, &ssid, sizeof(ssid), 1);
 		} else {
-			printf("%s: wrong ifmode %d\n", __FUNCTION__, cur_if->ifmode);
+			ANDROID_ERROR(("%s: wrong ifmode %d\n", __FUNCTION__, cur_if->ifmode));
 		}
 #ifdef WLMESH
 	} else if (apstamode == IMESHONLY_MODE ||
@@ -2684,7 +2792,7 @@ wl_ext_enable_iface(struct net_device *dev, char *ifname)
 			join_params.params.chanspec_num = 1;
 			wl_ext_ioctl(cur_if->dev, WLC_SET_SSID, &join_params, sizeof(join_params), 1);
 		} else {
-			printf("%s: wrong ifmode %d\n", __FUNCTION__, cur_if->ifmode);
+			ANDROID_ERROR(("%s: wrong ifmode %d\n", __FUNCTION__, cur_if->ifmode));
 		}
 #endif
 	}
@@ -2705,8 +2813,8 @@ wl_ext_enable_iface(struct net_device *dev, char *ifname)
 #endif
 
 	OSL_SLEEP(500);
-	printf("%s: %s[%c] enabled with SSID: \"%s\"\n", __FUNCTION__,
-		ifname, cur_if->prefix, cur_if->ssid);
+	ANDROID_MSG(("%s: %s[%c] enabled with SSID: \"%s\"\n", __FUNCTION__,
+		ifname, cur_if->prefix, cur_if->ssid));
 	wl_ext_isam_status(cur_if->dev, NULL, 0);
 
 	cur_if->ifstate = IF_STATE_ENABLE;
@@ -2824,7 +2932,7 @@ wl_ext_iapsta_alive_postinit(struct net_device *dev)
 	// fix me: how to check it's IAPSTA_MODE or IDUALAP_MODE?
 
 	wl_ext_get_ioctl_ver(dev, &apsta_params->ioctl_ver);
-	printf("%s: apstamode=%d\n", __FUNCTION__, apsta_params->apstamode);
+	ANDROID_MSG(("%s: apstamode=%d\n", __FUNCTION__, apsta_params->apstamode));
 
 	return op_mode;
 }
@@ -2957,15 +3065,14 @@ wl_ext_iapsta_event(struct net_device *dev, wl_event_msg_t *e, void* data)
 #if defined(WL_WIRELESS_EXT)
 	char extra[IW_CUSTOM_MAX];
 	union iwreq_data wrqu;
+	uint32 datalen = ntoh32(e->datalen);
 #endif
 	uint32 event_type = ntoh32(e->event_type);
 	uint32 status =  ntoh32(e->status);
 	uint32 reason =  ntoh32(e->reason);
 	uint16 flags =  ntoh16(e->flags);
-	uint32 datalen = ntoh32(e->datalen);
 
 	if (!apsta_params->init) {
-		ANDROID_TRACE(("%s: please init first\n", __FUNCTION__));
 		return -1;
 	}
 
@@ -2984,11 +3091,11 @@ wl_ext_iapsta_event(struct net_device *dev, wl_event_msg_t *e, void* data)
 	if (cur_if->ifmode == ISTA_MODE) {
 		if (event_type == WLC_E_LINK) {
 			if (!(flags & WLC_EVENT_MSG_LINK)) {
-				printf("%s: %s[%c] Link Down with %pM\n", __FUNCTION__,
-					cur_if->ifname, cur_if->prefix, &e->addr);
+				ANDROID_MSG(("%s: %s[%c] Link Down with %pM\n", __FUNCTION__,
+					cur_if->ifname, cur_if->prefix, &e->addr));
 			} else {
-				printf("%s: %s[%c] Link UP with %pM\n", __FUNCTION__,
-					cur_if->ifname, cur_if->prefix, &e->addr);
+				ANDROID_MSG(("%s: %s[%c] Link UP with %pM\n", __FUNCTION__,
+					cur_if->ifname, cur_if->prefix, &e->addr));
 			}
 		}
 	}
@@ -2996,25 +3103,25 @@ wl_ext_iapsta_event(struct net_device *dev, wl_event_msg_t *e, void* data)
 		if ((event_type == WLC_E_SET_SSID && status == WLC_E_STATUS_SUCCESS) ||
 				(event_type == WLC_E_LINK && status == WLC_E_STATUS_SUCCESS &&
 				reason == WLC_E_REASON_INITIAL_ASSOC)) {
-			printf("%s: %s[%c] Link up\n", __FUNCTION__,
-				cur_if->ifname, cur_if->prefix);
+			ANDROID_MSG(("%s: %s[%c] Link up\n", __FUNCTION__,
+				cur_if->ifname, cur_if->prefix));
 		} else if ((event_type == WLC_E_LINK && reason == WLC_E_LINK_BSSCFG_DIS) ||
 				(event_type == WLC_E_LINK && status == WLC_E_STATUS_SUCCESS &&
 				reason == WLC_E_REASON_DEAUTH)) {
-			printf("%s: %s[%c] Link down\n", __FUNCTION__,
-				cur_if->ifname, cur_if->prefix);
+			ANDROID_MSG(("%s: %s[%c] Link down\n", __FUNCTION__,
+				cur_if->ifname, cur_if->prefix));
 		}
 		else if ((event_type == WLC_E_ASSOC_IND || event_type == WLC_E_REASSOC_IND) &&
 				reason == DOT11_SC_SUCCESS) {
-			printf("%s: %s[%c] connected device %pM\n", __FUNCTION__,
-				cur_if->ifname, cur_if->prefix, &e->addr);
+			ANDROID_MSG(("%s: %s[%c] connected device %pM\n", __FUNCTION__,
+				cur_if->ifname, cur_if->prefix, &e->addr));
 		} else if (event_type == WLC_E_DISASSOC_IND) {
-			printf("%s: %s[%c] disassociated device %pM\n", __FUNCTION__,
-				cur_if->ifname, cur_if->prefix, &e->addr);
+			ANDROID_MSG(("%s: %s[%c] disassociated device %pM\n", __FUNCTION__,
+				cur_if->ifname, cur_if->prefix, &e->addr));
 		} else if (event_type == WLC_E_DEAUTH_IND ||
 				(event_type == WLC_E_DEAUTH && reason != DOT11_RC_RESERVED)) {
-			printf("%s: %s[%c] deauthenticated device %pM\n", __FUNCTION__,
-				cur_if->ifname, cur_if->prefix, &e->addr);
+			ANDROID_MSG(("%s: %s[%c] deauthenticated device %pM\n", __FUNCTION__,
+				cur_if->ifname, cur_if->prefix, &e->addr));
 		}
 	}
 
@@ -3103,7 +3210,7 @@ wl_ext_iapsta_attach_netdev(struct net_device *net, int ifidx, uint8 bssidx)
 	struct wl_apsta_params *apsta_params = dhd->iapsta_params;
 	struct wl_if_info *cur_if = NULL, *primary_if;
 
-	printf("%s: ifidx=%d, bssidx=%d\n", __FUNCTION__, ifidx, bssidx);
+	ANDROID_MSG(("%s: ifidx=%d, bssidx=%d\n", __FUNCTION__, ifidx, bssidx));
 	if (ifidx < MAX_IF_NUM) {
 		cur_if = &apsta_params->if_info[ifidx];
 	}
@@ -3159,7 +3266,7 @@ wl_ext_iapsta_dettach_netdev(struct net_device *net, int ifidx)
 	if (!apsta_params)
 		return 0;
 
-	printf("%s: ifidx=%d\n", __FUNCTION__, ifidx);
+	ANDROID_MSG(("%s: ifidx=%d\n", __FUNCTION__, ifidx));
 	if (ifidx < MAX_IF_NUM) {
 		cur_if = &apsta_params->if_info[ifidx];
 	}
@@ -3179,7 +3286,7 @@ int wl_ext_iapsta_attach(dhd_pub_t *pub)
 
 	iapsta_params = kzalloc(sizeof(struct wl_apsta_params), GFP_KERNEL);
 	if (unlikely(!iapsta_params)) {
-		printf("%s: Could not allocate apsta_params\n", __FUNCTION__);
+		ANDROID_ERROR(("%s: Could not allocate apsta_params\n", __FUNCTION__));
 		return -ENOMEM;
 	}
 	pub->iapsta_params = (void *)iapsta_params;
@@ -3296,7 +3403,7 @@ wl_ext_rsdb_mode(struct net_device *dev, char *data, char *command,
 		rsdb_mode_cfg.config = (int)simple_strtol(data, NULL, 0);
 		ret = wl_ext_iovar_setbuf(dev, "rsdb_mode", (char *)&rsdb_mode_cfg,
 			sizeof(rsdb_mode_cfg), iovar_buf, WLC_IOCTL_SMLEN, NULL);
-		printf("%s: rsdb_mode %d\n", __FUNCTION__, rsdb_mode_cfg.config);
+		ANDROID_MSG(("%s: rsdb_mode %d\n", __FUNCTION__, rsdb_mode_cfg.config));
 	} else {
 		ret = wl_ext_iovar_getbuf(dev, "rsdb_mode", NULL, 0,
 			iovar_buf, WLC_IOCTL_SMLEN, NULL);
@@ -3311,9 +3418,41 @@ wl_ext_rsdb_mode(struct net_device *dev, char *data, char *command,
 	return ret;
 }
 
-#ifdef SENDPROB
-int
-wl_ext_add_remove_eventmsg(struct net_device *dev, char *data,
+static s32
+wl_ext_add_remove_eventmsg(struct net_device *ndev, u16 event, bool add)
+{
+	s8 iovbuf[WL_EVENTING_MASK_LEN + 12];
+	s8 eventmask[WL_EVENTING_MASK_LEN];
+	s32 err = 0;
+
+	if (!ndev)
+		return -ENODEV;
+
+	/* Setup event_msgs */
+	err = wldev_iovar_getbuf(ndev, "event_msgs", NULL, 0, iovbuf, sizeof(iovbuf), NULL);
+	if (unlikely(err)) {
+		ANDROID_ERROR(("Get event_msgs error (%d)\n", err));
+		goto eventmsg_out;
+	}
+	memcpy(eventmask, iovbuf, WL_EVENTING_MASK_LEN);
+	if (add) {
+		setbit(eventmask, event);
+	} else {
+		clrbit(eventmask, event);
+	}
+	err = wldev_iovar_setbuf(ndev, "event_msgs", eventmask, WL_EVENTING_MASK_LEN, iovbuf,
+			sizeof(iovbuf), NULL);
+	if (unlikely(err)) {
+		ANDROID_ERROR(("Set event_msgs error (%d)\n", err));
+		goto eventmsg_out;
+	}
+
+eventmsg_out:
+	return err;
+}
+
+static int
+wl_ext_event_msg(struct net_device *dev, char *data,
 	char *command, int total_len)
 {
 	s8 iovbuf[WL_EVENTING_MASK_LEN + 12];
@@ -3329,7 +3468,8 @@ wl_ext_add_remove_eventmsg(struct net_device *dev, char *data,
 		ANDROID_TRACE(("%s: command = %s\n", __FUNCTION__, data));
 		sscanf(data, "%d %d", &event, &add);
 		/* Setup event_msgs */
-		bytes_written = wldev_iovar_getbuf(dev, "event_msgs", NULL, 0, iovbuf, sizeof(iovbuf), NULL);
+		bytes_written = wldev_iovar_getbuf(dev, "event_msgs", NULL, 0, iovbuf,
+			sizeof(iovbuf), NULL);
 		if (unlikely(bytes_written)) {
 			ANDROID_ERROR(("Get event_msgs error (%d)\n", bytes_written));
 			goto eventmsg_out;
@@ -3343,21 +3483,12 @@ wl_ext_add_remove_eventmsg(struct net_device *dev, char *data,
 			ANDROID_INFO(("%s\n", command));
 			goto eventmsg_out;
 		}
-		if (add) {
-			setbit(eventmask, event);
-		} else {
-			clrbit(eventmask, event);
-		}
-		bytes_written = wl_ext_iovar_setbuf(dev, "event_msgs", eventmask, WL_EVENTING_MASK_LEN, iovbuf,
-				sizeof(iovbuf), NULL);
-		if (unlikely(bytes_written)) {
-			ANDROID_ERROR(("Set event_msgs error (%d)\n", bytes_written));
-			goto eventmsg_out;
-		}
+		bytes_written = wl_ext_add_remove_eventmsg(dev, event, add);
 	}
 	else {
 		/* Setup event_msgs */
-		bytes_written = wldev_iovar_getbuf(dev, "event_msgs", NULL, 0, iovbuf, sizeof(iovbuf), NULL);
+		bytes_written = wldev_iovar_getbuf(dev, "event_msgs", NULL, 0, iovbuf,
+			sizeof(iovbuf), NULL);
 		if (bytes_written) {
 			ANDROID_ERROR(("Get event_msgs error (%d)\n", bytes_written));
 			goto eventmsg_out;
@@ -3379,6 +3510,7 @@ eventmsg_out:
 	return bytes_written;
 }
 
+#ifdef SENDPROB
 static int
 wl_ext_send_probresp(struct net_device *dev, char *data, char *command, int total_len)
 {
@@ -3443,6 +3575,47 @@ exit:
 }
 #endif
 
+static int
+wl_ext_gtk_key_info(struct net_device *dev, char *data, char *command, int total_len)
+{
+	int err = 0;
+	char iovar_buf[WLC_IOCTL_SMLEN]="\0";
+	gtk_keyinfo_t keyinfo;
+	bcol_gtk_para_t bcol_keyinfo;
+
+	/* wl gtk_key_info [kck kek replay_ctr] */
+	/* wl gtk_key_info 001122..FF001122..FF00000000000001 */
+	if (data) {
+		memset(&keyinfo, 0, sizeof(keyinfo));
+		memcpy(&keyinfo, data, RSN_KCK_LENGTH+RSN_KEK_LENGTH+RSN_REPLAY_LEN);
+		if (android_msg_level & ANDROID_INFO_LEVEL) {
+			prhex("kck", (uchar *)keyinfo.KCK, RSN_KCK_LENGTH);
+			prhex("kek", (uchar *)keyinfo.KEK, RSN_KEK_LENGTH);
+			prhex("replay_ctr", (uchar *)keyinfo.ReplayCounter, RSN_REPLAY_LEN);
+		}
+
+		memset(&bcol_keyinfo, 0, sizeof(bcol_keyinfo));
+		bcol_keyinfo.enable = 1;
+		bcol_keyinfo.ptk_len = 64;
+		memcpy(&bcol_keyinfo.ptk, data, RSN_KCK_LENGTH+RSN_KEK_LENGTH);
+		err = wl_ext_iovar_setbuf(dev, "bcol_gtk_rekey_ptk", &bcol_keyinfo,
+			sizeof(bcol_keyinfo), iovar_buf, sizeof(iovar_buf), NULL);
+		if (!err) {
+			goto exit;
+		}
+
+		err = wl_ext_iovar_setbuf(dev, "gtk_key_info", &keyinfo, sizeof(keyinfo),
+			iovar_buf, sizeof(iovar_buf), NULL);
+		if (err) {
+			ANDROID_ERROR(("%s: failed to set gtk_key_info\n", __FUNCTION__));
+			goto exit;
+		}
+	}
+
+exit:
+    return err;
+}
+
 typedef int (wl_ext_tpl_parse_t)(struct net_device *dev, char *data, char *command,
 	int total_len);
 
@@ -3458,10 +3631,11 @@ const wl_ext_iovar_tpl_t wl_ext_iovar_tpl_list[] = {
 #ifdef WLMESH
 	{WLC_GET_VAR,	WLC_SET_VAR,	"mesh_peer_status",	wl_ext_mesh_peer_status},
 #endif
+	{WLC_GET_VAR,	WLC_SET_VAR,	"event_msg",	wl_ext_event_msg},
 #ifdef SENDPROB
-	{WLC_GET_VAR,	WLC_SET_VAR,	"event_msg",	wl_ext_add_remove_eventmsg},
 	{WLC_GET_VAR,	WLC_SET_VAR,	"send_probresp",	wl_ext_send_probresp},
 #endif
+	{WLC_GET_VAR,	WLC_SET_VAR,	"gtk_key_info",	wl_ext_gtk_key_info},
 };
 
 /*
@@ -3796,7 +3970,7 @@ wl_ext_get_best_channel(struct net_device *net,
 		}
 	}
 
-	if (android_msg_level&ANDROID_INFO_LEVEL) {
+	if (android_msg_level & ANDROID_INFO_LEVEL) {
 		printf("%s: b_band: ", __FUNCTION__);
 		for (j=0; j<ARRAYSIZE(b_band); j++)
 			printf("%d, ", b_band[j]);

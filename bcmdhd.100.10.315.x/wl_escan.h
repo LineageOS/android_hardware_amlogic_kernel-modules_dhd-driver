@@ -34,6 +34,7 @@ struct pmk_list {
 
 /* donlge escan state */
 enum escan_state {
+	ESCAN_STATE_DOWN,
 	ESCAN_STATE_IDLE,
 	ESCAN_STATE_SCANING
 };
@@ -47,7 +48,7 @@ typedef struct wl_escan_info {
 	struct net_device *dev;
 	dhd_pub_t *pub;
 	struct timer_list scan_timeout;   /* Timer for catch scan event timeout */
-	int    escan_state;
+	int escan_state;
 	int ioctl_ver;
 
 	char ioctlbuf[WLC_IOCTL_SMLEN];
@@ -88,6 +89,8 @@ int wl_escan_get_scan(struct net_device *dev,	struct iw_request_info *info,
 s32 wl_escan_autochannel(struct net_device *dev, char* command, int total_len);
 int wl_escan_attach(struct net_device *dev, dhd_pub_t *dhdp);
 void wl_escan_detach(dhd_pub_t *dhdp);
+int wl_escan_up(struct net_device *net, dhd_pub_t *dhdp);
+void wl_escan_down(dhd_pub_t *dhdp);
 
 #endif /* _wl_escan_ */
 

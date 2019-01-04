@@ -472,18 +472,35 @@ wl_iw_set_pm(
 #endif /* WIRELESS_EXT > 12 */
 
 static void
-wl_iw_check_handshake(struct net_device *dev, bool set)
+wl_iw_update_connect_status(struct net_device *dev, enum wl_ext_status status)
 {
 #ifndef WL_CFG80211
 	struct dhd_pub *dhd = dhd_get_pub(dev);
 	int cur_eapol_status = 0;
 	int wpa_auth = 0;
 	int error = -EINVAL;
+	wl_conn_info_t *conn_info = NULL;
+#ifdef WL_ESCAN
+	wl_escan_info_t *escan;
+	if (dhd && dhd->escan) {
+		escan = (wl_escan_info_t *)dhd->escan;
+		conn_info = &escan->conn_info;
+	}
+#else
+	iscan_info_t *iscan;
+	if (dhd && dhd->iscan) {
+		iscan = (iscan_info_t *)dhd->iscan;
+		conn_info = &iscan->conn_info;
+	}
+#endif
 
-	if (dhd && dhd->conf)
-		cur_eapol_status = dhd->conf->eapol_status;
+	if (!dhd || !dhd->conf || !conn_info)
+		return;
 
-	if (set) {
+	cur_eapol_status = dhd->conf->eapol_status;
+
+	if (status == WL_EXT_STATUS_CONNECTING) {
+		wl_ext_add_remove_pm_enable_work(conn_info, TRUE);
 		if ((error = dev_wlc_intvar_get(dev, "wpa_auth", &wpa_auth))) {
 			WL_ERROR(("%s: wpa_auth get error %d\n", __FUNCTION__, error));
 			return;
@@ -492,7 +509,20 @@ wl_iw_check_handshake(struct net_device *dev, bool set)
 			dhd->conf->eapol_status = EAPOL_STATUS_WPA_START;
 		else
 			dhd->conf->eapol_status = EAPOL_STATUS_NONE;
-	} else {
+	} else if (status == WL_EXT_STATUS_ADD_KEY) {
+		dhd->conf->eapol_status = EAPOL_STATUS_WPA_END;
+	} else if (status == WL_EXT_STATUS_DISCONNECTING) {
+		wl_ext_add_remove_pm_enable_work(conn_info, FALSE);
+		if (cur_eapol_status >= EAPOL_STATUS_WPA_START &&
+				cur_eapol_status < EAPOL_STATUS_WPA_END) {
+			WL_ERROR(("%s: WPA failed at %d\n", __FUNCTION__, cur_eapol_status));
+			dhd->conf->eapol_status = EAPOL_STATUS_NONE;
+		} else if (cur_eapol_status >= EAPOL_STATUS_WPS_WSC_START &&
+				cur_eapol_status < EAPOL_STATUS_WPS_DONE) {
+			WL_ERROR(("%s: WPS failed at %d\n", __FUNCTION__, cur_eapol_status));
+			dhd->conf->eapol_status = EAPOL_STATUS_NONE;
+		}
+	} else if (status == WL_EXT_STATUS_DISCONNECTED) {
 		if (cur_eapol_status >= EAPOL_STATUS_WPA_START &&
 				cur_eapol_status < EAPOL_STATUS_WPA_END) {
 			WL_ERROR(("%s: WPA failed at %d\n", __FUNCTION__, cur_eapol_status));
@@ -722,8 +752,11 @@ wl_iw_set_mode(
 #endif
 
 	WL_TRACE(("%s: SIOCSIWMODE\n", dev->name));
-	if (conn_info)
-		memset(conn_info, 0, sizeof(wl_conn_info_t));
+	if (conn_info) {
+		memset(&conn_info->ssid, 0, sizeof(wlc_ssid_t));
+		memset(&conn_info->bssid, 0, sizeof(struct ether_addr));
+		conn_info->channel = 0;
+	}
 
 	switch (*uwrq) {
 	case IW_MODE_MASTER:
@@ -1098,7 +1131,7 @@ wl_iw_set_wap(
 		if ((error = dev_wlc_ioctl(dev, WLC_DISASSOC, &scbval, sizeof(scb_val_t)))) {
 			WL_ERROR(("%s: WLC_DISASSOC failed (%d).\n", __FUNCTION__, error));
 		}
-		wl_iw_check_handshake(dev, FALSE);
+		wl_iw_update_connect_status(dev, WL_EXT_STATUS_DISCONNECTING);
 		return 0;
 	}
 	/* WL_ASSOC(("Assoc to %s\n", bcm_ether_ntoa((struct ether_addr *)&(awrq->sa_data),
@@ -1117,7 +1150,7 @@ wl_iw_set_wap(
 		}
 		WL_ERROR(("%s: join BSSID="MACSTR"\n", __FUNCTION__, MAC2STR((u8 *)awrq->sa_data)));
 	}
-	wl_iw_check_handshake(dev, TRUE);
+	wl_iw_update_connect_status(dev, WL_EXT_STATUS_CONNECTING);
 
 	return 0;
 }
@@ -1178,7 +1211,7 @@ wl_iw_mlme(
 		WL_ERROR(("%s: Invalid ioctl data.\n", __FUNCTION__));
 		return error;
 	}
-	wl_iw_check_handshake(dev, FALSE);
+	wl_iw_update_connect_status(dev, WL_EXT_STATUS_DISCONNECTING);
 
 	return error;
 }
@@ -1869,7 +1902,7 @@ wl_iw_set_essid(
 			}
 			WL_ERROR(("%s: join SSID=%s\n", __FUNCTION__, ssid.SSID));
 		}
-		wl_iw_check_handshake(dev, TRUE);
+		wl_iw_update_connect_status(dev, WL_EXT_STATUS_CONNECTING);
 	}
 	/* If essid null then it is "iwconfig <interface> essid off" command */
 	else {
@@ -1880,7 +1913,7 @@ wl_iw_set_essid(
 			WL_ERROR(("%s: WLC_DISASSOC failed (%d).\n", __FUNCTION__, error));
 			return error;
 		}
-		wl_iw_check_handshake(dev, FALSE);
+		wl_iw_update_connect_status(dev, WL_EXT_STATUS_DISCONNECTING);
 	}
 	return 0;
 }
@@ -2540,7 +2573,6 @@ wl_iw_set_encodeext(
 	wl_wsec_key_t key;
 	int error;
 	struct iw_encode_ext *iwe;
-	struct dhd_pub *dhd = dhd_get_pub(dev);
 
 	WL_TRACE(("%s: SIOCSIWENCODEEXT\n", dev->name));
 
@@ -2666,8 +2698,7 @@ wl_iw_set_encodeext(
 		error = dev_wlc_ioctl(dev, WLC_SET_KEY, &key, sizeof(key));
 		if (error)
 			return error;
-		if (dhd && dhd->conf)
-			dhd->conf->eapol_status = EAPOL_STATUS_WPA_END;
+		wl_iw_update_connect_status(dev, WL_EXT_STATUS_ADD_KEY);
 	}
 	return 0;
 }
@@ -3458,11 +3489,20 @@ wl_iw_event(struct net_device *dev, wl_event_msg_t *e, void* data)
 	uint32 datalen = ntoh32(e->datalen);
 	uint32 status =  ntoh32(e->status);
 	uint32 reason =  ntoh32(e->reason);
-#ifndef WL_ESCAN
 	struct dhd_pub *dhd = dhd_get_pub(dev);
+	wl_conn_info_t *conn_info = NULL;
+#ifdef WL_ESCAN
+	wl_escan_info_t *escan;
+	if (dhd && dhd->escan) {
+		escan = (wl_escan_info_t *)dhd->escan;
+		conn_info = &escan->conn_info;
+	}
+#else
 	iscan_info_t *iscan;
-	if (dhd && dhd->iscan)
+	if (dhd && dhd->iscan) {
 		iscan = (iscan_info_t *)dhd->iscan;
+		conn_info = &iscan->conn_info;
+	}
 #endif
 
 	memset(&wrqu, 0, sizeof(wrqu));
@@ -3481,13 +3521,21 @@ wl_iw_event(struct net_device *dev, wl_event_msg_t *e, void* data)
 	case WLC_E_REASSOC_IND:
 		cmd = IWEVREGISTERED;
 		break;
+	case WLC_E_DEAUTH:
+	case WLC_E_DISASSOC:
+		wl_iw_update_connect_status(dev, WL_EXT_STATUS_DISCONNECTED);
+		printf("%s: disconnected with "MACSTR", event %d, reason %d\n",
+			__FUNCTION__, MAC2STR((u8 *)wrqu.addr.sa_data), event_type, reason);
+		break;
 	case WLC_E_DEAUTH_IND:
 	case WLC_E_DISASSOC_IND:
 		cmd = SIOCGIWAP;
 		wrqu.data.length = strlen(extra);
 		bzero(wrqu.addr.sa_data, ETHER_ADDR_LEN);
 		bzero(&extra, ETHER_ADDR_LEN);
-		wl_iw_check_handshake(dev, FALSE);
+		wl_iw_update_connect_status(dev, WL_EXT_STATUS_DISCONNECTED);
+		printf("%s: disconnected with "MACSTR", event %d, reason %d\n",
+			__FUNCTION__, MAC2STR((u8 *)wrqu.addr.sa_data), event_type, reason);
 		break;
 
 	case WLC_E_LINK:
@@ -3497,7 +3545,7 @@ wl_iw_event(struct net_device *dev, wl_event_msg_t *e, void* data)
 				MAC2STR((u8 *)wrqu.addr.sa_data), reason);
 			bzero(wrqu.addr.sa_data, ETHER_ADDR_LEN);
 			bzero(&extra, ETHER_ADDR_LEN);
-			wl_iw_check_handshake(dev, FALSE);
+			wl_iw_update_connect_status(dev, WL_EXT_STATUS_DISCONNECTED);
 		} else {
 			printf("%s: Link UP with "MACSTR"\n", __FUNCTION__,
 				MAC2STR((u8 *)wrqu.addr.sa_data));
@@ -4035,6 +4083,14 @@ _iscan_sysioc_thread(void *data)
 	complete_and_exit(&iscan->sysioc_exited, 0);
 }
 
+void wl_iw_down(dhd_pub_t *dhdp)
+{
+	iscan_info_t *iscan = dhdp->iscan;
+
+	if (iscan)
+		wl_ext_add_remove_pm_enable_work(&iscan->conn_info, FALSE);
+}
+
 int
 wl_iw_attach(struct net_device *dev, dhd_pub_t *dhdp)
 {
@@ -4056,6 +4112,8 @@ wl_iw_attach(struct net_device *dev, dhd_pub_t *dhdp)
 	iscan->sysioc_pid = -1;
 	/* we only care about main interface so save a global here */
 	iscan->dev = dev;
+	iscan->conn_info.dev = dev;
+	iscan->conn_info.dhd = dhdp;
 	iscan->iscan_state = ISCAN_STATE_IDLE;
 
 	/* Set up the timer */
@@ -4078,6 +4136,8 @@ wl_iw_attach(struct net_device *dev, dhd_pub_t *dhdp)
 #endif
 	if (iscan->sysioc_pid < 0)
 		return -ENOMEM;
+	mutex_init(&iscan->conn_info.pm_sync);
+	INIT_DELAYED_WORK(&iscan->conn_info.pm_enable_work, wl_ext_pm_work_handler);
 	return 0;
 }
 
@@ -4091,6 +4151,7 @@ void wl_iw_detach(dhd_pub_t *dhdp)
 		KILL_PROC(iscan->sysioc_pid, SIGTERM);
 		wait_for_completion(&iscan->sysioc_exited);
 	}
+	wl_ext_add_remove_pm_enable_work(&iscan->conn_info, FALSE);
 
 	while (iscan->list_hdr) {
 		buf = iscan->list_hdr->next;

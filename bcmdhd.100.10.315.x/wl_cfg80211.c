@@ -3457,10 +3457,13 @@ wl_run_escan(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 	}
 exit:
 	if (unlikely(err)) {
+		int suppressed = 0;
+		wldev_ioctl(dev, WLC_GET_SCANSUPPRESS, &suppressed, sizeof(int), false);
 		/* Don't print Error incase of Scan suppress */
-		if ((err == BCME_EPERM) && cfg->scan_suppressed)
+		if ((err == BCME_EPERM) && (cfg->scan_suppressed || suppressed)) {
+			cnt = 0;
 			WL_DBG(("Escan failed: Scan Suppressed \n"));
-		else {
+		} else {
 			cnt++;
 			WL_ERR(("error (%d), cnt=%d\n", err, cnt));
 			// terence 20140111: send disassoc to firmware
@@ -4685,6 +4688,13 @@ wl_cfg80211_post_ifcreate(struct net_device *ndev,
 		WL_ERR(("Wrong iface type \n"));
 		return NULL;
 	}
+
+#ifdef WL_EXT_IAPSTA
+	if (wl_ext_check_mesh_creating(ndev)) {
+		printf("%s: change iface_type to NL80211_IFTYPE_MESH_POINT\n", __FUNCTION__);
+		iface_type = NL80211_IFTYPE_MESH_POINT;
+	}
+#endif
 
 	WL_DBG(("mac_ptr:%p name:%s role:%d nl80211_iftype:%d " MACDBG "\n",
 		addr, name, event->role, iface_type, MAC2STRDBG(event->mac)));
@@ -10640,6 +10650,31 @@ wl_cfg80211_parse_ies(const u8 *ptr, u32 len, struct parsed_ies *ies)
 	return err;
 
 }
+
+bool
+wl_legacy_chip_check(struct bcm_cfg80211 *cfg)
+{
+	dhd_pub_t *dhd = (dhd_pub_t *)(cfg->pub);
+	uint chip;
+
+	chip = dhd_conf_get_chip(dhd);
+
+	if (chip == BCM43362_CHIP_ID || chip == BCM4330_CHIP_ID ||
+		chip == BCM43430_CHIP_ID || chip == BCM43012_CHIP_ID ||
+		chip == BCM4334_CHIP_ID || chip == BCM43340_CHIP_ID ||
+		chip == BCM43341_CHIP_ID || chip == BCM4324_CHIP_ID ||
+		chip == BCM4335_CHIP_ID || chip == BCM4339_CHIP_ID ||
+		chip == BCM4345_CHIP_ID || chip == BCM43454_CHIP_ID ||
+		chip == BCM4354_CHIP_ID || chip == BCM4356_CHIP_ID ||
+		chip == BCM4371_CHIP_ID || chip == BCM4359_CHIP_ID ||
+		chip == BCM43143_CHIP_ID || chip == BCM43242_CHIP_ID ||
+		chip == BCM43569_CHIP_ID) {
+		return true;
+	}
+
+	return false;
+}
+
 static s32
 wl_cfg80211_set_ap_role(
 	struct bcm_cfg80211 *cfg,
@@ -10651,6 +10686,9 @@ wl_cfg80211_set_ap_role(
 	s32 pm;
 	s32 bssidx;
 	s32 apsta = 0;
+	bool legacy_chip;
+
+	legacy_chip = wl_legacy_chip_check(cfg);
 
 	if ((bssidx = wl_get_bssidx_by_wdev(cfg, dev->ieee80211_ptr)) < 0) {
 		WL_ERR(("Find p2p index from wdev(%p) failed\n", dev->ieee80211_ptr));
@@ -10659,10 +10697,12 @@ wl_cfg80211_set_ap_role(
 
 	WL_INFORM_MEM(("[%s] Bringup SoftAP on bssidx:%d \n", dev->name, bssidx));
 
-	if ((err = wl_cfg80211_add_del_bss(cfg, dev, bssidx,
-			WL_IF_TYPE_AP, 0, NULL)) < 0) {
-		WL_ERR(("wl add_del_bss returned error:%d\n", err));
-		return err;
+	if (bssidx != 0 || !legacy_chip) {
+		if ((err = wl_cfg80211_add_del_bss(cfg, dev, bssidx,
+				WL_IF_TYPE_AP, 0, NULL)) < 0) {
+			WL_ERR(("wl add_del_bss returned error:%d\n", err));
+			return err;
+		}
 	}
 
 	/*
@@ -10709,6 +10749,21 @@ wl_cfg80211_set_ap_role(
 				WL_ERR(("setting AP mode failed %d \n", err));
 				return err;
 			}
+		}
+	} else if (bssidx == 0 && legacy_chip) {
+		err = wldev_ioctl_set(dev, WLC_DOWN, &ap, sizeof(s32));
+		if (err < 0) {
+			WL_ERR(("WLC_DOWN error %d\n", err));
+			return err;
+		}
+		err = wldev_iovar_setint(dev, "apsta", 0);
+		if (err < 0) {
+			WL_ERR(("wl apsta 0 error %d\n", err));
+			return err;
+		}
+		if ((err = wldev_ioctl_set(dev,	WLC_SET_AP, &ap, sizeof(s32))) < 0) {
+			WL_ERR(("setting AP mode failed %d \n", err));
+			return err;
 		}
 	}
 
@@ -10796,7 +10851,7 @@ wl_cfg80211_bcn_bringup_ap(
 			WL_DBG(("Bss is already up\n"));
 	} else if (dev_role == NL80211_IFTYPE_AP) {
 
-		if (!wl_get_drv_status(cfg, AP_CREATING, dev)) {
+		if (!wl_get_drv_status(cfg, AP_CREATED, dev)) {
 			/* Make sure fw is in proper state */
 			err = wl_cfg80211_set_ap_role(cfg, dev);
 			if (unlikely(err)) {
@@ -22109,6 +22164,7 @@ wl_cfg80211_set_rekey_data(struct wiphy *wiphy, struct net_device *dev,
 	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
 	s32 err = 0;
 	gtk_keyinfo_t keyinfo;
+	bcol_gtk_para_t bcol_keyinfo;
 
 	WL_DBG(("Enter\n"));
 	if (data == NULL || cfg->p2p_net == dev) {
@@ -22123,11 +22179,23 @@ wl_cfg80211_set_rekey_data(struct wiphy *wiphy, struct net_device *dev,
 	bcopy(data->kek, keyinfo.KEK, RSN_KEK_LENGTH);
 	bcopy(data->replay_ctr, keyinfo.ReplayCounter, RSN_REPLAY_LEN);
 
+	memset(&bcol_keyinfo, 0, sizeof(bcol_keyinfo));
+	bcol_keyinfo.enable = 1;
+	bcol_keyinfo.ptk_len = 64;
+	memcpy(&bcol_keyinfo.ptk[0], data->kck, RSN_KCK_LENGTH);
+	memcpy(&bcol_keyinfo.ptk[RSN_KCK_LENGTH], data->kek, RSN_KEK_LENGTH);
+	err = wldev_iovar_setbuf(dev, "bcol_gtk_rekey_ptk", &bcol_keyinfo,
+		sizeof(bcol_keyinfo), cfg->ioctl_buf, WLC_IOCTL_SMLEN, &cfg->ioctl_buf_sync);
+	if (!err) {
+		return err;
+	}
+
 	if ((err = wldev_iovar_setbuf(dev, "gtk_key_info", &keyinfo, sizeof(keyinfo),
 		cfg->ioctl_buf, WLC_IOCTL_SMLEN, &cfg->ioctl_buf_sync)) < 0) {
 		WL_ERR(("seting gtk_key_info failed code=%d\n", err));
 		return err;
 	}
+
 	WL_DBG(("Exit\n"));
 	return err;
 }

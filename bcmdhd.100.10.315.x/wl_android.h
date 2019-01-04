@@ -73,6 +73,13 @@ typedef struct _compat_android_wifi_priv_cmd {
 #define ANDROID_INFO_LEVEL	0x0004
 #define ANDROID_EVENT_LEVEL	0x0008
 
+#define ANDROID_MSG(x) \
+	do { \
+		if (android_msg_level & ANDROID_ERROR_LEVEL) { \
+			printk(KERN_ERR "ANDROID-MSG) ");	\
+			printk x; \
+		} \
+	} while (0)
 #define ANDROID_ERROR(x) \
 	do { \
 		if (android_msg_level & ANDROID_ERROR_LEVEL) { \
@@ -123,8 +130,15 @@ int wl_ext_iapsta_alive_postinit(struct net_device *dev);
 int wl_ext_iapsta_event(struct net_device *dev, wl_event_msg_t *e, void* data);
 int wl_ext_iapsta_attach(dhd_pub_t *pub);
 void wl_ext_iapsta_dettach(dhd_pub_t *pub);
+bool wl_ext_check_mesh_creating(struct net_device *net);
 extern int op_mode;
 #endif
+typedef struct bcol_gtk_para {
+	int enable;
+	int ptk_len;
+	char ptk[64];
+	char replay[8];
+} bcol_gtk_para_t;
 int wl_android_ext_priv_cmd(struct net_device *net, char *command, int total_len,
 	int *bytes_written);
 enum wl_ext_status {
@@ -141,12 +155,20 @@ enum wl_ext_status {
 	WL_EXT_STATUS_AP_DISABLED
 };
 typedef struct wl_conn_info {
+	struct net_device *dev;
+	dhd_pub_t *dhd;
 	uint8 bssidx;
 	wlc_ssid_t ssid;
 	struct ether_addr bssid;
 	uint16 channel;
+	struct delayed_work pm_enable_work;
+	struct mutex pm_sync;
 } wl_conn_info_t;
+#if defined(WL_WIRELESS_EXT)
 s32 wl_ext_connect(struct net_device *dev, wl_conn_info_t *conn_info);
+void wl_ext_pm_work_handler(struct work_struct * work);
+void wl_ext_add_remove_pm_enable_work(struct wl_conn_info *conn_info, bool add);
+#endif /* defined(WL_WIRELESS_EXT) */
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0))
 #define strnicmp(str1, str2, len) strncasecmp((str1), (str2), (len))
 #endif

@@ -3587,7 +3587,7 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 			if (dhd->conf->pm_in_suspend >= 0)
 				power_mode = dhd->conf->pm_in_suspend;
 			dhd_wl_ioctl_cmd(dhd, WLC_SET_PM, (char *)&power_mode,
-			                 sizeof(power_mode), TRUE, 0);
+				sizeof(power_mode), TRUE, 0);
 
 #ifdef PKT_FILTER_SUPPORT
 			/* Enable packet filter,
@@ -3768,9 +3768,9 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 			}
 #endif /* CUSTOM_EVENT_PM_WAKE */
 #endif /* DHD_USE_EARLYSUSPEND */
-			dhd_conf_set_ap_in_suspend(dhd, value);
+			dhd_conf_set_suspend_resume(dhd, value);
 		} else {
-			dhd_conf_set_ap_in_suspend(dhd, value);
+			dhd_conf_set_suspend_resume(dhd, value);
 #ifdef PKT_FILTER_SUPPORT
 			dhd->early_suspended = 0;
 #endif // endif
@@ -3784,11 +3784,8 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 				DHD_ERROR(("failed to set intr_width (%d)\n", ret));
 			}
 #endif /* DYNAMIC_SWOOB_DURATION */
-#ifndef SUPPORT_PM2_ONLY
-			power_mode = PM_FAST;
 			dhd_wl_ioctl_cmd(dhd, WLC_SET_PM, (char *)&power_mode,
-			                 sizeof(power_mode), TRUE, 0);
-#endif /* SUPPORT_PM2_ONLY */
+				sizeof(power_mode), TRUE, 0);
 #if defined(WL_CFG80211) && defined(WL_BCNRECV)
 			ret = wl_android_bcnrecv_resume(dhd_linux_get_primary_netdev(dhd));
 			if (ret != BCME_OK) {
@@ -3929,7 +3926,7 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 #endif /* DHD_LB_IRQSET */
 
 			/* terence 2017029: Reject in early suspend */
-			if (!dhd->conf->xmit_in_suspend) {
+			if (dhd->conf->insuspend & NO_TXDATA_IN_SUSPEND) {
 				dhd_txflowcontrol(dhd, ALL_INTERFACES, OFF);
 			}
 		}
@@ -3950,7 +3947,7 @@ static int dhd_suspend_resume_helper(struct dhd_info *dhd, int val, int force)
 	/* Set flag when early suspend was called */
 	dhdp->in_suspend = val;
 	if ((force || !dhdp->suspend_disable_flag) &&
-		(dhd_support_sta_mode(dhdp) || dhd_conf_get_ap_mode_in_suspend(dhdp)))
+		(dhd_support_sta_mode(dhdp) || dhd_conf_get_insuspend(dhdp)))
 	{
 		ret = dhd_set_suspend(val, dhdp);
 	}
@@ -5271,7 +5268,7 @@ dhd_start_xmit(struct sk_buff *skb, struct net_device *net)
 	}
 
 	/* terence 2017029: Reject in early suspend */
-	if (!dhd->pub.conf->xmit_in_suspend && dhd->pub.early_suspended) {
+	if ((dhd->pub.conf->insuspend & NO_TXDATA_IN_SUSPEND) && dhd->pub.early_suspended) {
 		dhd_txflowcontrol(&dhd->pub, ALL_INTERFACES, ON);
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20))
 		return -ENODEV;
@@ -8549,6 +8546,15 @@ dhd_stop(struct net_device *net)
 
 	OLD_MOD_DEC_USE_COUNT;
 exit:
+#if defined(WL_WIRELESS_EXT)
+	if (ifidx == 0) {
+#ifdef WL_ESCAN
+		wl_escan_down(&dhd->pub);
+#else
+		wl_iw_down(&dhd->pub);
+#endif /* WL_ESCAN */
+	}
+#endif /* defined(WL_WIRELESS_EXT) */
 	if (skip_reset == false) {
 		if (ifidx == 0 && !dhd_download_fw_on_driverload) {
 #if defined(BT_OVER_SDIO)
@@ -8766,14 +8772,6 @@ dhd_open(struct net_device *net)
 				ret = -1;
 				goto exit;
 			}
-#if defined(WL_EXT_IAPSTA) && defined(ISAM_PREINIT)
-			conf = dhd_get_conf(net);
-			if (conf) {
-				wl_android_ext_priv_cmd(net, conf->isam_init, 0, &bytes_written);
-				wl_android_ext_priv_cmd(net, conf->isam_config, 0, &bytes_written);
-				wl_android_ext_priv_cmd(net, conf->isam_enable, 0, &bytes_written);
-			}
-#endif
 		}
 #ifdef SUPPORT_DEEP_SLEEP
 		else {
@@ -8924,6 +8922,25 @@ dhd_open(struct net_device *net)
 		dhd_set_scb_probe(&dhd->pub);
 #endif /* NUM_SCB_MAX_PROBE */
 #endif /* WL_CFG80211 */
+#if defined(WL_WIRELESS_EXT)
+#ifdef WL_ESCAN
+		if (unlikely(wl_escan_up(net, &dhd->pub))) {
+			DHD_ERROR(("%s: failed to bring up escan\n", __FUNCTION__));
+			ret = -1;
+			goto exit;
+		}
+#endif
+#endif
+#if defined(WL_EXT_IAPSTA) && defined(ISAM_PREINIT)
+		if (!dhd_download_fw_on_driverload) {
+			conf = dhd_get_conf(net);
+			if (conf) {
+				wl_android_ext_priv_cmd(net, conf->isam_init, 0, &bytes_written);
+				wl_android_ext_priv_cmd(net, conf->isam_config, 0, &bytes_written);
+				wl_android_ext_priv_cmd(net, conf->isam_enable, 0, &bytes_written);
+			}
+		}
+#endif
 	}
 
 	/* Allow transmit calls */
@@ -12391,9 +12408,6 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 	dhd_update_flow_prio_map(dhd, DHD_FLOW_PRIO_LLR_MAP);
 #endif /* defined(BCMPCIE) && defined(EAPOL_PKT_PRIO) */
 
-#ifdef SUSPEND_EVENT
-	bcopy(eventmask, dhd->conf->resume_eventmask, WL_EVENTING_MASK_LEN);
-#endif
 	/* Write updated Event mask */
 	ret = dhd_iovar(dhd, 0, "event_msgs", eventmask, WL_EVENTING_MASK_LEN, NULL, 0, TRUE);
 	if (ret < 0) {
@@ -13494,6 +13508,11 @@ dhd_register_if(dhd_pub_t *dhdp, int ifidx, bool need_rtnl_lock)
 			dhd->bus_user_count--;
 #endif /* BT_OVER_SDIO */
 		}
+#if defined(WL_WIRELESS_EXT)
+#ifdef WL_ESCAN
+		wl_escan_down(&dhd->pub);
+#endif /* WL_ESCAN */
+#endif /* defined(WL_WIRELESS_EXT) */
 	}
 #endif /* OEM_ANDROID && (BCMPCIE || (BCMLXSDMMC && KERNEL_VERSION >= 2.6.27)) */
 	return 0;
@@ -16656,6 +16675,8 @@ static void dhd_hang_process(void *dhd_info, void *event_info, u8 event)
 	struct net_device *dev;
 
 	dhd = (dhd_info_t *)dhd_info;
+	if (!dhd || !dhd->iflist[0])
+		return;
 	dev = dhd->iflist[0]->net;
 
 	if (dev) {

@@ -173,6 +173,7 @@ struct osl_info {
 #endif	/* BCM_BACKPLANE_TIMEOUT */
 #ifdef USE_DMA_LOCK
 	spinlock_t dma_lock;
+	bool dma_lock_bh;
 #endif /* USE_DMA_LOCK */
 };
 

@@ -109,6 +109,13 @@ enum in4way_flags {
 	WAIT_DISCONNECTED	= (1 << (3)),
 };
 
+enum in_suspend_flags {
+	NO_EVENT_IN_SUSPEND	= (1 << (0)),
+	NO_TXDATA_IN_SUSPEND	= (1 << (1)),
+	AP_DOWN_IN_SUSPEND	= (1 << (2)),
+	ROAM_OFFLOAD_IN_SUSPEND	= (1 << (3)),
+};
+
 enum eapol_status {
 	EAPOL_STATUS_NONE = 0,
 	EAPOL_STATUS_WPS_REQID,
@@ -204,11 +211,9 @@ typedef struct dhd_conf {
 	uint8 tcpack_sup_mode;
 #endif
 	int pktprio8021x;
-	int xmit_in_suspend;
-	int ap_in_suspend;
+	uint insuspend;
+	bool suspended;
 #ifdef SUSPEND_EVENT
-	bool suspend_eventmask_enable;
-	char suspend_eventmask[WL_EVENTING_MASK_LEN];
 	char resume_eventmask[WL_EVENTING_MASK_LEN];
 #endif
 #ifdef IDHCP
@@ -273,8 +278,8 @@ int dhd_conf_get_pm(dhd_pub_t *dhd);
 #ifdef PROP_TXSTATUS
 int dhd_conf_get_disable_proptx(dhd_pub_t *dhd);
 #endif
-int dhd_conf_get_ap_mode_in_suspend(dhd_pub_t *dhd);
-int dhd_conf_set_ap_in_suspend(dhd_pub_t *dhd, int suspend);
+uint dhd_conf_get_insuspend(dhd_pub_t *dhd);
+int dhd_conf_set_suspend_resume(dhd_pub_t *dhd, int suspend);
 void dhd_conf_postinit_ioctls(dhd_pub_t *dhd);
 int dhd_conf_preinit(dhd_pub_t *dhd);
 int dhd_conf_reset(dhd_pub_t *dhd);

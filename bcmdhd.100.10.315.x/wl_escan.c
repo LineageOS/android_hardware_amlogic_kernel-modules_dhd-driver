@@ -1072,17 +1072,21 @@ wl_escan_set_scan(
 		ESCAN_ERROR(("device is not ready\n"));
 		return -EIO;
 	}
+	if (escan->escan_state == ESCAN_STATE_DOWN) {
+		ESCAN_ERROR(("STATE is down\n"));
+		return -EIO;
+	}
 	mutex_lock(&escan->usr_sync);
 
 	if (!escan->ioctl_ver) {
 		val = 1;
 		if ((err = wldev_ioctl(dev, WLC_GET_VERSION, &val, sizeof(int), false) < 0)) {
-			ANDROID_ERROR(("WLC_GET_VERSION failed, err=%d\n", err));
+			ESCAN_ERROR(("WLC_GET_VERSION failed, err=%d\n", err));
 			goto exit;
 		}
 		val = dtoh32(val);
 		if (val != WLC_IOCTL_VERSION && val != 1) {
-			ANDROID_ERROR(("Version mismatch, please upgrade. Got %d, expected %d or 1\n",
+			ESCAN_ERROR(("Version mismatch, please upgrade. Got %d, expected %d or 1\n",
 				val, WLC_IOCTL_VERSION));
 			goto exit;
 		}
@@ -1415,7 +1419,7 @@ s32 wl_escan_autochannel(struct net_device *dev, char* command, int total_len)
 	} else if (escan->autochannel == 2) {
 		bytes_written = snprintf(command, total_len, "2g=%d 5g=%d",
 			escan->best_2g_ch, escan->best_5g_ch);
-		ANDROID_TRACE(("%s: command result is %s\n", __FUNCTION__, command));
+		ESCAN_TRACE(("%s: command result is %s\n", __FUNCTION__, command));
 		ret = bytes_written;
 	}
 
@@ -1452,7 +1456,7 @@ static void wl_escan_deinit(struct wl_escan_info *escan)
 	wl_destroy_event_handler(escan);
 	wl_flush_eq(escan);
 	del_timer_sync(&escan->scan_timeout);
-	escan->escan_state = ESCAN_STATE_IDLE;
+	escan->escan_state = ESCAN_STATE_DOWN;
 
 #if defined(RSSIAVG)
 	wl_free_rssi_cache(&escan->g_rssi_cache_ctrl);
@@ -1460,6 +1464,7 @@ static void wl_escan_deinit(struct wl_escan_info *escan)
 #if defined(BSSCACHE)
 	wl_free_bss_cache(&escan->g_bss_cache_ctrl);
 #endif
+	wl_ext_add_remove_pm_enable_work(&escan->conn_info, FALSE);
 }
 
 static s32 wl_escan_init(struct wl_escan_info *escan)
@@ -1482,6 +1487,7 @@ static s32 wl_escan_init(struct wl_escan_info *escan)
 #endif
 
 	if (wl_create_event_handler(escan)) {
+		ESCAN_ERROR(("device is not ready\n"));
 		err = -ENOMEM;
 		goto err;
 	}
@@ -1490,12 +1496,31 @@ static s32 wl_escan_init(struct wl_escan_info *escan)
 	escan->evt_handler[WLC_E_ESCAN_RESULT] = wl_escan_handler;
 	escan->escan_state = ESCAN_STATE_IDLE;
 
-	mutex_init(&escan->usr_sync);
-
 	return 0;
 err:
 	wl_escan_deinit(escan);
 	return err;
+}
+
+void wl_escan_down(dhd_pub_t *dhdp)
+{
+	struct wl_escan_info *escan = dhdp->escan;
+
+	wl_escan_deinit(escan);
+}
+
+int wl_escan_up(struct net_device *net, dhd_pub_t *dhdp)
+{
+	struct wl_escan_info *escan = dhdp->escan;
+	int err;
+
+	err = wl_escan_init(escan);
+	if (err) {
+		ESCAN_ERROR(("wl_escan_init err %d\n", err));
+		return err;
+	}
+
+	return 0;
 }
 
 void wl_escan_detach(dhd_pub_t *dhdp)
@@ -1523,6 +1548,7 @@ int
 wl_escan_attach(struct net_device *dev, dhd_pub_t *dhdp)
 {
 	struct wl_escan_info *escan = NULL;
+	int err = 0;
 
 	printf("%s: Enter\n", __FUNCTION__);
 
@@ -1537,7 +1563,9 @@ wl_escan_attach(struct net_device *dev, dhd_pub_t *dhdp)
 	/* we only care about main interface so save a global here */
 	escan->dev = dev;
 	escan->pub = dhdp;
-	escan->escan_state = ESCAN_STATE_IDLE;
+	escan->conn_info.dev = dev;
+	escan->conn_info.dhd = dhdp;
+	escan->escan_state = ESCAN_STATE_DOWN;
 
 	escan->escan_ioctl_buf = (void *)kzalloc(WLC_IOCTL_MAXLEN, GFP_KERNEL);
 	if (unlikely(!escan->escan_ioctl_buf)) {
@@ -1545,7 +1573,14 @@ wl_escan_attach(struct net_device *dev, dhd_pub_t *dhdp)
 		goto err ;
 	}
 	wl_init_eq(escan);
-	wl_escan_init(escan);
+	err = wl_escan_init(escan);
+	if (err) {
+		ESCAN_ERROR(("wl_escan_init err %d\n", err));
+		return err;
+	}
+	mutex_init(&escan->usr_sync);
+	mutex_init(&escan->conn_info.pm_sync);
+	INIT_DELAYED_WORK(&escan->conn_info.pm_enable_work, wl_ext_pm_work_handler);
 
 	return 0;
 err:

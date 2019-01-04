@@ -1140,7 +1140,8 @@ dhdpcie_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 
 	if (dhdpcie_chipmatch (pdev->vendor, pdev->device)) {
 		DHD_ERROR(("%s: chipmatch failed!!\n", __FUNCTION__));
-			return -ENODEV;
+		DHD_MUTEX_UNLOCK();
+		return -ENODEV;
 	}
 	printf("PCI_PROBE:  bus %X, slot %X,vendor %X, device %X"
 		"(good PCI location)\n", pdev->bus->number,
@@ -1148,6 +1149,7 @@ dhdpcie_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 
 	if (dhdpcie_init (pdev)) {
 		DHD_ERROR(("%s: PCIe Enumeration failed\n", __FUNCTION__));
+		DHD_MUTEX_UNLOCK();
 		return -ENODEV;
 	}
 
@@ -1845,7 +1847,7 @@ dhdpcie_enable_irq(dhd_bus_t *bus)
 int
 dhdpcie_irq_disabled(dhd_bus_t *bus)
 {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0))
 	struct irq_desc *desc = irq_to_desc(bus->dev->irq);
 	/* depth will be zero, if enabled */
 	return desc->depth;

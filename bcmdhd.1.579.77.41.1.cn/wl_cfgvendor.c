@@ -2513,6 +2513,7 @@ wl_cfgvendor_dbg_trigger_mem_dump(struct wiphy *wiphy,
 	if (ret) {
 		WL_ERR(("Vendor Command reply failed ret:%d \n", ret));
 	}
+	printk("wl_cfgvendor_dbg_trigger_mem_dump ===================ret : %d\n", ret);
 
 exit:
 	return ret;

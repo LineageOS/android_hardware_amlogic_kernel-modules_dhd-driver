@@ -132,6 +132,7 @@ int wl_iw_handle_scanresults_ies(char **event_p, char *end,
 #else
 int wl_iw_attach(struct net_device *dev, dhd_pub_t *dhdp);
 void wl_iw_detach(dhd_pub_t *dhdp);
+void wl_iw_down(dhd_pub_t *dhdp);
 #endif
 
 #define CSCAN_COMMAND				"CSCAN "

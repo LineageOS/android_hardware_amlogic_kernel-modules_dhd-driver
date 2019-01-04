@@ -2948,10 +2948,13 @@ wl_run_escan(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 	}
 exit:
 	if (unlikely(err)) {
+		int suppressed = 0;
+		wldev_ioctl(dev, WLC_GET_SCANSUPPRESS, &suppressed, sizeof(int), false);
 		/* Don't print Error incase of Scan suppress */
-		if ((err == BCME_EPERM) && cfg->scan_suppressed)
+		if ((err == BCME_EPERM) && (cfg->scan_suppressed || suppressed)) {
+			cnt = 0;
 			WL_DBG(("Escan failed: Scan Suppressed \n"));
-		else {
+		} else {
 			cnt++;
 			WL_ERR(("error (%d), cnt=%d\n", err, cnt));
 			// terence 20140111: send disassoc to firmware
