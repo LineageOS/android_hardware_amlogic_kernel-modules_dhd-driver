@@ -2605,6 +2605,7 @@ void
 dhd_conf_postinit_ioctls(dhd_pub_t *dhd)
 {
 	struct dhd_conf *conf = dhd->conf;
+	char wl_preinit[] = "assoc_retry_max=30";
 
 	dhd_conf_set_intiovar(dhd, WLC_UP, "up", 0, 0, FALSE);
 	dhd_conf_map_country_list(dhd, &conf->cspec);
@@ -2642,7 +2643,7 @@ dhd_conf_postinit_ioctls(dhd_pub_t *dhd)
 #endif
 	dhd_conf_set_intiovar(dhd, WLC_SET_VAR, "txbf", conf->txbf, 0, FALSE);
 	dhd_conf_set_intiovar(dhd, WLC_SET_FAKEFRAG, "WLC_SET_FAKEFRAG", conf->frameburst, 0, FALSE);
-
+	dhd_conf_set_wl_preinit(dhd, wl_preinit);
 	dhd_conf_set_wl_preinit(dhd, conf->wl_preinit);
 
 #ifndef WL_CFG80211
