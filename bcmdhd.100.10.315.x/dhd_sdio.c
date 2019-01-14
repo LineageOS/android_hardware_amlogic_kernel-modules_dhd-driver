@@ -2882,8 +2882,8 @@ dhd_bus_txctl(struct dhd_bus *bus, uchar *msg, uint msglen)
 		} else {
 			bus->dhd->txcnt_timeout++;
 			if (!bus->dhd->hang_was_sent) {
-				DHD_ERROR(("%s: ctrl_frame_stat == TRUE txcnt_timeout=%d\n",
-					__FUNCTION__, bus->dhd->txcnt_timeout));
+				DHD_ERROR(("%s: ctrl_frame_stat == TRUE txcnt_timeout=%d, bus->tx_max %d, bus->tx_seq %d\n",
+					__FUNCTION__, bus->dhd->txcnt_timeout, bus->tx_max, bus->tx_seq));
 			}
 #ifdef DHD_FW_COREDUMP
 			/* Collect socram dump */

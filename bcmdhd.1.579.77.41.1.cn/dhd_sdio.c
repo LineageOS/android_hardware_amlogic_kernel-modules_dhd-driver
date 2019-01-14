@@ -2843,8 +2843,8 @@ dhd_bus_txctl(struct dhd_bus *bus, uchar *msg, uint msglen)
 				DHD_TRACE_HW4(("%s : tx_max : %d, tx_seq : %d, clkstate : %d \n",
 					__FUNCTION__, bus->tx_max, bus->tx_seq, bus->clkstate));
 #endif /* CUSTOMER_HW4_DEBUG */
-				DHD_ERROR(("%s: ctrl_frame_stat == TRUE txcnt_timeout=%d\n",
-					__FUNCTION__, bus->dhd->txcnt_timeout));
+				DHD_ERROR(("%s: ctrl_frame_stat == TRUE txcnt_timeout=%d, bus->tx_max %d, bus->tx_seq %d\n",
+					__FUNCTION__, bus->dhd->txcnt_timeout, bus->tx_max, bus->tx_seq));
 			}
 #ifdef DHD_FW_COREDUMP
 			/* Collect socram dump */
