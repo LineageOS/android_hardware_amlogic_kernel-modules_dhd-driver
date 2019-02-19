@@ -19606,7 +19606,7 @@ s32 wl_cfg80211_down(struct net_device *dev)
 
 	WL_DBG(("In\n"));
 
-	if (cfg) {
+	if (cfg && (cfg == wl_cfg80211_get_bcmcfg())) {
 		mutex_lock(&cfg->usr_sync);
 #if defined(RSSIAVG)
 		wl_free_rssi_cache(&cfg->g_rssi_cache_ctrl);
