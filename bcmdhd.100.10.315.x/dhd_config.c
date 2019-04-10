@@ -1,3 +1,7 @@
+extern void *get_ukdev(void);
+extern int key_unify_read(void *ukdev, char *keyname, unsigned char *keydata,
+		unsigned int datalen, unsigned int *reallen);
+extern int key_unify_size(void *ukdev, char *keyname, unsigned int *reallen);
 
 #include <typedefs.h>
 #include <osl.h>
@@ -19,6 +23,15 @@
 #include <dhd_config.h>
 #include <dhd_dbg.h>
 #include <wl_android.h>
+
+static int getUnifyKey(char * inKeyName, unsigned char * outValueBuf, unsigned int inValueBufSize);
+static int askey_dhd_conf_preinit(struct dhd_conf *conf);
+static int askey_dhd_conf_read_unifykeys_wifi_disable_5g_band(dhd_pub_t *dhd);
+
+// kzalloc2getUnifyKey() will return a pointer to a memory allocated by kzalloc().
+// If the returned pointer is not NULL, remember to kfree the memory.
+static char * kzalloc2getUnifyKey(char * inKeyName);
+static int askey_dhd_conf_preinit_by_sn(struct dhd_conf *conf);
 
 /* message levels */
 #define CONFIG_ERROR_LEVEL	(1 << 0)
@@ -3368,6 +3381,65 @@ dhd_conf_read_others(dhd_pub_t *dhd, char *full_param, uint len_param)
 	return true;
 }
 
+static int askey_dhd_conf_read_unifykeys_wifi_disable_5g_band(dhd_pub_t *dhd) {
+	int state = 0;
+	char wifi_disable_5g_band[8] = {0};
+	char * wl_preinit = NULL;
+	int size = 0;
+	struct dhd_conf *conf = dhd->conf;
+
+	for (state = 1; state > 0;) {
+		switch (state) {
+			case 1:
+				if (0 != getUnifyKey("wifi_disable_5g_band", wifi_disable_5g_band, sizeof(wifi_disable_5g_band))) {
+					state = -1;
+					break;
+				}
+
+				if (conf->wl_preinit) {
+					// There is a setting for wl_preinit in the config file.
+					if (NULL != strstr(conf->wl_preinit, "disable_5g_band=")) {
+						/* Skip wifi_disable_5g_band of unifykeys because there
+						 * is a setting for disable_5g_band in wl_preinit in the
+						 * config file.
+						 */
+						state = 0;
+						break;
+					}
+					// Backup conf->wl_preinit
+					size = strlen(conf->wl_preinit) + 1;
+					wl_preinit = kmalloc(size, GFP_KERNEL);
+					memset(wl_preinit, 0, size);
+					strcpy(wl_preinit, conf->wl_preinit);
+					kfree(conf->wl_preinit);
+					conf->wl_preinit = NULL;
+				}
+
+				// Create new wl_preinit with disable_5g_band and the backup wl_preinit
+				size = strlen("disable_5g_band=") + strlen("wifi_disable_5g_band");
+				if (wl_preinit) {
+					size += strlen(",") + strlen(wl_preinit);
+				}
+				size++;
+				conf->wl_preinit = kmalloc(size, GFP_KERNEL);
+				memset(conf->wl_preinit, 0, size);
+				strcpy(conf->wl_preinit, "disable_5g_band=");
+				strcat(conf->wl_preinit, wifi_disable_5g_band);
+				if (wl_preinit) {
+					strcat(conf->wl_preinit, ",");
+					strcat(conf->wl_preinit, wl_preinit);
+					kfree(wl_preinit);
+					wl_preinit = NULL;
+				}
+				state = 0;
+				break;
+
+		}
+	}
+
+	return state;
+}
+
 int
 dhd_conf_read_config(dhd_pub_t *dhd, char *conf_path)
 {
@@ -3382,6 +3454,7 @@ dhd_conf_read_config(dhd_pub_t *dhd, char *conf_path)
 	conf_file_exists = ((conf_path != NULL) && (conf_path[0] != '\0'));
 	if (!conf_file_exists) {
 		CONFIG_MSG("config path %s\n", conf_path);
+		askey_dhd_conf_read_unifykeys_wifi_disable_5g_band(dhd);
 		return (0);
 	}
 
@@ -3496,6 +3569,8 @@ err:
 
 	if (image)
 		dhd_os_close_image1(dhd, image);
+
+	askey_dhd_conf_read_unifykeys_wifi_disable_5g_band(dhd);
 
 	return bcmerror;
 }
@@ -3641,6 +3716,259 @@ dhd_conf_postinit_ioctls(dhd_pub_t *dhd)
 
 }
 
+static int getUnifyKey(char * inKeyName, unsigned char * outValueBuf, unsigned int inValueBufSize) {
+	unsigned int keyLen = 0;
+	unsigned char * buf = NULL;
+
+	if (NULL == inKeyName || NULL == outValueBuf || 0 == inValueBufSize) {
+		return -1;
+	}
+	memset(outValueBuf, 0, inValueBufSize);
+	if (key_unify_size(get_ukdev(), inKeyName, &keyLen) < 0) {
+		return -1;
+	}
+	if (0 == keyLen) {
+		return -1;
+	}
+	if ((sizeof(unsigned char) * keyLen) > inValueBufSize) {
+		return -1;
+	}
+
+	if (NULL == (buf = kzalloc((sizeof(unsigned char) * keyLen), GFP_KERNEL))) {
+		return -1;
+	}
+
+	if (key_unify_read(get_ukdev(), inKeyName, buf, keyLen, &keyLen) < 0) {
+		kfree(buf);
+		buf = NULL;
+		return -1;
+	}
+
+	strcpy(outValueBuf, buf);
+
+	if (NULL != buf) {
+		kfree(buf);
+		buf = NULL;
+	}
+
+	return 0;
+}
+
+char * kzalloc2getUnifyKey(char * inKeyName) {
+	unsigned int keyLen = 0;
+	unsigned char * buf = NULL;
+
+	if (NULL == inKeyName) {
+		return NULL;
+	}
+
+	if (key_unify_size(get_ukdev(), inKeyName, &keyLen) < 0) {
+		return NULL;
+	}
+
+	if (0 == keyLen) {
+		return NULL;
+	}
+
+	if (NULL == (buf = kzalloc(((sizeof(unsigned char) * keyLen) + 1), GFP_KERNEL))) {
+		return NULL;
+	}
+
+	if (key_unify_read(get_ukdev(), inKeyName, buf, keyLen, &keyLen) < 0) {
+		kfree(buf);
+		buf = NULL;
+		return NULL;
+	}
+
+	buf[keyLen] = '\0';
+
+	return buf;
+}
+
+int askey_dhd_conf_preinit_by_sn(struct dhd_conf *conf) {
+	char * usid = NULL;
+	int i = 0;
+	struct {
+		char * country;
+		char * ccode;
+		int regrev;
+	} tbl[] = {
+		{"USA", "US", 1},	// the default MUST be put at the first place of this table
+		{"JPN", "JP", 58},
+		{"AUS", "AU", 6},
+		{"NZL", "NZ", 4},
+		{"HKG", "HK", 2},
+		{"CAN", "CA", 2},
+		{"TWN", "TW", 1},
+		{"CHN", "CN", 38},
+		{"DEU", "DE", 7},
+		{"FRA", "FR", 5},
+		{"NLD", "NL", 4},
+		{"ITA", "IT", 4},
+		{"BGR", "BG", 4},
+		{"HUN", "HU", 4},
+		{"AUT", "AT", 4},
+		{"RUS", "RU", 986},
+		{"GBR", "GB", 6},
+		{"BRA", "BR", 4},
+		{"MEX", "MX", 20},
+		{"IND", "IN", 3},
+		{"PHL", "PH", 5},
+		{"SGP", "SG", 0},
+		{"MYS", "MY", 3},
+		{"AND", "AD", 0},
+		{"ARE", "AE", 6},
+		{"ATG", "AG", 2},
+		{"AIA", "AI", 1},
+		{"ALB", "AL", 2},
+		{"ASM", "AS", 12},
+		{"ABW", "AW", 2},
+		{"AZE", "AZ", 2},
+		{"BIH", "BA", 2},
+		{"BGD", "BD", 2},
+		{"BEL", "BE", 4},
+		{"BHR", "BH", 4},
+		{"BMU", "BM", 12},
+		{"BRN", "BN", 4},
+		{"BRA", "BR", 4},
+		{"BHS", "BS", 2},
+		{"BLR", "BY", 3},
+		{"CAN", "CA", 2},
+		{"CHE", "CH", 4},
+		{"COL", "CO", 17},
+		{"CRI", "CR", 17},
+		{"CYP", "CY", 4},
+		{"CZE", "CZ", 4},
+		{"DEU", "DE", 7},
+		{"DNK", "DK", 4},
+		{"ECU", "EC", 21},
+		{"EST", "EE", 4},
+		{"EGY", "EG", 0},
+		{"ESP", "ES", 4},
+		{"ETH", "ET", 2},
+		{"FIN", "FI", 4},
+		{"GRD", "GD", 2},
+		{"GEO", "GE", 0},
+		{"PYF", "GF", 2},
+		{"GRC", "GR", 4},
+		{"GTM", "GT", 1},
+		{"GUM", "GU", 12},
+		{"HRV", "HR", 4},
+		{"IDN", "ID", 13},
+		{"IRL", "IE", 5},
+		{"ISR", "IL", 7},
+		{"ISL", "IS", 4},
+		{"ITA", "IT", 4},
+		{"JOR", "JO", 3},
+		{"KHM", "KH", 2},
+		{"KOR", "KR", 57},
+		{"KWT", "KW", 5},
+		{"CYM", "KY", 3},
+		{"LAO", "LA", 2},
+		{"LBN", "LB", 5},
+		{"LIE", "LI", 4},
+		{"LKA", "LK", 1},
+		{"LSO", "LS", 2},
+		{"LTU", "LT", 4},
+		{"LUX", "LU", 3},
+		{"LVA", "LV", 4},
+		{"MAR", "MA", 2},
+		{"MCO", "MC", 1},
+		{"MDA", "MD", 2},
+		{"MNE", "ME", 2},
+		{"MKD", "MK", 2},
+		{"MNG", "MN", 1},
+		{"MRT", "MR", 2},
+		{"MLT", "MT", 4},
+		{"MUS", "MU", 2},
+		{"MDV", "MV", 3},
+		{"MWI", "MW", 1},
+		{"NIC", "NI", 2},
+		{"NLD", "NL", 4},
+		{"NOR", "NO", 4},
+		{"NZL", "NZ", 4},
+		{"OMN", "OM", 4},
+		{"PAN", "PA", 17},
+		{"PER", "PE", 20},
+		{"POL", "PL", 4},
+		{"PRI", "PR", 20},
+		{"PRT", "PT", 4},
+		{"PRY", "PY", 2},
+		{"REU", "RE", 2},
+		{"ROU", "RO", 4},
+		{"SRB", "RS", 2},
+		{"SWE", "SE", 4},
+		{"SVN", "SI", 4},
+		{"SVK", "SK", 4},
+		{"SMR", "SM", 0},
+		{"SOM", "SV", 19},
+		{"THA", "TH", 5},
+		{"TUN", "TN", 999},
+		{"TUR", "TR", 7},
+		{"TTO", "TT", 3},
+		{"UKR", "UA", 16},
+		{"VAT", "VA", 2},
+		{"VEN", "VE", 3},
+		{"VGB", "VG", 2},
+		{"VNM", "VN", 4},
+		{"MYT", "YT", 2},
+		{"ZAF", "ZA", 6},
+		{NULL, NULL, -1}
+	};
+
+	if (NULL == (usid = kzalloc2getUnifyKey("usid")) || strlen(usid) < 4) {
+		i = 0;	// for using tbl[0] as the default
+	}else {
+		for (i = 0; NULL != tbl[i].country; i++) {
+			if (0 == strncmp(tbl[i].country, &usid[1], 3)) {
+				break;
+			}
+		}
+	}
+	if (NULL == tbl[i].country) {
+		i = 0;	// for using tbl[0] as the default
+	}
+	strcpy(conf->cspec.country_abbrev, tbl[i].ccode);
+	strcpy(conf->cspec.ccode, tbl[i].ccode);
+	conf->cspec.rev = tbl[i].regrev;
+
+	if (usid) {
+		kfree(usid);
+		usid = NULL;
+	}
+
+	return 0;
+}
+
+static int askey_dhd_conf_preinit(struct dhd_conf *conf) {
+	char * wifi_country_abbrev_ptr = NULL;
+	char wifi_country_abbrev[4] = {0};
+	char wifi_ccode[4] = {0};
+	char wifi_regrev[4] = {0};
+	long regrev = 0;
+
+	if (NULL == conf) {
+		return -1;
+	}
+	if (0 == getUnifyKey("wifi_ccode", wifi_ccode, sizeof(wifi_ccode)) &&
+		0 == getUnifyKey("wifi_regrev", wifi_regrev, sizeof(wifi_regrev)) &&
+		0 == kstrtol(wifi_regrev, 10, &regrev)) {
+		if (0 == getUnifyKey("wifi_country_abbrev", wifi_country_abbrev, sizeof(wifi_country_abbrev))) {
+			wifi_country_abbrev_ptr = wifi_country_abbrev;
+		}else {
+			wifi_country_abbrev_ptr = wifi_ccode;
+		}
+		strcpy(conf->cspec.country_abbrev, wifi_country_abbrev_ptr);
+		strcpy(conf->cspec.ccode, wifi_ccode);
+		conf->cspec.rev = regrev;
+	}else {
+		strcpy(conf->cspec.country_abbrev, "CN");
+		strcpy(conf->cspec.ccode, "CN");
+		conf->cspec.rev = 38;
+	}
+	return 0;
+}
+
 int
 dhd_conf_preinit(dhd_pub_t *dhd)
 {
@@ -3680,10 +4008,16 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 	} else if (conf->chip == BCM4335_CHIP_ID || conf->chip == BCM4339_CHIP_ID ||
 			conf->chip == BCM4354_CHIP_ID || conf->chip == BCM4356_CHIP_ID ||
 			conf->chip == BCM4345_CHIP_ID || conf->chip == BCM4371_CHIP_ID ||
-			conf->chip == BCM43569_CHIP_ID || conf->chip == BCM4359_CHIP_ID) {
+			conf->chip == BCM43569_CHIP_ID || conf->chip == BCM4359_CHIP_ID ||
+			conf->chip == BCM4362_CHIP_ID || conf->chip == BCM43751_CHIP_ID) {
+#if 1
+		askey_dhd_conf_preinit(conf);
+		askey_dhd_conf_preinit_by_sn(conf);
+#else
 		strcpy(conf->cspec.country_abbrev, "CN");
 		strcpy(conf->cspec.ccode, "CN");
 		conf->cspec.rev = 38;
+#endif
 	} else {
 		strcpy(conf->cspec.country_abbrev, "CN");
 		strcpy(conf->cspec.ccode, "CN");

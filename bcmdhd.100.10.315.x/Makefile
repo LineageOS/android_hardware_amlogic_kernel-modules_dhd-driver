@@ -31,6 +31,10 @@ export CONFIG_BCMDHD = m
 export CONFIG_BCMDHD_OOB = y
 export CONFIG_VTS_SUPPORT = y
 
+ifndef CONFIG_KASAN
+	KBUILD_CFLAGS_MODULE += -Wframe-larger-than=3000
+endif
+
 DHDCFLAGS = -Wall -Wstrict-prototypes -Dlinux -DBCMDRIVER                 \
 	-Wno-maybe-uninitialized -Werror                                      \
 	-DBCMDONGLEHOST -DBCMDMA32 -DBCMFILEIMAGE                             \
