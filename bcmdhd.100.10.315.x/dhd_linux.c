@@ -18455,6 +18455,11 @@ void dhd_get_memdump_info(dhd_pub_t *dhd)
 	int ret = 0;
 	char *filepath = MEMDUMPINFO;
 
+#if !defined(CONFIG_X86)
+	mem_val = DUMP_DISABLED;
+	goto done;
+#endif
+
 	/* Read memdump info from the file */
 	fp = filp_open(filepath, O_RDONLY, 0);
 	if (IS_ERR(fp)) {
