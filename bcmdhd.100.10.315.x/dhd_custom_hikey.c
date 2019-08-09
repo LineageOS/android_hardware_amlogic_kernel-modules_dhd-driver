@@ -1,7 +1,7 @@
 /*
  * Platform Dependent file for Hikey
  *
- * Copyright (C) 1999-2018, Broadcom.
+ * Copyright (C) 1999-2019, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -216,6 +216,16 @@ static int dhd_wlan_get_wake_irq(void)
 	return gpio_to_irq(wlan_host_wake_up);
 }
 #endif /* BCMSDIO */
+
+#if defined(CONFIG_BCMDHD_OOB_HOST_WAKE) && defined(CONFIG_BCMDHD_GET_OOB_STATE)
+int
+dhd_get_wlan_oob_gpio(void)
+{
+	return gpio_is_valid(wlan_host_wake_up) ?
+		gpio_get_value(wlan_host_wake_up) : -1;
+}
+EXPORT_SYMBOL(dhd_get_wlan_oob_gpio);
+#endif /* CONFIG_BCMDHD_OOB_HOST_WAKE && CONFIG_BCMDHD_GET_OOB_STATE */
 
 struct resource dhd_wlan_resources = {
 	.name	= "bcmdhd_wlan_irq",

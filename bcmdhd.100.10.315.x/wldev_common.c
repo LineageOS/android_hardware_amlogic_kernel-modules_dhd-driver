@@ -1,7 +1,7 @@
 /*
  * Common function shared by Linux WEXT, cfg80211 and p2p drivers
  *
- * Copyright (C) 1999-2018, Broadcom.
+ * Copyright (C) 1999-2019, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: wldev_common.c 754283 2018-03-27 02:51:46Z $
+ * $Id: wldev_common.c 786015 2018-10-24 08:21:53Z $
  */
 
 #include <osl.h>
@@ -36,6 +36,7 @@
 #include <bcmutils.h>
 #ifdef WL_CFG80211
 #include <wl_cfg80211.h>
+#include <wl_cfgscan.h>
 #endif /* WL_CFG80211 */
 #include <dhd_config.h>
 

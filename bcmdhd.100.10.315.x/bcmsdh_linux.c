@@ -1,7 +1,7 @@
 /*
  * SDIO access interface for drivers - linux specific (pci only)
  *
- * Copyright (C) 1999-2018, Broadcom.
+ * Copyright (C) 1999-2019, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -81,7 +81,7 @@ typedef struct bcmsdh_os_info {
 } bcmsdh_os_info_t;
 
 /* debugging macros */
-#define SDLX_MSG(x)
+#define SDLX_MSG(x) printf x
 
 /**
  * Checks to see if vendor and device IDs match a supported SDIO Host Controller.
@@ -219,10 +219,13 @@ int bcmsdh_get_total_wake(bcmsdh_info_t *bcmsdh)
 
 int bcmsdh_set_get_wake(bcmsdh_info_t *bcmsdh, int flag)
 {
+#if defined(OOB_INTR_ONLY)
 	bcmsdh_os_info_t *bcmsdh_osinfo = bcmsdh->os_cxt;
 	unsigned long flags;
-	int ret;
+#endif
+	int ret = 0;
 
+#if defined(OOB_INTR_ONLY)
 	spin_lock_irqsave(&bcmsdh_osinfo->oob_irq_spinlock, flags);
 
 	ret = bcmsdh->pkt_wake;
@@ -230,6 +233,7 @@ int bcmsdh_set_get_wake(bcmsdh_info_t *bcmsdh, int flag)
 	bcmsdh->pkt_wake = flag;
 
 	spin_unlock_irqrestore(&bcmsdh_osinfo->oob_irq_spinlock, flags);
+#endif
 	return ret;
 }
 #endif /* DHD_WAKE_STATUS */
@@ -385,11 +389,17 @@ int bcmsdh_oob_intr_register(bcmsdh_info_t *bcmsdh, bcmsdh_cb_fn_t oob_irq_handl
 	SDLX_MSG(("%s: disable_irq_wake\n", __FUNCTION__));
 	bcmsdh_osinfo->oob_irq_wake_enabled = FALSE;
 #else
-	err = enable_irq_wake(bcmsdh_osinfo->oob_irq_num);
-	if (err)
-		SDLX_MSG(("%s: enable_irq_wake failed with %d\n", __FUNCTION__, err));
-	else
-		bcmsdh_osinfo->oob_irq_wake_enabled = TRUE;
+#if defined(CONFIG_ARCH_RHEA) || defined(CONFIG_ARCH_CAPRI)
+	if (device_may_wakeup(bcmsdh_osinfo->dev)) {
+#endif /* CONFIG_ARCH_RHEA || CONFIG_ARCH_CAPRI */
+		err = enable_irq_wake(bcmsdh_osinfo->oob_irq_num);
+		if (err)
+			SDLX_MSG(("%s: enable_irq_wake failed with %d\n", __FUNCTION__, err));
+		else
+			bcmsdh_osinfo->oob_irq_wake_enabled = TRUE;
+#if defined(CONFIG_ARCH_RHEA) || defined(CONFIG_ARCH_CAPRI)
+	}
+#endif /* CONFIG_ARCH_RHEA || CONFIG_ARCH_CAPRI */
 #endif
 
 	return 0;
@@ -406,9 +416,15 @@ void bcmsdh_oob_intr_unregister(bcmsdh_info_t *bcmsdh)
 		return;
 	}
 	if (bcmsdh_osinfo->oob_irq_wake_enabled) {
-		err = disable_irq_wake(bcmsdh_osinfo->oob_irq_num);
-		if (!err)
-			bcmsdh_osinfo->oob_irq_wake_enabled = FALSE;
+#if defined(CONFIG_ARCH_RHEA) || defined(CONFIG_ARCH_CAPRI)
+		if (device_may_wakeup(bcmsdh_osinfo->dev)) {
+#endif /* CONFIG_ARCH_RHEA || CONFIG_ARCH_CAPRI */
+			err = disable_irq_wake(bcmsdh_osinfo->oob_irq_num);
+			if (!err)
+				bcmsdh_osinfo->oob_irq_wake_enabled = FALSE;
+#if defined(CONFIG_ARCH_RHEA) || defined(CONFIG_ARCH_CAPRI)
+		}
+#endif /* CONFIG_ARCH_RHEA || CONFIG_ARCH_CAPRI */
 	}
 	if (bcmsdh_osinfo->oob_irq_enabled) {
 		disable_irq(bcmsdh_osinfo->oob_irq_num);

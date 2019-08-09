@@ -1,7 +1,7 @@
 /*
  * Driver O/S-independent utility routines
  *
- * Copyright (C) 1999-2018, Broadcom.
+ * Copyright (C) 1999-2019, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: bcmutils.c 760883 2018-05-03 22:57:07Z $
+ * $Id: bcmutils.c 813798 2019-04-08 10:20:21Z $
  */
 
 #include <bcm_cfg.h>
@@ -83,7 +83,7 @@ pkttotlen(osl_t *osh, void *p)
 	total = 0;
 	for (; p; p = PKTNEXT(osh, p)) {
 		len = PKTLEN(osh, p);
-		total += len;
+		total += (uint)len;
 #ifdef BCMLFRAG
 		if (BCMLFRAG_ENAB()) {
 			if (PKTISFRAG(osh, p)) {
@@ -139,7 +139,7 @@ pktcopy(osl_t *osh, void *p, uint offset, int len, uchar *buf)
 	for (; p && offset; p = PKTNEXT(osh, p)) {
 		if (offset < (uint)PKTLEN(osh, p))
 			break;
-		offset -= PKTLEN(osh, p);
+		offset -= (uint)PKTLEN(osh, p);
 	}
 
 	if (!p)
@@ -168,7 +168,7 @@ pktfrombuf(osl_t *osh, void *p, uint offset, int len, uchar *buf)
 	for (; p && offset; p = PKTNEXT(osh, p)) {
 		if (offset < (uint)PKTLEN(osh, p))
 			break;
-		offset -= PKTLEN(osh, p);
+		offset -= (uint)PKTLEN(osh, p);
 	}
 
 	if (!p)
@@ -200,7 +200,7 @@ pktdataoffset(osl_t *osh, void *p,  uint offset)
 	for (; p; p = PKTNEXT(osh, p)) {
 		pdata = (uint8 *) PKTDATA(osh, p);
 		pkt_off = offset - len;
-		len += PKTLEN(osh, p);
+		len += (uint)PKTLEN(osh, p);
 		if (len > offset)
 			break;
 	}
@@ -218,7 +218,7 @@ pktoffset(osl_t *osh, void *p,  uint offset)
 		return NULL;
 
 	for (; p; p = PKTNEXT(osh, p)) {
-		len += PKTLEN(osh, p);
+		len += (uint)PKTLEN(osh, p);
 		if (len > offset)
 			break;
 	}
@@ -246,7 +246,7 @@ prpkt(const char *msg, osl_t *osh, void *p0)
 		printf("%s:\n", msg);
 
 	for (p = p0; p; p = PKTNEXT(osh, p))
-		prhex(NULL, PKTDATA(osh, p), PKTLEN(osh, p));
+		prhex(NULL, PKTDATA(osh, p), (uint)PKTLEN(osh, p));
 }
 #endif // endif
 
@@ -260,8 +260,8 @@ pktsetprio(void *pkt, bool update_vtag)
 	struct ether_header *eh;
 	struct ethervlan_header *evh;
 	uint8 *pktdata;
-	int priority = 0;
-	int rc = 0;
+	uint priority = 0;
+	uint rc = 0;
 
 	pktdata = (uint8 *)PKTDATA(OSH_NULL, pkt);
 	ASSERT(ISALIGNED((uintptr)pktdata, sizeof(uint16)));
@@ -270,18 +270,18 @@ pktsetprio(void *pkt, bool update_vtag)
 
 	if (eh->ether_type == hton16(ETHER_TYPE_8021Q)) {
 		uint16 vlan_tag;
-		int vlan_prio, dscp_prio = 0;
+		uint vlan_prio, dscp_prio = 0;
 
 		evh = (struct ethervlan_header *)eh;
 
 		vlan_tag = ntoh16(evh->vlan_tag);
-		vlan_prio = (int) (vlan_tag >> VLAN_PRI_SHIFT) & VLAN_PRI_MASK;
+		vlan_prio = (vlan_tag >> VLAN_PRI_SHIFT) & VLAN_PRI_MASK;
 
 		if ((evh->ether_type == hton16(ETHER_TYPE_IP)) ||
 			(evh->ether_type == hton16(ETHER_TYPE_IPV6))) {
 			uint8 *ip_body = pktdata + sizeof(struct ethervlan_header);
-			uint8 tos_tc = IP_TOS46(ip_body);
-			dscp_prio = (int)(tos_tc >> IPV4_TOS_PREC_SHIFT);
+			uint8 tos_tc = (uint8)IP_TOS46(ip_body);
+			dscp_prio = tos_tc >> IPV4_TOS_PREC_SHIFT;
 		}
 
 		/* DSCP priority gets precedence over 802.1P (vlan tag) */
@@ -313,35 +313,44 @@ pktsetprio(void *pkt, bool update_vtag)
 	} else if ((eh->ether_type == hton16(ETHER_TYPE_IP)) ||
 		(eh->ether_type == hton16(ETHER_TYPE_IPV6))) {
 		uint8 *ip_body = pktdata + sizeof(struct ether_header);
-		uint8 tos_tc = IP_TOS46(ip_body);
+		uint8 tos_tc = (uint8)IP_TOS46(ip_body);
 		uint8 dscp = tos_tc >> IPV4_TOS_DSCP_SHIFT;
 		switch (dscp) {
 		case DSCP_EF:
+		case DSCP_VA:
 			priority = PRIO_8021D_VO;
 			break;
 		case DSCP_AF31:
 		case DSCP_AF32:
 		case DSCP_AF33:
+		case DSCP_CS3:
 			priority = PRIO_8021D_CL;
 			break;
 		case DSCP_AF21:
 		case DSCP_AF22:
 		case DSCP_AF23:
+			priority = PRIO_8021D_EE;
+			break;
 		case DSCP_AF11:
 		case DSCP_AF12:
 		case DSCP_AF13:
-			priority = PRIO_8021D_EE;
+		case DSCP_CS2:
+			priority = PRIO_8021D_BE;
+			break;
+		case DSCP_CS6:
+		case DSCP_CS7:
+			priority = PRIO_8021D_NC;
 			break;
 		default:
-			priority = (int)(tos_tc >> IPV4_TOS_PREC_SHIFT);
+			priority = tos_tc >> IPV4_TOS_PREC_SHIFT;
 			break;
 		}
 
 		rc |= PKTPRIO_DSCP;
 	}
 
-	ASSERT(priority >= 0 && priority <= MAXPRIO);
-	PKTSETPRIO(pkt, priority);
+	ASSERT(priority <= MAXPRIO);
+	PKTSETPRIO(pkt, (int)priority);
 	return (rc | priority);
 }
 
@@ -376,12 +385,12 @@ pktsetprio_qms(void *pkt, uint8* up_table, bool update_vtag)
 		uint rc = 0;
 
 		pktdata = (uint8 *)PKTDATA(OSH_NULL, pkt);
-		pktlen = PKTLEN(OSH_NULL, pkt);
+		pktlen = (uint)PKTLEN(OSH_NULL, pkt);
 
 		if (pktgetdscp(pktdata, pktlen, &dscp)) {
 			rc = PKTPRIO_DSCP;
 			user_priority = dscp2up(up_table, dscp);
-			PKTSETPRIO(pkt, user_priority);
+			PKTSETPRIO(pkt, (int)user_priority);
 		}
 
 		return (rc | user_priority);
@@ -408,7 +417,7 @@ pktgetdscp(uint8 *pktdata, uint pktlen, uint8 *dscp)
 
 	if (eh->ether_type == HTON16(ETHER_TYPE_IP)) {
 		ip_body = pktdata + sizeof(struct ether_header);
-		*dscp = IP_DSCP46(ip_body);
+		*dscp = (uint8)IP_DSCP46(ip_body);
 		rc = TRUE;
 	}
 	else if (eh->ether_type == HTON16(ETHER_TYPE_8021Q)) {
@@ -418,7 +427,7 @@ pktgetdscp(uint8 *pktdata, uint pktlen, uint8 *dscp)
 		if (pktlen >= sizeof(struct ethervlan_header) + IPV4_MIN_HEADER_LEN &&
 			evh->ether_type == HTON16(ETHER_TYPE_IP)) {
 			ip_body = pktdata + sizeof(struct ethervlan_header);
-			*dscp = IP_DSCP46(ip_body);
+			*dscp = (uint8)IP_DSCP46(ip_body);
 			rc = TRUE;
 		}
 	}
@@ -463,7 +472,7 @@ wl_set_up_table(uint8 *up_table, bcm_tlv_t *qos_map_ie)
 		uint8 *except_ptr = (uint8 *)qos_map_ie->data;
 		uint8 except_len = len - QOS_MAP_FIXED_LENGTH;
 		uint8 *range_ptr = except_ptr + except_len;
-		int i;
+		uint8 i;
 
 		/* fill in ranges */
 		for (i = 0; i < QOS_MAP_FIXED_LENGTH; i += 2) {
@@ -503,7 +512,7 @@ const char *
 BCMRAMFN(bcmerrorstr)(int bcmerror)
 {
 	/* check if someone added a bcmerror code but forgot to add errorstring */
-	ASSERT(ABS(BCME_LAST) == (ARRAYSIZE(bcmerrorstrtable) - 1));
+	ASSERT((uint)ABS(BCME_LAST) == (ARRAYSIZE(bcmerrorstrtable) - 1));
 
 	if (bcmerror > 0 || bcmerror < BCME_LAST) {
 		snprintf(bcm_undeferrstr, sizeof(bcm_undeferrstr), "Undefined error %d", bcmerror);
@@ -776,7 +785,7 @@ bcm_mwbmap_alloc(struct bcm_mwbmap * mwbmap_hdl)
 			MWBMAP_ASSERT(C_bcm_count_leading_zeros(bitmap) ==
 			              bcm_count_leading_zeros(bitmap));
 			bitix    = (BCM_MWBMAP_BITS_WORD - 1)
-				 - bcm_count_leading_zeros(bitmap); /* use asm clz */
+				 - (uint32)bcm_count_leading_zeros(bitmap); /* use asm clz */
 			wordix   = BCM_MWBMAP_MULOP(wordix) + bitix;
 
 			/* Clear bit if wd count is 0, without conditional branch */
@@ -784,14 +793,14 @@ bcm_mwbmap_alloc(struct bcm_mwbmap * mwbmap_hdl)
 			count = bcm_cntsetbits(mwbmap_p->id_bitmap[wordix]) - 1;
 #else  /* ! BCM_MWBMAP_USE_CNTSETBITS */
 			mwbmap_p->wd_count[wordix]--;
-			count = mwbmap_p->wd_count[wordix];
+			count = (uint32)mwbmap_p->wd_count[wordix];
 			MWBMAP_ASSERT(count ==
 			              (bcm_cntsetbits(mwbmap_p->id_bitmap[wordix]) - 1));
 #endif /* ! BCM_MWBMAP_USE_CNTSETBITS */
 			MWBMAP_ASSERT(count >= 0);
 
 			/* clear wd_bitmap bit if id_map count is 0 */
-			bitmap = (count == 0) << bitix;
+			bitmap = ((uint32)(count == 0)) << BCM_MWBMAP_MODOP(bitix);
 
 			MWBMAP_DBG((
 			    "Lvl1: bitix<%02u> wordix<%02u>: %08x ^ %08x = %08x wfree %d",
@@ -811,7 +820,7 @@ bcm_mwbmap_alloc(struct bcm_mwbmap * mwbmap_hdl)
 			              bcm_count_leading_zeros(bitmap));
 			bitix    = BCM_MWBMAP_MULOP(wordix)
 				 + (BCM_MWBMAP_BITS_WORD - 1)
-				 - bcm_count_leading_zeros(bitmap); /* use asm clz */
+				 - (uint32)bcm_count_leading_zeros(bitmap); /* use asm clz */
 
 			mwbmap_p->ifree--; /* decrement system wide free count */
 			MWBMAP_ASSERT(mwbmap_p->ifree >= 0);
@@ -870,12 +879,12 @@ bcm_mwbmap_force(struct bcm_mwbmap * mwbmap_hdl, uint32 bitix)
 	count = bcm_cntsetbits(mwbmap_p->id_bitmap[bitix]);
 #else  /* ! BCM_MWBMAP_USE_CNTSETBITS */
 	mwbmap_p->wd_count[bitix]--;
-	count = mwbmap_p->wd_count[bitix];
+	count = (uint32)mwbmap_p->wd_count[bitix];
 	MWBMAP_ASSERT(count == bcm_cntsetbits(mwbmap_p->id_bitmap[bitix]));
 #endif /* ! BCM_MWBMAP_USE_CNTSETBITS */
 	MWBMAP_ASSERT(count >= 0);
 
-	bitmap   = (count == 0) << BCM_MWBMAP_MODOP(bitix);
+	bitmap   = (uint32)(count == 0) << BCM_MWBMAP_MODOP(bitix);
 
 	MWBMAP_DBG(("Lvl1: bitix<%02lu> wordix<%02u>: %08x ^ %08x = %08x wfree %d",
 	            BCM_MWBMAP_MODOP(bitix), wordix, *bitmap_p, bitmap,
@@ -959,7 +968,7 @@ bcm_mwbmap_free_cnt(struct bcm_mwbmap * mwbmap_hdl)
 
 	ASSERT(mwbmap_p->ifree >= 0);
 
-	return mwbmap_p->ifree;
+	return (uint32)mwbmap_p->ifree;
 }
 
 /* Determine whether an index is inuse or free */
@@ -1002,7 +1011,7 @@ bcm_mwbmap_show(struct bcm_mwbmap * mwbmap_hdl)
 #if defined(BCM_MWBMAP_USE_CNTSETBITS)
 		count = bcm_cntsetbits(mwbmap_p->id_bitmap[ix]);
 #else  /* ! BCM_MWBMAP_USE_CNTSETBITS */
-		count = mwbmap_p->wd_count[ix];
+		count = (uint32)mwbmap_p->wd_count[ix];
 		MWBMAP_ASSERT(count == bcm_cntsetbits(mwbmap_p->id_bitmap[ix]));
 #endif /* ! BCM_MWBMAP_USE_CNTSETBITS */
 		printf("\tIDMAP:%2u. 0x%08x %02u\t", ix, mwbmap_p->id_bitmap[ix], count);
@@ -1032,7 +1041,7 @@ bcm_mwbmap_audit(struct bcm_mwbmap * mwbmap_hdl)
 #if defined(BCM_MWBMAP_USE_CNTSETBITS)
 				count = bcm_cntsetbits(mwbmap_p->id_bitmap[idmap_ix]);
 #else  /* ! BCM_MWBMAP_USE_CNTSETBITS */
-				count = mwbmap_p->wd_count[idmap_ix];
+				count = (uint32)mwbmap_p->wd_count[idmap_ix];
 				ASSERT(count == bcm_cntsetbits(mwbmap_p->id_bitmap[idmap_ix]));
 #endif /* ! BCM_MWBMAP_USE_CNTSETBITS */
 				ASSERT(count != 0U);
@@ -1213,7 +1222,9 @@ id16_map_alloc(void * id16_map_hndl)
 	id16_map_t * id16_map;
 
 	ASSERT(id16_map_hndl != NULL);
-
+	if (!id16_map_hndl) {
+		return ID16_INVALID;
+	}
 	id16_map = (id16_map_t *)id16_map_hndl;
 
 	ASSERT(id16_map->total > 0);
@@ -1281,7 +1292,9 @@ id16_map_audit(void * id16_map_hndl)
 	id16_map_t * id16_map;
 
 	ASSERT(id16_map_hndl != NULL);
-
+	if (!id16_map_hndl) {
+		goto done;
+	}
 	id16_map = (id16_map_t *)id16_map_hndl;
 
 	ASSERT(id16_map->stack_idx >= -1);
@@ -1331,23 +1344,23 @@ done:
 void
 dll_pool_detach(void * osh, dll_pool_t * pool, uint16 elems_max, uint16 elem_size)
 {
-	uint32 mem_size;
-	mem_size = sizeof(dll_pool_t) + (elems_max * elem_size);
+	uint32 memsize;
+	memsize = sizeof(dll_pool_t) + (elems_max * elem_size);
 	if (pool)
-		MFREE(osh, pool, mem_size);
+		MFREE(osh, pool, memsize);
 }
 dll_pool_t *
 dll_pool_init(void * osh, uint16 elems_max, uint16 elem_size)
 {
-	uint32 mem_size, i;
+	uint32 memsize, i;
 	dll_pool_t * dll_pool_p;
 	dll_t * elem_p;
 
 	ASSERT(elem_size > sizeof(dll_t));
 
-	mem_size = sizeof(dll_pool_t) + (elems_max * elem_size);
+	memsize = sizeof(dll_pool_t) + (elems_max * elem_size);
 
-	if ((dll_pool_p = (dll_pool_t *)MALLOCZ(osh, mem_size)) == NULL) {
+	if ((dll_pool_p = (dll_pool_t *)MALLOCZ(osh, memsize)) == NULL) {
 		printf("dll_pool_init: elems_max<%u> elem_size<%u> malloc failure\n",
 			elems_max, elem_size);
 		ASSERT(0);
@@ -1447,7 +1460,7 @@ bcm_bprintf(struct bcmstrbuf *b, const char *fmt, ...)
 	if ((r == -1) || (r >= (int)b->size)) {
 		b->size = 0;
 	} else {
-		b->size -= r;
+		b->size -= (uint)r;
 		b->buf += r;
 	}
 
@@ -1568,7 +1581,7 @@ bcm_format_ssid(char* buf, const uchar ssid[], uint ssid_len)
 		} else if (bcm_isprint((uchar)c)) {
 			*p++ = (char)c;
 		} else {
-			p += snprintf(p, (endp - p), "\\x%02X", c);
+			p += snprintf(p, (size_t)(endp - p), "\\x%02X", c);
 		}
 	}
 	*p = '\0';
@@ -1753,7 +1766,7 @@ bcm_strtoull(const char *cp, char **endp, uint base)
 	result = 0;
 
 	while (bcm_isxdigit(*cp) &&
-	       (value = bcm_isdigit(*cp) ? *cp-'0' : bcm_toupper(*cp)-'A'+10) < base) {
+	       (value = (uint64)(bcm_isdigit(*cp) ? *cp-'0' : bcm_toupper(*cp)-'A'+10)) < base) {
 		result = result*base + value;
 		/* Detected overflow */
 		if (result < last_result && !minus) {
@@ -1805,7 +1818,7 @@ bcmstrstr(const char *haystack, const char *needle)
 	len = (int)strlen(haystack) - nlen + 1;
 
 	for (i = 0; i < len; i++)
-		if (memcmp(needle, &haystack[i], nlen) == 0)
+		if (memcmp(needle, &haystack[i], (size_t)nlen) == 0)
 			return DISCARD_QUAL(&haystack[i], char);
 	return (NULL);
 }
@@ -1909,7 +1922,7 @@ bcmstrtok(char **string, const char *delimiters, char *tokdelim)
 	for (; *str; str++) {
 		if (map[*str >> 5] & (1 << (*str & 31))) {
 			if (tokdelim != NULL) {
-				*tokdelim = *str;
+				*tokdelim = (char)*str;
 			}
 
 			*str++ = '\0';
@@ -2005,7 +2018,7 @@ bcm_ether_atoe(const char *p, struct ether_addr *ea)
 	char *ep;
 
 	for (;;) {
-		ea->octet[i++] = (char) bcm_strtoul(p, &ep, 16);
+		ea->octet[i++] = (uint8) bcm_strtoul(p, &ep, 16);
 		p = ep;
 		if (!*p++ || i == 6)
 			break;
@@ -2505,7 +2518,7 @@ bcm_write_tlv(int type, const void *data, int datalen, uint8 *dst)
 		 */
 		if (datalen > 0) {
 
-			memcpy(dst_tlv->data, data, datalen);
+			memcpy(dst_tlv->data, data, (size_t)datalen);
 		}
 
 		/* update the output destination poitner to point past
@@ -2575,7 +2588,7 @@ bcm_write_tlv_safe(int type, const void *data, int datalen, uint8 *dst, int dst_
 		/* if len + tlv hdr len is more than destlen, don't do anything
 		 * just return the buffer untouched
 		 */
-		if ((int)(datalen + BCM_TLV_HDR_SIZE) <= dst_maxlen) {
+		if ((int)(datalen + (int)BCM_TLV_HDR_SIZE) <= dst_maxlen) {
 
 			new_dst = bcm_write_tlv(type, data, datalen, dst);
 		}
@@ -2914,6 +2927,109 @@ bcm_next_tlv(const  bcm_tlv_t *elt, uint *buflen)
 	GCC_DIAGNOSTIC_POP();
 }
 
+/**
+ * Advance a const tlv buffer pointer and length up to the given tlv element pointer
+ * 'elt'.  The function checks that elt is a valid tlv; the elt pointer and data
+ * are all in the range of the buffer/length.
+ *
+ * @param elt      pointer to a valid bcm_tlv_t in the buffer
+ * @param buffer   pointer to a tlv buffer
+ * @param buflen   length of the buffer in bytes
+ *
+ * On return, if elt is not a tlv in the buffer bounds, the *buffer parameter
+ * will be set to NULL and *buflen parameter will be set to zero.  Otherwise,
+ * *buffer will point to elt, and *buflen will have been adjusted by the the
+ * difference between *buffer and elt.
+ */
+void
+bcm_tlv_buffer_advance_to(const bcm_tlv_t *elt, const uint8 **buffer, uint *buflen)
+{
+	uint new_buflen;
+	const uint8 *new_buffer;
+
+	new_buffer = (const uint8*)elt;
+
+	/* make sure the input buffer pointer is non-null, that (buffer + buflen) does not wrap,
+	 * and that the elt pointer is in the range of [buffer, buffer + buflen]
+	 */
+	if ((*buffer != NULL) &&
+	    ((uintptr)*buffer < ((uintptr)*buffer + *buflen)) &&
+	    (new_buffer >= *buffer) &&
+	    (new_buffer < (*buffer + *buflen))) {
+		/* delta between buffer and new_buffer is <= *buflen, so truncating cast to uint
+		 * from ptrdiff is ok
+		 */
+		uint delta = (uint)(new_buffer - *buffer);
+
+		/* New buffer length is old len minus the delta from the buffer start to elt.
+		 * The check just above guarantees that the subtractions does not underflow.
+		 */
+		new_buflen = *buflen - delta;
+
+		/* validate current elt */
+		if (bcm_valid_tlv(elt, new_buflen)) {
+			/* All good, so update the input/output parameters */
+			*buffer = new_buffer;
+			*buflen = new_buflen;
+			return;
+		}
+	}
+
+	/* something did not check out, clear out the buffer info */
+	*buffer = NULL;
+	*buflen = 0;
+
+	return;
+}
+
+/**
+ * Advance a const tlv buffer pointer and length past the given tlv element pointer
+ * 'elt'.  The function checks that elt is a valid tlv; the elt pointer and data
+ * are all in the range of the buffer/length.  The function also checks that the
+ * remaining buffer starts with a valid tlv.
+ *
+ * @param elt      pointer to a valid bcm_tlv_t in the buffer
+ * @param buffer   pointer to a tlv buffer
+ * @param buflen   length of the buffer in bytes
+ *
+ * On return, if elt is not a tlv in the buffer bounds, or the remaining buffer
+ * following the elt does not begin with a tlv in the buffer bounds, the *buffer
+ * parameter will be set to NULL and *buflen parameter will be set to zero.
+ * Otherwise, *buffer will point to the first byte past elt, and *buflen will
+ * have the remaining buffer length.
+ */
+void
+bcm_tlv_buffer_advance_past(const bcm_tlv_t *elt, const uint8 **buffer, uint *buflen)
+{
+	/* Start by advancing the buffer up to the given elt */
+	bcm_tlv_buffer_advance_to(elt, buffer, buflen);
+
+	/* if that did not work, bail out */
+	if (*buflen == 0) {
+		return;
+	}
+
+#if defined(__COVERITY__)
+	/* The elt has been verified by bcm_tlv_buffer_advance_to() to be a valid element,
+	 * so its elt->len is in the bounds of the buffer. The following check prevents
+	 * Coverity from flagging the (elt->data + elt->len) statement below as using a
+	 * tainted elt->len to index into array 'elt->data'.
+	 */
+	if (elt->len > *buflen) {
+		return;
+	}
+#endif /* __COVERITY__ */
+
+	/* We know we are advanced up to a good tlv.
+	 * Now just advance to the following tlv.
+	 */
+	elt = (const bcm_tlv_t*)(elt->data + elt->len);
+
+	bcm_tlv_buffer_advance_to(elt, buffer, buflen);
+
+	return;
+}
+
 /*
  * Traverse a string of 1-byte tag/1-byte length/variable-length value
  * triples, returning a pointer to the substring whose first element
@@ -3000,7 +3116,7 @@ bcm_tlv_t *
 bcm_parse_tlvs_min_bodylen(const  void *buf, int buflen, uint key, int min_bodylen)
 {
 	bcm_tlv_t * ret;
-	ret = bcm_parse_tlvs(buf, buflen, key);
+	ret = bcm_parse_tlvs(buf, (uint)buflen, key);
 	if (ret == NULL || ret->len < min_bodylen) {
 		return NULL;
 	}
@@ -3062,8 +3178,8 @@ bcm_format_field(const bcm_bit_desc_ex_t *bd, uint32 flags, char* buf, int len)
 		bit = bd->bitfield[i].bit;
 		if ((flags & mask) == bit) {
 			if (len > (int)strlen(name)) {
-				slen = strlen(name);
-				strncpy(buf, name, slen+1);
+				slen = (int)strlen(name);
+				strncpy(buf, name, (size_t)slen+1);
 			}
 			break;
 		}
@@ -3097,7 +3213,7 @@ bcm_format_flags(const bcm_bit_desc_t *bd, uint32 flags, char* buf, int len)
 		} else if ((flags & bit) == 0)
 			continue;
 		flags &= ~bit;
-		nlen = strlen(name);
+		nlen = (int)strlen(name);
 		slen += nlen;
 		/* count btwn flag space */
 		if (flags != 0)
@@ -3106,7 +3222,7 @@ bcm_format_flags(const bcm_bit_desc_t *bd, uint32 flags, char* buf, int len)
 		if (len <= slen)
 			break;
 		/* copy NULL char but don't count it */
-		strncpy(p, name, nlen + 1);
+		strncpy(p, name, (size_t)nlen + 1);
 		p += nlen;
 		/* copy btwn flag space and NULL char */
 		if (flags != 0)
@@ -3143,8 +3259,10 @@ bcm_format_octets(const bcm_bit_desc_t *bd, uint bdsz,
 	for (i = 0; i < bdsz; i++) {
 		bit = bd[i].bit;
 		name = bd[i].name;
+		CLANG_DIAGNOSTIC_PUSH_SUPPRESS_CAST();
 		if (isset(addr, bit)) {
-			nlen = strlen(name);
+		CLANG_DIAGNOSTIC_POP();
+			nlen = (int)strlen(name);
 			slen += nlen;
 			/* need SPACE - for simplicity */
 			slen += 1;
@@ -3153,7 +3271,7 @@ bcm_format_octets(const bcm_bit_desc_t *bd, uint bdsz,
 				more = TRUE;
 				break;
 			}
-			memcpy(p, name, nlen);
+			memcpy(p, name, (size_t)nlen);
 			p += nlen;
 			p[0] = ' ';
 			p += 1;
@@ -3201,12 +3319,12 @@ prhex(const char *msg, const uchar *buf, uint nbytes)
 	p = line;
 	for (i = 0; i < nbytes; i++) {
 		if (i % 16 == 0) {
-			nchar = snprintf(p, len, "  %04x: ", i);	/* line prefix */
+			nchar = snprintf(p, (size_t)len, "  %04x: ", i);	/* line prefix */
 			p += nchar;
 			len -= nchar;
 		}
 		if (len > 0) {
-			nchar = snprintf(p, len, "%02x ", buf[i]);
+			nchar = snprintf(p, (size_t)len, "%02x ", buf[i]);
 			p += nchar;
 			len -= nchar;
 		}
@@ -3270,7 +3388,18 @@ bcm_chipname(uint chipid, char *buf, uint len)
 	const char *fmt;
 
 	fmt = ((chipid > 0xa000) || (chipid < 0x4000)) ? "%d" : "%x";
+	/*
+	  * The following call to snprintf generates a compiler warning
+	  * due to -Wformat-nonliteral. However, the format string is coming
+	  * from internal callers rather than external data input, and is a
+	  * useful debugging tool serving a variety of diagnostics. Rather
+	  * than expand code size by replicating multiple functions with different
+	  * argument lists, or disabling the warning globally, let's consider
+	  * if we can just disable the warning for this one instance.
+	  */
+	CLANG_DIAGNOSTIC_PUSH_SUPPRESS_FORMAT()
 	snprintf(buf, len, fmt, chipid);
+	CLANG_DIAGNOSTIC_POP()
 	return buf;
 }
 
@@ -3328,14 +3457,26 @@ bcmdumpfields(bcmutl_rdreg_rtn read_rtn, void *arg0, uint arg1, struct fielddesc
 	while (bufsize > 1) {
 		if (cur_ptr->nameandfmt == NULL)
 			break;
+
+		/*
+		 * The following call to snprintf generates a compiler warning
+		 * due to -Wformat-nonliteral. However, the format string is coming
+		 * from internal callers rather than external data input, and is a
+		 * useful debugging tool serving a variety of diagnostics. Rather
+		 * than expand code size by replicating multiple functions with different
+		 * argument lists, or disabling the warning globally, let's consider
+		 * if we can just disable the warning for this one instance.
+		 */
+		CLANG_DIAGNOSTIC_PUSH_SUPPRESS_FORMAT()
 		len = snprintf(buf, bufsize, cur_ptr->nameandfmt,
-		               read_rtn(arg0, arg1, cur_ptr->offset));
+		read_rtn(arg0, arg1, cur_ptr->offset));
+		CLANG_DIAGNOSTIC_POP()
 		/* check for snprintf overflow or error */
 		if (len < 0 || (uint32)len >= bufsize)
-			len = bufsize - 1;
+			len = (int)(bufsize - 1);
 		buf += len;
-		bufsize -= len;
-		filled_len += len;
+		bufsize -= (uint32)len;
+		filled_len += (uint32)len;
 		cur_ptr++;
 	}
 	return filled_len;
@@ -3413,7 +3554,7 @@ bcm_qdbm_to_mw(uint8 qdbm)
 	/* return the mW value scaled down to the correct factor of 10,
 	 * adding in factor/2 to get proper rounding.
 	 */
-	return ((nqdBm_to_mW_map[idx] + factor/2) / factor);
+	return (uint16)((nqdBm_to_mW_map[idx] + factor/2) / factor);
 }
 
 uint8
@@ -3492,7 +3633,7 @@ process_nvram_vars(char *varbuf, unsigned int len)
 				break;
 			nv_ver[n-1] = varbuf[n];
 		}
-		printk("NVRAM version: %s\n", nv_ver);
+		printf("NVRAM version: %s\n", nv_ver);
 	}
 
 	for (n = 0; n < len; n++) {
@@ -3611,13 +3752,13 @@ uint16
 bcm_ip_cksum(uint8 *buf, uint32 len, uint32 sum)
 {
 	while (len > 1) {
-		sum += (buf[0] << 8) | buf[1];
+		sum += (uint32)((buf[0] << 8) | buf[1]);
 		buf += 2;
 		len -= 2;
 	}
 
 	if (len > 0) {
-		sum += (*buf) << 8;
+		sum += (uint32)((*buf) << 8);
 	}
 
 	while (sum >> 16) {
@@ -3723,7 +3864,7 @@ ipv4_hdr_cksum(uint8 *ip, int ip_len)
 	ptr += OFFSETOF(struct ipv4_hdr, hdr_chksum) + 2;
 
 	/* return calculated chksum */
-	return ip_cksum(sum, ptr, ip_len - OFFSETOF(struct ipv4_hdr, src_ip));
+	return ip_cksum(sum, ptr, (uint32)((uint)ip_len - OFFSETOF(struct ipv4_hdr, src_ip)));
 }
 
 /* calculate TCP header checksum using partial sum */
@@ -3766,6 +3907,8 @@ ipv4_tcp_hdr_cksum(uint8 *ip, uint8 *tcp, uint16 tcp_len)
 	ASSERT(tcp != NULL);
 	ASSERT(tcp_len >= TCP_MIN_HEADER_LEN);
 
+	if (!ip || !tcp || !(tcp_len >= TCP_MIN_HEADER_LEN))
+		return 0;
 	/* pseudo header cksum */
 	memset(&tcp_ps, 0, sizeof(tcp_ps));
 	memcpy(&tcp_ps.dst_ip, ip_hdr->dst_ip, IPV4_ADDR_LEN);
@@ -3802,6 +3945,8 @@ ipv6_tcp_hdr_cksum(uint8 *ipv6, uint8 *tcp, uint16 tcp_len)
 	ASSERT(tcp != NULL);
 	ASSERT(tcp_len >= TCP_MIN_HEADER_LEN);
 
+	if (!ipv6 || !tcp || !(tcp_len >= TCP_MIN_HEADER_LEN))
+		return 0;
 	/* pseudo header cksum */
 	memset((char *)&ipv6_pseudo, 0, sizeof(ipv6_pseudo));
 	memcpy((char *)ipv6_pseudo.saddr, (char *)ipv6_hdr->saddr.addr,
@@ -3873,7 +4018,7 @@ setbits(uint8 *addr, uint size, uint stbit, uint nbits, uint32 val)
 
 	/* all bits are in the same byte */
 	if (fbyte == lbyte) {
-		mask = ((1 << nbits) - 1) << fbit;
+		mask = (uint8)(((1 << nbits) - 1) << fbit);
 		addr[fbyte] &= ~mask;
 		addr[fbyte] |= (uint8)(val << fbit);
 		return;
@@ -3881,7 +4026,7 @@ setbits(uint8 *addr, uint size, uint stbit, uint nbits, uint32 val)
 
 	/* first partial byte */
 	if (fbit > 0) {
-		mask = (0xff << fbit);
+		mask = (uint8)(0xff << fbit);
 		addr[fbyte] &= ~mask;
 		addr[fbyte] |= (uint8)(val << fbit);
 		val >>= (8 - fbit);
@@ -3891,7 +4036,7 @@ setbits(uint8 *addr, uint size, uint stbit, uint nbits, uint32 val)
 
 	/* last partial byte */
 	if (rbits > 0) {
-		mask = (1 << rbits) - 1;
+		mask = (uint8)((1 << rbits) - 1);
 		addr[lbyte] &= ~mask;
 		addr[lbyte] |= (uint8)(val >> (nbits - rbits));
 		lbyte --;	/* last full byte */
@@ -3926,7 +4071,7 @@ getbits(const uint8 *addr, uint size, uint stbit, uint nbits)
 
 	/* all bits are in the same byte */
 	if (fbyte == lbyte) {
-		mask = ((1 << nbits) - 1) << fbit;
+		mask = (uint8)(((1 << nbits) - 1) << fbit);
 		val = (addr[fbyte] & mask) >> fbit;
 		return val;
 	}
@@ -3934,21 +4079,21 @@ getbits(const uint8 *addr, uint size, uint stbit, uint nbits)
 	/* first partial byte */
 	if (fbit > 0) {
 		bits = 8 - fbit;
-		mask = (0xff << fbit);
+		mask = (uint8)(0xFFu << fbit);
 		val |= (addr[fbyte] & mask) >> fbit;
 		fbyte ++;	/* first full byte */
 	}
 
 	/* last partial byte */
 	if (rbits > 0) {
-		mask = (1 << rbits) - 1;
-		val |= (addr[lbyte] & mask) << (nbits - rbits);
+		mask = (uint8)((1 << rbits) - 1);
+		val |= (uint32)((addr[lbyte] & mask) << (nbits - rbits));
 		lbyte --;	/* last full byte */
 	}
 
 	/* remaining full byte(s) */
 	for (byte = fbyte; byte <= lbyte; byte ++) {
-		val |= (addr[byte] << (((byte - fbyte) << 3) + bits));
+		val |= (uint32)((addr[byte] << (((byte - fbyte) << 3) + bits)));
 	}
 
 	return val;
@@ -4183,7 +4328,7 @@ replace_nvram_variable(char *varbuf, unsigned int buflen, const char *variable,
 	unsigned int *datalen)
 {
 	char *p;
-	int variable_heading_len, record_len, variable_record_len = strlen(variable) + 1;
+	int variable_heading_len, record_len, variable_record_len = (int)strlen(variable) + 1;
 	char *buf_end = varbuf + buflen;
 	p = strchr(variable, '=');
 	if (!p) {
@@ -4194,9 +4339,10 @@ replace_nvram_variable(char *varbuf, unsigned int buflen, const char *variable,
 	/* Scanning NVRAM, record by record up to trailing 0 */
 	for (p = varbuf; *p; p += strlen(p) + 1) {
 		/* If given variable found - remove it */
-		if (!strncmp(p, variable, variable_heading_len)) {
-			record_len = strlen(p) + 1;
-			memmove_s(p, buf_end - p, p + record_len, buf_end - (p + record_len));
+		if (!strncmp(p, variable, (size_t)variable_heading_len)) {
+			record_len = (int)strlen(p) + 1;
+			memmove_s(p, buf_end - p, p + record_len,
+				(size_t)(buf_end - (p + record_len)));
 		}
 	}
 	/* If buffer does not have space for given variable - return FALSE */
@@ -4204,7 +4350,7 @@ replace_nvram_variable(char *varbuf, unsigned int buflen, const char *variable,
 		return FALSE;
 	}
 	/* Copy given variable to end of buffer */
-	memmove_s(p, buf_end - p, variable, variable_record_len);
+	memmove_s(p, buf_end - p, variable, (size_t)variable_record_len);
 	/* Adding trailing 0 */
 	p[variable_record_len] = 0;
 	/* Setting optional output parameter - length of data in buffer */

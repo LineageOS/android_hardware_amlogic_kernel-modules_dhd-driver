@@ -1,7 +1,7 @@
 /*
  * Driver O/S-independent utility routines
  *
- * Copyright (C) 1999-2018, Broadcom.
+ * Copyright (C) 1999-2019, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: bcmxtlv.c 700655 2017-05-20 06:09:06Z $
+ * $Id: bcmxtlv.c 788740 2018-11-13 21:45:01Z $
  */
 
 #include <bcm_cfg.h>
@@ -95,12 +95,17 @@ bcm_xtlv_len(const bcm_xtlv_t *elt, bcm_xtlv_opts_t opts)
 	int len;
 
 	lenp = (const uint8 *)&elt->len; /* nominal */
-	if (opts & BCM_XTLV_OPTION_IDU8) --lenp;
+	if (opts & BCM_XTLV_OPTION_IDU8) {
+		--lenp;
+	}
 
-	if (opts & BCM_XTLV_OPTION_LENU8)
+	if (opts & BCM_XTLV_OPTION_LENU8) {
 		len = *lenp;
-	else
+	} else if (opts & BCM_XTLV_OPTION_LENBE) {
+		len = (uint32)hton16(elt->len);
+	} else {
 		len = ltoh16_ua(lenp);
+	}
 
 	return len;
 }
@@ -109,10 +114,13 @@ int
 bcm_xtlv_id(const bcm_xtlv_t *elt, bcm_xtlv_opts_t opts)
 {
 	int id = 0;
-	if (opts & BCM_XTLV_OPTION_IDU8)
+	if (opts & BCM_XTLV_OPTION_IDU8) {
 		id =  *(const uint8 *)elt;
-	else
+	} else if (opts & BCM_XTLV_OPTION_IDBE) {
+		id = (uint32)hton16(elt->id);
+	} else {
 		id = ltoh16_ua((const uint8 *)elt);
+	}
 
 	return id;
 }
@@ -217,7 +225,9 @@ bcm_xtlv_pack_xtlv(bcm_xtlv_t *xtlv, uint16 type, uint16 len, const uint8 *data,
 		*lenp = (uint8)len;
 		data_buf = lenp + sizeof(uint8);
 	} else {
-		ASSERT(!"Unexpected xtlv option");
+		bool Unexpected_xtlv_option = TRUE;
+		BCM_REFERENCE(Unexpected_xtlv_option);
+		ASSERT(!Unexpected_xtlv_option);
 		return;
 	}
 

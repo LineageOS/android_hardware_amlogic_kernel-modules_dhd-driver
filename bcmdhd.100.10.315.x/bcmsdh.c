@@ -2,7 +2,7 @@
  *  BCMSDH interface glue
  *  implement bcmsdh API for SDIOH driver
  *
- * Copyright (C) 1999-2018, Broadcom.
+ * Copyright (C) 1999-2019, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -528,7 +528,7 @@ bcmsdh_reg_read(void *sdh, uintptr addr, uint size)
 
 	ASSERT(bcmsdh->init_success);
 
-	if (bcmsdhsdio_set_sbaddr_window(bcmsdh, addr, FALSE)) {
+	if (bcmsdhsdio_set_sbaddr_window(bcmsdh, addr, bcmsdh->force_sbwad_calc)) {
 		bcmsdh->regfail = TRUE; // terence 20130621: prevent dhd_dpc in dead lock
 		return 0xFFFFFFFF;
 	}

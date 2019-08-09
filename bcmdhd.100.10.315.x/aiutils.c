@@ -2,7 +2,7 @@
  * Misc utility routines for accessing chip-specific features
  * of the SiliconBackplane-based Broadcom chips.
  *
- * Copyright (C) 1999-2018, Broadcom.
+ * Copyright (C) 1999-2019, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -25,7 +25,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: aiutils.c 769534 2018-06-26 21:19:11Z $
+ * $Id: aiutils.c 823201 2019-06-03 03:49:36Z $
  */
 #include <bcm_cfg.h>
 #include <typedefs.h>
@@ -174,7 +174,7 @@ ai_scan(si_t *sih, void *regs, uint devid)
 
 	case PCMCIA_BUS:
 	default:
-		SI_ERROR(("Don't know how to do AXI enumertion on bus %d\n", sih->bustype));
+		SI_ERROR(("Don't know how to do AXI enumeration on bus %d\n", sih->bustype));
 		ASSERT(0);
 		return;
 	}
@@ -250,12 +250,16 @@ ai_scan(si_t *sih, void *regs, uint devid)
 				asd = get_asd(sih, &eromptr, 0, 0, AD_ST_SLAVE,
 					&addrl, &addrh, &sizel, &sizeh);
 				if (asd != 0) {
-					sii->oob_router = addrl;
+					if ((sii->oob_router != 0) && (sii->oob_router != addrl)) {
+						sii->oob_router1 = addrl;
+					} else {
+						sii->oob_router = addrl;
+					}
 				}
 			}
 			if (cid != NS_CCB_CORE_ID &&
 				cid != PMU_CORE_ID && cid != GCI_CORE_ID && cid != SR_CORE_ID &&
-				cid != HUB_CORE_ID)
+				cid != HUB_CORE_ID && cid != HND_OOBR_CORE_ID)
 				continue;
 		}
 
@@ -603,6 +607,7 @@ ai_coreaddrspaceX(si_t *sih, uint asidx, uint32 *addr, uint32 *size)
 	if (cc == NULL)
 		goto error;
 
+	BCM_REFERENCE(erombase);
 	erombase = R_REG(sii->osh, &cc->eromptr);
 	eromptr = (uint32 *)REG_MAP(erombase, SI_CORE_SIZE);
 	eromlim = eromptr + (ER_REMAPCONTROL / sizeof(uint32));
@@ -699,8 +704,7 @@ ai_addrspace(si_t *sih, uint spidx, uint baidx)
 			return cores_info->coresba[cidx];
 		else if (baidx == CORE_BASE_ADDR_1)
 			return cores_info->coresba2[cidx];
-	}
-	else if (spidx == CORE_SLAVE_PORT_1) {
+	} else if (spidx == CORE_SLAVE_PORT_1) {
 		if (baidx == CORE_BASE_ADDR_0)
 			return cores_info->csp2ba[cidx];
 	}
@@ -709,7 +713,6 @@ ai_addrspace(si_t *sih, uint spidx, uint baidx)
 	      __FUNCTION__, baidx, spidx));
 
 	return 0;
-
 }
 
 /* Return the size of the nth address space in the current core
@@ -731,8 +734,7 @@ ai_addrspacesize(si_t *sih, uint spidx, uint baidx)
 			return cores_info->coresba_size[cidx];
 		else if (baidx == CORE_BASE_ADDR_1)
 			return cores_info->coresba2_size[cidx];
-	}
-	else if (spidx == CORE_SLAVE_PORT_1) {
+	} else if (spidx == CORE_SLAVE_PORT_1) {
 		if (baidx == CORE_BASE_ADDR_0)
 			return cores_info->csp2ba_size[cidx];
 	}
@@ -1213,7 +1215,6 @@ _ai_core_reset(si_t *sih, uint32 bits, uint32 resetbits)
 	}
 #endif /* UCM_CORRUPTION_WAR */
 	OSL_DELAY(1);
-
 }
 
 void

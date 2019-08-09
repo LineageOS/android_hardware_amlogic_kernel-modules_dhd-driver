@@ -1,7 +1,7 @@
 /*
  * DHD Protocol Module for CDC and BDC.
  *
- * Copyright (C) 1999-2018, Broadcom.
+ * Copyright (C) 1999-2019, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -121,7 +121,7 @@ dhdcdc_msg(dhd_pub_t *dhd)
 #endif /* BCMDBUS */
 
 #ifdef BCMDBUS
-	timeout = dhd_os_ioctl_resp_wait(dhd, &prot->ctl_completed, false);
+	timeout = dhd_os_ioctl_resp_wait(dhd, &prot->ctl_completed);
 	if ((!timeout) || (!prot->ctl_completed)) {
 		DHD_ERROR(("Txctl timeout %d ctl_completed %d\n",
 			timeout, prot->ctl_completed));
@@ -143,7 +143,7 @@ dhdcdc_msg(dhd_pub_t *dhd)
 			/* interrupt polling is sucessfully submitted. Wait for dongle to send
 			* interrupt
 			*/
-			timeout = dhd_os_ioctl_resp_wait(dhd, &prot->ctl_completed, false);
+			timeout = dhd_os_ioctl_resp_wait(dhd, &prot->ctl_completed);
 			if (!timeout) {
 				DHD_ERROR(("intr poll wait timed out\n"));
 			}
@@ -177,7 +177,7 @@ dhdcdc_cmplt(dhd_pub_t *dhd, uint32 id, uint32 len)
 			DHD_OS_IOCTL_RESP_UNLOCK(dhd);
 			goto done;
 		}
-		timeout = dhd_os_ioctl_resp_wait(dhd, &prot->ctl_completed, false);
+		timeout = dhd_os_ioctl_resp_wait(dhd, &prot->ctl_completed);
 		if ((!timeout) || (!prot->ctl_completed)) {
 			DHD_ERROR(("Rxctl timeout %d ctl_completed %d\n",
 				timeout, prot->ctl_completed));

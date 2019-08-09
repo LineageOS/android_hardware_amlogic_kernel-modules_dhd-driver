@@ -1,7 +1,7 @@
 /*
  * IP Packet Parser Module.
  *
- * Copyright (C) 1999-2018, Broadcom.
+ * Copyright (C) 1999-2019, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: dhd_ip.c 729083 2017-10-30 10:33:47Z $
+ * $Id: dhd_ip.c 813282 2019-04-04 09:42:28Z $
  */
 #include <typedefs.h>
 #include <osl.h>
@@ -39,11 +39,11 @@
 
 #include <dhd_ip.h>
 
-#ifdef DHDTCPACK_SUPPRESS
+#if defined(DHDTCPACK_SUPPRESS) || defined(DHDTCPSYNC_FLOOD_BLK)
 #include <dhd_bus.h>
 #include <dhd_proto.h>
 #include <bcmtcp.h>
-#endif /* DHDTCPACK_SUPPRESS */
+#endif /* DHDTCPACK_SUPPRESS || DHDTCPSYNC_FLOOD_BLK */
 
 /* special values */
 /* 802.3 llc/snap header */
@@ -128,7 +128,7 @@ typedef struct {
 	uint8 supp_cnt;
 	dhd_pub_t *dhdp;
 #ifndef TCPACK_SUPPRESS_HOLD_HRT
-	struct timer_list timer;
+	timer_list_compat_t timer;
 #else
 	struct tasklet_hrtimer timer;
 #endif /* TCPACK_SUPPRESS_HOLD_HRT */
@@ -295,13 +295,7 @@ static void _tdata_psh_info_pool_deinit(dhd_pub_t *dhdp,
 
 #ifdef BCMPCIE
 #ifndef TCPACK_SUPPRESS_HOLD_HRT
-static void dhd_tcpack_send(
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
-	struct timer_list *t
-#else
-	ulong data
-#endif
-)
+static void dhd_tcpack_send(ulong data)
 #else
 static enum hrtimer_restart dhd_tcpack_send(struct hrtimer *timer)
 #endif /* TCPACK_SUPPRESS_HOLD_HRT */
@@ -314,11 +308,7 @@ static enum hrtimer_restart dhd_tcpack_send(struct hrtimer *timer)
 	unsigned long flags;
 
 #ifndef TCPACK_SUPPRESS_HOLD_HRT
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
-	cur_tbl = from_timer(cur_tbl, t, timer);
-#else
 	cur_tbl = (tcpack_info_t *)data;
-#endif
 #else
 	cur_tbl = container_of(timer, tcpack_info_t, timer.timer);
 #endif /* TCPACK_SUPPRESS_HOLD_HRT */
@@ -513,13 +503,8 @@ int dhd_tcpack_suppress_set(dhd_pub_t *dhdp, uint8 mode)
 					&tcpack_sup_module->tcpack_info_tbl[i];
 				tcpack_info_tbl->dhdp = dhdp;
 #ifndef TCPACK_SUPPRESS_HOLD_HRT
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
-				timer_setup(&tcpack_info_tbl->timer, dhd_tcpack_send, 0);
-#else
-				init_timer(&tcpack_info_tbl->timer);
-				tcpack_info_tbl->timer.data = (ulong)tcpack_info_tbl;
-				tcpack_info_tbl->timer.function = dhd_tcpack_send;
-#endif
+				init_timer_compat(&tcpack_info_tbl->timer,
+					dhd_tcpack_send, tcpack_info_tbl);
 #else
 				tasklet_hrtimer_init(&tcpack_info_tbl->timer,
 					dhd_tcpack_send, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
@@ -1389,3 +1374,54 @@ exit:
 	return hold;
 }
 #endif /* DHDTCPACK_SUPPRESS */
+
+#ifdef DHDTCPSYNC_FLOOD_BLK
+tcp_hdr_flag_t
+dhd_tcpdata_get_flag(dhd_pub_t *dhdp, void *pkt)
+{
+	uint8 *ether_hdr;	/* Ethernet header of the new packet */
+	uint16 ether_type;	/* Ethernet type of the new packet */
+	uint8 *ip_hdr;		/* IP header of the new packet */
+	uint8 *tcp_hdr;		/* TCP header of the new packet */
+	uint32 ip_hdr_len;	/* IP header length of the new packet */
+	uint32 cur_framelen;
+	uint8 flags;
+
+	ether_hdr = PKTDATA(dhdp->osh, pkt);
+	cur_framelen = PKTLEN(dhdp->osh, pkt);
+
+	ether_type = ether_hdr[12] << 8 | ether_hdr[13];
+
+	if (ether_type != ETHER_TYPE_IP) {
+		DHD_TRACE(("%s %d: Not a IP packet 0x%x\n",
+			__FUNCTION__, __LINE__, ether_type));
+		return FLAG_OTHERS;
+	}
+
+	ip_hdr = ether_hdr + ETHER_HDR_LEN;
+	cur_framelen -= ETHER_HDR_LEN;
+
+	if (cur_framelen < IPV4_MIN_HEADER_LEN) {
+		return FLAG_OTHERS;
+	}
+
+	ip_hdr_len = IPV4_HLEN(ip_hdr);
+	if (IP_VER(ip_hdr) != IP_VER_4 || IPV4_PROT(ip_hdr) != IP_PROT_TCP) {
+		DHD_TRACE(("%s %d: Not IPv4 nor TCP! ip ver %d, prot %d\n",
+			__FUNCTION__, __LINE__, IP_VER(ip_hdr), IPV4_PROT(ip_hdr)));
+		return FLAG_OTHERS;
+	}
+
+	tcp_hdr = ip_hdr + ip_hdr_len;
+
+	flags = (uint8)tcp_hdr[TCP_FLAGS_OFFSET];
+
+	if (flags & TCP_FLAG_SYN) {
+		if (flags & TCP_FLAG_ACK) {
+			return FLAG_SYNCACK;
+		}
+		return FLAG_SYNC;
+	}
+	return FLAG_OTHERS;
+}
+#endif /* DHDTCPSYNC_FLOOD_BLK */

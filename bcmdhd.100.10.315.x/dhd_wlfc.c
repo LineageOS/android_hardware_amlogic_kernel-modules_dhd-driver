@@ -1,7 +1,7 @@
 /*
  * DHD PROP_TXSTATUS Module.
  *
- * Copyright (C) 1999-2018, Broadcom.
+ * Copyright (C) 1999-2019, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -3580,7 +3580,7 @@ dhd_wlfc_init(dhd_pub_t *dhd)
 
 	dhd_os_wlfc_block(dhd);
 	if (dhd->wlfc_enabled) {
-		DHD_ERROR(("%s():%d, Already enabled!\n", __FUNCTION__, __LINE__));
+		DHD_INFO(("%s():%d, Already enabled!\n", __FUNCTION__, __LINE__));
 		dhd_os_wlfc_unblock(dhd);
 		return BCME_OK;
 	}
@@ -3604,7 +3604,7 @@ dhd_wlfc_init(dhd_pub_t *dhd)
 		Leaving the message for now, it should be removed after a while; once
 		the tlv situation is stable.
 		*/
-		DHD_ERROR(("dhd_wlfc_init(): successfully %s bdcv2 tlv signaling, %d\n",
+		DHD_INFO(("dhd_wlfc_init(): successfully %s bdcv2 tlv signaling, %d\n",
 			dhd->wlfc_enabled?"enabled":"disabled", tlv));
 	}
 
@@ -3614,7 +3614,7 @@ dhd_wlfc_init(dhd_pub_t *dhd)
 	ret = dhd_wl_ioctl_get_intiovar(dhd, "wlfc_mode", &fw_caps, WLC_GET_VAR, FALSE, 0);
 
 	if (!ret) {
-		DHD_ERROR(("%s: query wlfc_mode succeed, fw_caps=0x%x\n", __FUNCTION__, fw_caps));
+		DHD_INFO(("%s: query wlfc_mode succeed, fw_caps=0x%x\n", __FUNCTION__, fw_caps));
 
 		if (WLFC_IS_OLD_DEF(fw_caps)) {
 #ifdef BCMDBUS
@@ -3645,7 +3645,7 @@ dhd_wlfc_init(dhd_pub_t *dhd)
 		}
 	}
 
-	DHD_ERROR(("dhd_wlfc_init(): wlfc_mode=0x%x, ret=%d\n", dhd->wlfc_mode, ret));
+	DHD_INFO(("dhd_wlfc_init(): wlfc_mode=0x%x, ret=%d\n", dhd->wlfc_mode, ret));
 #ifdef LIMIT_BORROW
 	dhd->wlfc_borrow_allowed = TRUE;
 #endif // endif
@@ -3809,8 +3809,6 @@ dhd_wlfc_deinit(dhd_pub_t *dhd)
 	dhd->wlfc_state = NULL;
 	dhd->proptxstatus_mode = hostreorder ?
 		WLFC_ONLY_AMPDU_HOSTREORDER : WLFC_FCMODE_NONE;
-
-	DHD_ERROR(("%s: wlfc_mode=0x%x, tlv=%d\n", __FUNCTION__, dhd->wlfc_mode, tlv));
 
 	dhd_os_wlfc_unblock(dhd);
 

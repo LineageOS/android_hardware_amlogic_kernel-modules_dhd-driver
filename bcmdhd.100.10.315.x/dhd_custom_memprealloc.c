@@ -1,7 +1,7 @@
 /*
  * Platform Dependent file for usage of Preallocted Memory
  *
- * Copyright (C) 1999-2018, Broadcom.
+ * Copyright (C) 1999-2019, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -23,7 +23,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: dhd_custom_memprealloc.c 744015 2018-01-31 05:51:10Z $
+ * $Id: dhd_custom_memprealloc.c 805764 2019-02-20 08:46:57Z $
  */
 
 #include <linux/device.h>
@@ -290,12 +290,14 @@ dhd_init_wlan_mem(void)
 	int i;
 	int j;
 
+#if !defined(CONFIG_BCMDHD_PCIE)
 	for (i = 0; i < DHD_SKB_1PAGE_BUF_NUM; i++) {
 		wlan_static_skb[i] = __dev_alloc_skb(DHD_SKB_1PAGE_BUFSIZE, GFP_KERNEL);
 		if (!wlan_static_skb[i]) {
 			goto err_skb_alloc;
 		}
 	}
+#endif /* !CONFIG_BCMDHD_PCIE */
 
 	for (i = DHD_SKB_1PAGE_BUF_NUM; i < WLAN_SKB_1_2PAGE_BUF_NUM; i++) {
 		wlan_static_skb[i] = __dev_alloc_skb(DHD_SKB_2PAGE_BUFSIZE, GFP_KERNEL);

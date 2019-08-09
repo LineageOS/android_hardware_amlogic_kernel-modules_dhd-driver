@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 driver - Dongle Host Driver (DHD) related
  *
- * Copyright (C) 1999-2018, Broadcom.
+ * Copyright (C) 1999-2019, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: dhd_cfg80211.c 771186 2018-07-09 09:14:04Z $
+ * $Id: dhd_cfg80211.c 807961 2019-03-05 05:47:47Z $
  */
 
 #include <linux/vmalloc.h>
@@ -155,6 +155,8 @@ int wl_cfg80211_remove_if(struct bcm_cfg80211 *cfg,
 
 void wl_cfg80211_cleanup_if(struct net_device *net)
 {
+	struct bcm_cfg80211 *cfg = wl_get_cfg(net);
+	BCM_REFERENCE(cfg);
 	dhd_cleanup_if(net);
 }
 

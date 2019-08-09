@@ -3,7 +3,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * Copyright (C) 1999-2018, Broadcom.
+ * Copyright (C) 1999-2019, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -143,7 +143,9 @@ dbg_ring_poll_worker(struct work_struct *work)
 		goto exit;
 	}
 
+	DHD_DBG_RING_UNLOCK(ring->lock, flags);
 	rlen = dhd_dbg_pull_from_ring(dhdp, ringid, buf, buflen);
+	DHD_DBG_RING_LOCK(ring->lock, flags);
 
 	if (!ring->sched_pull) {
 		ring->sched_pull = TRUE;

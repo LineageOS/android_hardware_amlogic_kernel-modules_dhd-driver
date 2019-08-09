@@ -1,7 +1,7 @@
 /*
  * Bloom filter support
  *
- * Copyright (C) 1999-2018, Broadcom.
+ * Copyright (C) 1999-2019, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: bcmbloom.c 714397 2017-08-04 08:24:38Z $
+ * $Id: bcmbloom.c 788740 2018-11-13 21:45:01Z $
  */
 
 #include <typedefs.h>
@@ -189,7 +189,9 @@ bcm_bloom_is_member(bcm_bloom_filter_t *bp,
 		pos = (*bp->hash[i])(bp->cb_ctx, i, tag, tag_len);
 
 		/* all bits must be set for a match */
+		CLANG_DIAGNOSTIC_PUSH_SUPPRESS_CAST()
 		if (isclr(buf, pos % BLOOM_BIT_LEN(buf_len))) {
+		CLANG_DIAGNOSTIC_POP()
 			err = BCME_NOTFOUND;
 			break;
 		}

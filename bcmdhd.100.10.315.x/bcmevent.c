@@ -1,7 +1,7 @@
 /*
  * bcmevent read-only data shared by kernel or app layers
  *
- * Copyright (C) 1999-2018, Broadcom.
+ * Copyright (C) 1999-2019, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: bcmevent.c 755881 2018-04-05 06:32:32Z $
+ * $Id: bcmevent.c 807989 2019-03-05 07:57:42Z $
  */
 
 #include <typedefs.h>
@@ -149,7 +149,7 @@ static const bcmevent_name_str_t bcmevent_names[] = {
 #ifdef WLWNM
 	BCMEVENT_NAME(WLC_E_WNM_STA_SLEEP),
 #endif /* WLWNM */
-#if defined(WL_PROXDETECT)
+#if defined(WL_PROXDETECT) || defined(RTT_SUPPORT)
 	BCMEVENT_NAME(WLC_E_PROXD),
 #endif // endif
 	BCMEVENT_NAME(WLC_E_CCA_CHAN_QUAL),
@@ -198,6 +198,7 @@ static const bcmevent_name_str_t bcmevent_names[] = {
 #endif /* WL_NAN */
 	BCMEVENT_NAME(WLC_E_RPSNOA),
 	BCMEVENT_NAME(WLC_E_PHY_CAL),
+	BCMEVENT_NAME(WLC_E_WA_LQM),
 };
 
 const char *bcmevent_get_name(uint event_type)

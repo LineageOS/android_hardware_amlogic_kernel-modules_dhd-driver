@@ -2688,35 +2688,6 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 }
 
 void
-dhd_set_path_params(struct dhd_bus *bus)
-{
-	/* External conf takes precedence if specified */
-	dhd_conf_preinit(bus->dhd);
-
-	if (bus->dhd->conf_path[0] == '\0') {
-		dhd_conf_set_path(bus->dhd, "config.txt", bus->dhd->conf_path, bus->nv_path);
-	}
-	if (bus->dhd->clm_path[0] == '\0') {
-		dhd_conf_set_path(bus->dhd, "clm.blob", bus->dhd->clm_path, bus->fw_path);
-	}
-#ifdef CONFIG_PATH_AUTO_SELECT
-	dhd_conf_set_conf_name_by_chip(bus->dhd, bus->dhd->conf_path);
-#endif
-
-	dhd_conf_read_config(bus->dhd, bus->dhd->conf_path);
-
-	dhd_conf_set_fw_name_by_chip(bus->dhd, bus->fw_path);
-	dhd_conf_set_nv_name_by_chip(bus->dhd, bus->nv_path);
-	dhd_conf_set_clm_name_by_chip(bus->dhd, bus->dhd->clm_path);
-
-	printf("Final fw_path=%s\n", bus->fw_path);
-	printf("Final nv_path=%s\n", bus->nv_path);
-	printf("Final clm_path=%s\n", bus->dhd->clm_path);
-	printf("Final conf_path=%s\n", bus->dhd->conf_path);
-
-}
-
-void
 dhd_bus_update_fw_nv_path(struct dhd_bus *bus, char *pfw_path,
 	char *pnv_path, char *pclm_path, char *pconf_path)
 {
@@ -2732,7 +2703,7 @@ dhd_bus_update_fw_nv_path(struct dhd_bus *bus, char *pfw_path,
 	bus->dhd->clm_path = pclm_path;
 	bus->dhd->conf_path = pconf_path;
 
-	dhd_set_path_params(bus);
+	dhd_conf_set_path_params(bus->dhd, NULL, NULL, bus->fw_path, bus->nv_path);
 
 }
 
@@ -2800,6 +2771,8 @@ dhd_dbus_probe_cb(void *arg, const char *desc, uint32 bustype,
 				if (dbus_download_firmware(bus, bus->fw_path, bus->nv_path) != DBUS_OK)
 					goto fail;
 #endif
+			} else {
+				goto fail;
 			}
 		}
 	} else {

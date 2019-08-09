@@ -2,7 +2,7 @@
  * Header file of Broadcom Dongle Host Driver (DHD)
  * Prefered Network Offload code and Wi-Fi Location Service(WLS) code.
  *
- * Copyright (C) 1999-2018, Broadcom.
+ * Copyright (C) 1999-2019, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -25,7 +25,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: dhd_pno.h 722186 2017-09-19 07:03:42Z $
+ * $Id: dhd_pno.h 805174 2019-02-15 17:26:01Z $
  */
 
 #ifndef __DHD_PNO_H__
@@ -348,6 +348,11 @@ typedef struct dhd_epno_results {
 	struct ether_addr bssid;
 } dhd_epno_results_t;
 
+typedef struct dhd_pno_swc_evt_param {
+	uint16 results_rxed_so_far;
+	wl_pfn_significant_net_t *change_array;
+} dhd_pno_swc_evt_param_t;
+
 typedef struct wifi_gscan_result {
 	uint64 ts;			/* Time of discovery           */
 	char ssid[DOT11_MAX_SSID_LEN+1]; /* null terminated		*/
@@ -384,8 +389,10 @@ typedef struct dhd_pno_gscan_capabilities {
 	int max_ap_cache_per_scan;
 	int max_rssi_sample_size;
 	int max_scan_reporting_threshold;
-	int max_hotlist_aps;
+	int max_hotlist_bssids;
+	int max_hotlist_ssids;
 	int max_significant_wifi_change_aps;
+	int max_bssid_history_entries;
 	int max_epno_ssid_crc32;
 	int max_epno_hidden_ssid;
 	int max_white_list_ssid;
@@ -402,6 +409,8 @@ struct dhd_pno_gscan_params {
 	uint8 bestn;
 	uint8 mscan;
 	uint8 buffer_threshold;
+	uint8 swc_nbssid_threshold;
+	uint8 swc_rssi_window_size;
 	uint8 lost_ap_window;
 	uint8 nchannel_buckets;
 	uint8 reason;
@@ -411,9 +420,12 @@ struct dhd_pno_gscan_params {
 	gscan_results_cache_t *gscan_batch_cache;
 	gscan_results_cache_t *gscan_hotlist_found;
 	gscan_results_cache_t*gscan_hotlist_lost;
+	uint16 nbssid_significant_change;
 	uint16 nbssid_hotlist;
+	struct dhd_pno_swc_evt_param param_significant;
 	struct dhd_pno_gscan_channel_bucket channel_bucket[GSCAN_MAX_CH_BUCKETS];
 	struct list_head hotlist_bssid_list;
+	struct list_head significant_bssid_list;
 	dhd_epno_ssid_cfg_t epno_cfg;
 	uint32 scan_id;
 };

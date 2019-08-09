@@ -1,7 +1,7 @@
 /*
  * Linux platform device for DHD WLAN adapter
  *
- * Copyright (C) 1999-2018, Broadcom.
+ * Copyright (C) 1999-2019, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: dhd_linux_platdev.c 765775 2018-06-05 10:10:56Z $
+ * $Id: dhd_linux_platdev.c 805835 2019-02-20 12:35:44Z $
  */
 #include <typedefs.h>
 #include <linux/kernel.h>
@@ -223,7 +223,7 @@ int wifi_platform_set_power(wifi_adapter_info_t *adapter, bool on, unsigned long
 	}
 	plat_data = adapter->wifi_plat_data;
 
-	DHD_ERROR(("%s = %d\n", __FUNCTION__, on));
+	DHD_ERROR(("%s = %d, delay: %lu msec\n", __FUNCTION__, on, msec));
 	if (plat_data->set_power) {
 #ifdef ENABLE_4335BT_WAR
 		if (on) {
@@ -313,11 +313,11 @@ wifi_platform_get_country_code(wifi_adapter_info_t *adapter, char *ccode)
 
 	DHD_TRACE(("%s\n", __FUNCTION__));
 	if (plat_data->get_country_code) {
-#ifdef CUSTOM_COUNTRY_CODE
+#ifdef CUSTOM_FORCE_NODFS_FLAG
 		return plat_data->get_country_code(ccode, flags);
 #else
 		return plat_data->get_country_code(ccode);
-#endif /* CUSTOM_COUNTRY_CODE */
+#endif /* CUSTOM_FORCE_NODFS_FLAG */
 	}
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)) */
 
@@ -922,6 +922,9 @@ fail:
 		wifi_platform_set_power(adapter, FALSE, WIFI_TURNOFF_DELAY);
 		wifi_platform_bus_enumerate(adapter, FALSE);
 	}
+#else
+	/* x86 bring-up PC needs no power-up operations */
+	err = dhd_bus_register();
 #endif // endif
 
 	return err;
@@ -936,11 +939,13 @@ static int dhd_wifi_platform_load_sdio(void)
 #ifdef BCMDBUS
 static int dhd_wifi_platform_load_usb(void)
 {
+	int err = 0;
+#if !defined(DHD_PRELOAD)
 	wifi_adapter_info_t *adapter;
 	s32 timeout = -1;
 	int i;
-	int err = 0;
 	enum wifi_adapter_status wait_status;
+#endif
 
 	err = dhd_bus_register();
 	if (err) {
@@ -948,6 +953,7 @@ static int dhd_wifi_platform_load_usb(void)
 		goto exit;
 	}
 
+#if !defined(DHD_PRELOAD)
 	/* power up all adapters */
 	for (i = 0; i < dhd_wifi_platdata->num_adapters; i++) {
 		adapter = &dhd_wifi_platdata->adapters[i];
@@ -974,10 +980,12 @@ static int dhd_wifi_platform_load_usb(void)
 			goto fail;
 		}
 	}
+#endif
 
 exit:
 	return err;
 
+#if !defined(DHD_PRELOAD)
 fail:
 	dhd_bus_unregister();
 	/* power down all adapters */
@@ -987,6 +995,7 @@ fail:
 	}
 
 	return err;
+#endif
 }
 #else /* BCMDBUS */
 static int dhd_wifi_platform_load_usb(void)

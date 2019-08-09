@@ -3,7 +3,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * Copyright (C) 1999-2018, Broadcom.
+ * Copyright (C) 1999-2019, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -23,7 +23,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: dhd_debug.h 771435 2018-07-10 05:35:24Z $
+ * $Id: dhd_debug.h 783721 2018-10-08 13:05:26Z $
  */
 
 #ifndef _dhd_debug_h_
@@ -710,6 +710,8 @@ typedef struct {
 } dhd_dbg_mwli_t;
 #endif /* DHD_DEBUG */
 
+#define DHD_OW_BI_RAW_EVENT_LOG_FMT 0xFFFF
+
 /* LSB 2 bits of format number to identify the type of event log */
 #define DHD_EVENT_LOG_HDR_MASK 0x3
 
@@ -764,6 +766,7 @@ extern int dhd_dbg_start(dhd_pub_t *dhdp, bool start);
 extern int dhd_dbg_set_configuration(dhd_pub_t *dhdp, int ring_id,
 		int log_level, int flags, uint32 threshold);
 extern int dhd_dbg_find_ring_id(dhd_pub_t *dhdp, char *ring_name);
+extern dhd_dbg_ring_t *dhd_dbg_get_ring_from_ring_id(dhd_pub_t *dhdp, int ring_id);
 extern void *dhd_dbg_get_priv(dhd_pub_t *dhdp);
 extern int dhd_dbg_send_urgent_evt(dhd_pub_t *dhdp, const void *data, const uint32 len);
 extern void dhd_dbg_verboselog_printf(dhd_pub_t *dhdp, prcd_event_log_hdr_t *plog_hdr,
@@ -773,8 +776,12 @@ int dhd_dbg_pull_single_from_ring(dhd_pub_t *dhdp, int ring_id, void *data, uint
 	bool strip_header);
 int dhd_dbg_push_to_ring(dhd_pub_t *dhdp, int ring_id, dhd_dbg_ring_entry_t *hdr,
 		void *data);
+int __dhd_dbg_get_ring_status(dhd_dbg_ring_t *ring, dhd_dbg_ring_status_t *ring_status);
 int dhd_dbg_get_ring_status(dhd_pub_t *dhdp, int ring_id,
 		dhd_dbg_ring_status_t *dbg_ring_status);
+#ifdef SHOW_LOGTRACE
+void dhd_dbg_read_ring_into_trace_buf(dhd_dbg_ring_t *ring, trace_buf_info_t *trace_buf_info);
+#endif /* SHOW_LOGTRACE */
 
 #ifdef DBG_PKT_MON
 extern int dhd_dbg_attach_pkt_monitor(dhd_pub_t *dhdp,
