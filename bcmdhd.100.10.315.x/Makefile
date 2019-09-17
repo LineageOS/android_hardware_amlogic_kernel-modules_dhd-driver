@@ -47,7 +47,7 @@ DHDOFILES = aiutils.o siutils.o sbutils.o bcmutils.o bcmwifi_channels.o   \
 	dhd_debug_linux.o dhd_debug.o dhd_mschdbg.o dhd_dbg_ring.o            \
 	hnd_pktq.o hnd_pktpool.o bcmxtlv.o linux_pkt.o bcmstdlib_s.o frag.o   \
 	dhd_linux_exportfs.o dhd_linux_pktdump.o \
-	dhd_config.o wl_event.o wl_android_ext.o  wl_escan.o
+	dhd_config.o wl_event.o wl_android_ext.o wl_escan.o
 
 #BCMDHD_SDIO
 ifneq ($(CONFIG_BCMDHD_SDIO),)

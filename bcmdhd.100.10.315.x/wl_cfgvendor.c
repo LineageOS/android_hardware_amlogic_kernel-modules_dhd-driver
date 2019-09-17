@@ -6685,12 +6685,6 @@ wl_cfgvendor_dbg_get_mem_dump(struct wiphy *wiphy,
 		}
 	}
 	if (buf_len > 0 && user_buf) {
-		mem_buf = vmalloc(buf_len);
-		if (!mem_buf) {
-			WL_ERR(("failed to allocate mem_buf with size : %d\n", buf_len));
-			ret = BCME_NOMEM;
-			goto exit;
-		}
 		ret = dhd_os_get_socram_dump(bcmcfg_to_prmry_ndev(cfg), &mem_buf, &buf_len);
 		if (ret) {
 			WL_ERR(("failed to get_socram_dump : %d\n", ret));
@@ -6742,7 +6736,6 @@ wl_cfgvendor_dbg_get_mem_dump(struct wiphy *wiphy,
 	}
 
 free_mem:
-	vfree(mem_buf);
 	/* Free skb memory */
 	if (skb) {
 		kfree_skb(skb);

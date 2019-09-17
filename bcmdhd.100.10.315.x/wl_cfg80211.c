@@ -4022,7 +4022,6 @@ wl_cfg80211_interface_ops(struct bcm_cfg80211 *cfg,
 			WL_ERR(("Interface remove failed!! ret %d\n", ret));
 		return ret;
 	}
-	printf("%s: mac=%pM\n", __FUNCTION__, addr);
 
 	/* Interface create */
 	bzero(&iface, sizeof(iface));
@@ -10723,17 +10722,21 @@ wl_cfg80211_bcn_validate_sec(
 		if (bss->rsn_ie) {
 			MFREE(cfg->osh, bss->rsn_ie, bss->rsn_ie[1]
 				+ WPA_RSN_IE_TAG_FIXED_LEN);
+			bss->rsn_ie = NULL;
 		}
 		if (bss->wpa_ie) {
 			MFREE(cfg->osh, bss->wpa_ie, bss->wpa_ie[1]
 				+ WPA_RSN_IE_TAG_FIXED_LEN);
+			bss->wpa_ie = NULL;
 		}
 		if (bss->wps_ie) {
 			MFREE(cfg->osh, bss->wps_ie, bss->wps_ie[1] + 2);
+			bss->wps_ie = NULL;
 		}
 		if (bss->fils_ind_ie) {
 			MFREE(cfg->osh, bss->fils_ind_ie, bss->fils_ind_ie[1]
 				+ FILS_INDICATION_IE_TAG_FIXED_LEN);
+			bss->fils_ind_ie = NULL;
 		}
 		if (ies->wpa_ie != NULL) {
 			/* WPAIE */
@@ -11490,6 +11493,7 @@ static s32 wl_cfg80211_hostapd_sec(
 					update_bss = true;
 					MFREE(cfg->osh, bss->rsn_ie,
 						bss->rsn_ie[1] + WPA_RSN_IE_TAG_FIXED_LEN);
+					bss->rsn_ie = NULL;
 					bss->wpa_ie = MALLOCZ(cfg->osh,
 						ies->wpa_ie->length + WPA_RSN_IE_TAG_FIXED_LEN);
 					if (bss->wpa_ie) {

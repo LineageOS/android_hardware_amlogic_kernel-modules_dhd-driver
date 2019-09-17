@@ -2735,7 +2735,7 @@ static void wl_scan_timeout(unsigned long data)
 	 * Keeping it TRUE causes the sequential private cmd error
 	 */
 	dhdp->scan_timeout_occurred = FALSE;
-#endif
+#endif /* DHD_FW_COREDUMP */
 	msg.event_type = hton32(WLC_E_ESCAN_RESULT);
 	msg.status = hton32(WLC_E_STATUS_TIMEOUT);
 	msg.reason = 0xFFFFFFFF;

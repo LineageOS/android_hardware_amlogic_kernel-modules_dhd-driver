@@ -2644,7 +2644,6 @@ _dhd_set_mac_address(dhd_info_t *dhd, int ifidx, uint8 *addr)
 		memcpy(dhd->iflist[ifidx]->net->dev_addr, addr, ETHER_ADDR_LEN);
 		if (ifidx == 0)
 			memcpy(dhd->pub.mac.octet, addr, ETHER_ADDR_LEN);
-		DHD_ERROR(("%s: MACID is overwritten ifidx=%d, mac=%pM\n", __FUNCTION__, ifidx, addr));
 	}
 
 	return ret;
@@ -7957,7 +7956,7 @@ dhd_remove_if(dhd_pub_t *dhdpub, int ifidx, bool need_rtnl_lock)
 					unregister_netdev(ifp->net);
 				else
 					unregister_netdevice(ifp->net);
-#if defined(WL_EXT_IAPSTA) || defined(USE_IW)  || defined(WL_ESCAN)
+#if defined(WL_EXT_IAPSTA) || defined(USE_IW) || defined(WL_ESCAN)
 #ifdef WL_EXT_IAPSTA
 				wl_ext_iapsta_dettach_netdev(ifp->net, ifidx);
 #endif /* WL_EXT_IAPSTA */
@@ -8614,7 +8613,7 @@ dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen
 	if (wl_ext_iapsta_attach(&dhd->pub) != 0) {
 		DHD_ERROR(("wl_ext_iapsta_attach failed\n"));
 		goto fail;
-}
+	}
 #endif /* WL_EXT_IAPSTA */
 #endif /* WL_EXT_IAPSTA || USE_IW || WL_ESCAN */
 #if defined(WL_WIRELESS_EXT)
@@ -17102,7 +17101,7 @@ dhd_mem_dump(void *handle, void *event_info, u8 event)
 #endif /* SHOW_LOGTRACE */
 
 		DHD_ERROR(("%s: call BUG_ON \n", __FUNCTION__));
-		//BUG_ON(1);
+		BUG_ON(1);
 	}
 	DHD_ERROR(("%s: No BUG ON, memdump type %u \n", __FUNCTION__, dhd->pub.memdump_type));
 
@@ -17364,7 +17363,6 @@ void dhd_schedule_log_dump(dhd_pub_t *dhdp, void *type)
 static void
 dhd_print_buf_addr(dhd_pub_t *dhdp, char *name, void *buf, unsigned int size)
 {
-#if 0
 #ifdef DHD_FW_COREDUMP
 	if ((dhdp->memdump_enabled == DUMP_MEMONLY) ||
 		(dhdp->memdump_enabled == DUMP_MEMFILE_BUGON) ||
@@ -17381,7 +17379,6 @@ dhd_print_buf_addr(dhd_pub_t *dhdp, char *name, void *buf, unsigned int size)
 			name, (uint32)buf, (uint32)__virt_to_phys((ulong)buf), size));
 #endif /* __ARM_ARCH_7A__ */
 	}
-#endif
 }
 
 static void

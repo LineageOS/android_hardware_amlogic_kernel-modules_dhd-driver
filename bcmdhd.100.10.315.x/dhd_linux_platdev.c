@@ -317,7 +317,7 @@ wifi_platform_get_country_code(wifi_adapter_info_t *adapter, char *ccode)
 		return plat_data->get_country_code(ccode, flags);
 #else
 		return plat_data->get_country_code(ccode);
-#endif /* CUSTOM_FORCE_NODFS_FLAG */
+#endif /* CUSTOM_COUNTRY_CODE */
 	}
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)) */
 
