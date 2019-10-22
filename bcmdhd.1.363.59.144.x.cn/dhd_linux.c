@@ -11788,7 +11788,7 @@ write_to_file(dhd_pub_t *dhd, uint8 *buf, int size)
 	file_mode = O_CREAT | O_WRONLY | O_SYNC;
 #elif defined(CUSTOMER_HW2)
 	snprintf(memdump_path, sizeof(memdump_path), "%s_%s_%ld.%ld",
-		"/data/misc/wifi/mem_dump", memdump_type,
+		"/data/vendor/misc/wifi/mem_dump", memdump_type,
 		(unsigned long)curtime.tv_sec, (unsigned long)curtime.tv_usec);
 	file_mode = O_CREAT | O_WRONLY | O_SYNC;
 #else
@@ -13210,7 +13210,7 @@ int dhd_set_ap_isolate(dhd_pub_t *dhdp, uint32 idx, int val)
 #define MEMDUMPINFO "/data/.memdump.info"
 #endif /* PLATFORM_SLP */
 #elif defined(CUSTOMER_HW2)
-#define MEMDUMPINFO "/data/misc/wifi/.memdump.info"
+#define MEMDUMPINFO "/data/vendor/misc/wifi/.memdump.info"
 #else
 #define MEMDUMPINFO "/installmedia/.memdump.info"
 #endif /* CUSTOMER_HW4_DEBUG */
@@ -13415,7 +13415,7 @@ exit:
 #define ASSERTINFO "/data/.assert.info"
 #endif /* PLATFORM_SLP */
 #elif defined(CUSTOMER_HW2)
-#define ASSERTINFO "/data/misc/wifi/.assert.info"
+#define ASSERTINFO "/data/vendor/misc/wifi/.assert.info"
 #else
 #define ASSERTINFO "/installmedia/.assert.info"
 #endif /* CUSTOMER_HW4_DEBUG */

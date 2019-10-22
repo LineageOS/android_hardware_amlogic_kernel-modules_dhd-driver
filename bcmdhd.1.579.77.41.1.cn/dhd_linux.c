@@ -1147,11 +1147,11 @@ static char *map_file_path = PLATFORM_PATH"rtecdc.map";
 static char *rom_st_str_file_path = PLATFORM_PATH"roml.bin";
 static char *rom_map_file_path = PLATFORM_PATH"roml.map";
 #elif defined(CUSTOMER_HW2)
-static char *logstrs_path = "/data/misc/wifi/logstrs.bin";
-static char *st_str_file_path = "/data/misc/wifi/rtecdc.bin";
-static char *map_file_path = "/data/misc/wifi/rtecdc.map";
-static char *rom_st_str_file_path = "/data/misc/wifi/roml.bin";
-static char *rom_map_file_path = "/data/misc/wifi/roml.map";
+static char *logstrs_path = "/data/vendor/misc/wifi/logstrs.bin";
+static char *st_str_file_path = "/data/vendor/misc/wifi/rtecdc.bin";
+static char *map_file_path = "/data/vendor/misc/wifi/rtecdc.map";
+static char *rom_st_str_file_path = "/data/vendor/misc/wifi/roml.bin";
+static char *rom_map_file_path = "/data/vendor/misc/wifi/roml.map";
 #else
 static char *logstrs_path = "/installmedia/logstrs.bin";
 static char *st_str_file_path = "/installmedia/rtecdc.bin";
@@ -16287,12 +16287,12 @@ write_dump_to_file(dhd_pub_t *dhd, uint8 *buf, int size, char *fname)
 	file_mode = O_CREAT | O_WRONLY | O_SYNC;
 #elif defined(CUSTOMER_HW2)
 	snprintf(memdump_path, sizeof(memdump_path), "%s%s_%s_%ld.%ld",
-		"/data/misc/wifi/", fname, memdump_type,
+		"/data/vendor/misc/wifi/", fname, memdump_type,
 		(unsigned long)curtime.tv_sec, (unsigned long)curtime.tv_usec);
 	file_mode = O_CREAT | O_WRONLY | O_SYNC;
 #elif (defined(BOARD_PANDA) || defined(__ARM_ARCH_7A__))
 	snprintf(memdump_path, sizeof(memdump_path), "%s%s_%s_%ld.%ld",
-		"/data/misc/wifi/", fname, memdump_type,
+		"/data/vendor/misc/wifi/", fname, memdump_type,
 		(unsigned long)curtime.tv_sec, (unsigned long)curtime.tv_usec);
 	file_mode = O_CREAT | O_WRONLY;
 #else
@@ -17768,11 +17768,11 @@ int dhd_set_ap_isolate(dhd_pub_t *dhdp, uint32 idx, int val)
 #ifdef CUSTOMER_HW4_DEBUG
 #define MEMDUMPINFO PLATFORM_PATH".memdump.info"
 #elif defined(CUSTOMER_HW2)
-#define MEMDUMPINFO "/data/misc/wifi/.memdump.info"
+#define MEMDUMPINFO "/data/vendor/misc/wifi/.memdump.info"
 #elif (defined(BOARD_PANDA) || defined(__ARM_ARCH_7A__))
-#define MEMDUMPINFO "/data/misc/wifi/.memdump.info"
+#define MEMDUMPINFO "/data/vendor/misc/wifi/.memdump.info"
 #else
-#define MEMDUMPINFO "/data/misc/wifi/.memdump.info"
+#define MEMDUMPINFO "/data/vendor/misc/wifi/.memdump.info"
 #endif /* CUSTOMER_HW4_DEBUG */
 
 void dhd_get_memdump_info(dhd_pub_t *dhd)
@@ -18127,7 +18127,7 @@ exit:
 #ifdef CUSTOMER_HW4_DEBUG
 #define ASSERTINFO PLATFORM_PATH".assert.info"
 #elif defined(CUSTOMER_HW2)
-#define ASSERTINFO "/data/misc/wifi/.assert.info"
+#define ASSERTINFO "/data/vendor/misc/wifi/.assert.info"
 #else
 #define ASSERTINFO "/installmedia/.assert.info"
 #endif /* CUSTOMER_HW4_DEBUG */

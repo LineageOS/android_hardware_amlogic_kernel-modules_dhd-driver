@@ -820,7 +820,7 @@ extern void clear_debug_dump_time(char *str);
 
 #define DHDIF_FWDER(dhdif)      FALSE
 
-#define DHD_COMMON_DUMP_PATH	"/data/misc/wifi/"
+#define DHD_COMMON_DUMP_PATH	"/data/vendor/misc/wifi/"
 
 struct cntry_locales_custom {
 	char iso_abbrev[WLC_CNTRY_BUF_SZ];      /* ISO 3166-1 country abbreviation */

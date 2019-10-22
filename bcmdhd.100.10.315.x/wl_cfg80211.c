@@ -18180,7 +18180,7 @@ static s32 __wl_cfg80211_up(struct bcm_cfg80211 *cfg)
 #if 0
 	/* terence 20180108: this patch will cause to kernel panic with below
 	* steps in Android 4.4 with kernel 3.4
-	* insmod bcmdhd.ko; hostapd /data/misc/wifi/hostapd.conf
+	* insmod bcmdhd.ko; hostapd /data/vendor/misc/wifi/hostapd.conf
 	*/
 	/* Always bring up interface in STA mode.
 	* Did observe , if previous SofAP Bringup/cleanup

@@ -558,7 +558,7 @@ static struct dhd_attr dhd_attr_cntl_macaddr =
 
 #ifdef DHD_FW_COREDUMP
 
-#define MEMDUMPINFO "/data/misc/wifi/.memdump.info"
+#define MEMDUMPINFO "/data/vendor/misc/wifi/.memdump.info"
 
 uint32
 get_mem_val_from_file(void)
@@ -674,7 +674,7 @@ static struct dhd_attr dhd_attr_cntl_memdump =
 #endif /* DHD_FW_COREDUMP */
 
 #ifdef BCMASSERT_LOG
-#define ASSERTINFO "/data/misc/wifi/.assert.info"
+#define ASSERTINFO "/data/vendor/misc/wifi/.assert.info"
 int
 get_assert_val_from_file(void)
 {

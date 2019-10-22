@@ -601,7 +601,7 @@ extern char *dhd_log_dump_get_timestamp(void);
 #endif /* DHD_LOG_DUMP */
 
 #if defined(CUSTOMER_HW2)
-#define DHD_COMMON_DUMP_PATH	"/data/misc/wifi/"
+#define DHD_COMMON_DUMP_PATH	"/data/vendor/misc/wifi/"
 #else
 #define DHD_COMMON_DUMP_PATH	"/installmedia/"
 #endif 

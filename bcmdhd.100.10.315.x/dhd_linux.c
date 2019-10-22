@@ -655,11 +655,11 @@ module_param(tpoweron_scale, uint, 0644);
 #endif /* FORCE_TPOWERON */
 
 #ifdef SHOW_LOGTRACE
-static char *logstrs_path = "/data/misc/wifi/logstrs.bin";
-char *st_str_file_path = "/data/misc/wifi/rtecdc.bin";
-static char *map_file_path = "/data/misc/wifi/rtecdc.map";
-static char *rom_st_str_file_path = "/data/misc/wifi/roml.bin";
-static char *rom_map_file_path = "/data/misc/wifi/roml.map";
+static char *logstrs_path = "/data/vendor/misc/wifi/logstrs.bin";
+char *st_str_file_path = "/data/vendor/misc/wifi/rtecdc.bin";
+static char *map_file_path = "/data/vendor/misc/wifi/rtecdc.map";
+static char *rom_st_str_file_path = "/data/vendor/misc/wifi/roml.bin";
+static char *rom_map_file_path = "/data/vendor/misc/wifi/roml.map";
 static char *ram_file_str = "rtecdc";
 static char *rom_file_str = "roml";
 

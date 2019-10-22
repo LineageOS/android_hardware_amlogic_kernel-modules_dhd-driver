@@ -402,7 +402,7 @@ struct dhd_log_dump_buf
 extern void dhd_log_dump_print(const char *fmt, ...);
 extern char *dhd_log_dump_get_timestamp(void);
 #endif /* DHD_LOG_DUMP */
-#define DHD_COMMON_DUMP_PATH	"/data/misc/wifi/log/"
+#define DHD_COMMON_DUMP_PATH	"/data/vendor/misc/wifi/log/"
 
 /* Common structure for module and instance linkage */
 typedef struct dhd_pub {
