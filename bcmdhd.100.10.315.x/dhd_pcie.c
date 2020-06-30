@@ -605,13 +605,12 @@ dhd_bus_pcie_pwr_req_nolock(struct dhd_bus *bus)
 bool
 dhdpcie_chip_support_msi(dhd_bus_t *bus)
 {
-	DHD_ERROR(("%s: buscorerev=%d chipid=0x%x\n",
+	DHD_INFO(("%s: buscorerev=%d chipid=0x%x\n",
 		__FUNCTION__, bus->sih->buscorerev, si_chipid(bus->sih)));
 	if (bus->sih->buscorerev <= 14 ||
 		si_chipid(bus->sih) == BCM4375_CHIP_ID ||
 		si_chipid(bus->sih) == BCM4362_CHIP_ID ||
 		si_chipid(bus->sih) == BCM43751_CHIP_ID ||
-		si_chipid(bus->sih) == BCM43752_CHIP_ID ||
 		si_chipid(bus->sih) == BCM4361_CHIP_ID ||
 		si_chipid(bus->sih) == BCM4359_CHIP_ID) {
 		return FALSE;
@@ -2807,7 +2806,7 @@ dhdpcie_download_firmware(struct dhd_bus *bus, osl_t *osh)
 
 	DHD_OS_WAKE_LOCK(bus->dhd);
 
-	dhd_conf_set_path_params(bus->dhd, NULL, NULL, bus->fw_path, bus->nv_path);
+	dhd_conf_set_path_params(bus->dhd, bus->fw_path, bus->nv_path);
 	dhd_set_bus_params(bus);
 
 	ret = _dhdpcie_download_firmware(bus);

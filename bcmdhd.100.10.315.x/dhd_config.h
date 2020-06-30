@@ -86,16 +86,18 @@ typedef struct conf_pkt_filter_del {
 } conf_pkt_filter_del_t;
 #endif
 
-#define CONFIG_COUNTRY_LIST_SIZE 100
-typedef struct conf_country_list {
-	wl_country_t *cspec[CONFIG_COUNTRY_LIST_SIZE];
-} conf_country_list_t;
+#define CONFIG_COUNTRY_LIST_SIZE 500
+typedef struct country_list {
+	struct country_list *next;
+	wl_country_t cspec;
+} country_list_t;
 
 /* mchan_params */
 #define MCHAN_MAX_NUM 4
 #define MIRACAST_SOURCE	1
 #define MIRACAST_SINK	2
 typedef struct mchan_params {
+	struct mchan_params *next;
 	int bw;
 	int p2p_mode;
 	int miracast_mode;
@@ -117,6 +119,11 @@ enum in_suspend_flags {
 	AP_FILTER_IN_SUSPEND	= (1 << (5)),
 	WOWL_IN_SUSPEND			= (1 << (6)),
 	ALL_IN_SUSPEND 			= 0xFFFFFFFF,
+};
+
+enum in_suspend_mode {
+	EARLY_SUSPEND = 0,
+	PM_NOTIFIER = 1
 };
 
 enum eapol_status {
@@ -146,13 +153,17 @@ enum eapol_status {
 typedef struct dhd_conf {
 	uint chip;
 	uint chiprev;
+#ifdef GET_OTP_MODULE_NAME
+	char module_name[16];
+#endif
+	struct ether_addr otp_mac;
 	int fw_type;
 #ifdef BCMSDIO
 	wl_mac_list_ctrl_t fw_by_mac;
 	wl_mac_list_ctrl_t nv_by_mac;
 #endif
 	wl_chip_nv_path_list_ctrl_t nv_by_chip;
-	conf_country_list_t country_list;
+	country_list_t *country_head;
 	int band;
 	int bw_cap[2];
 	wl_country_t cspec;
@@ -218,6 +229,7 @@ typedef struct dhd_conf {
 	bool deepsleep;
 	int pm;
 	int pm_in_suspend;
+	int suspend_mode;
 	int suspend_bcn_li_dtim;
 #ifdef DHDTCPACK_SUPPRESS
 	uint8 tcpack_sup_mode;
@@ -244,8 +256,10 @@ typedef struct dhd_conf {
 	char isam_enable[50];
 #endif
 	int ctrl_resched;
-	struct mchan_params mchan[MCHAN_MAX_NUM];
+	mchan_params_t *mchan;
 	char *wl_preinit;
+	char *wl_suspend;
+	char *wl_resume;
 	int tsq;
 	int orphan_move;
 	uint eapol_status;
@@ -256,24 +270,30 @@ typedef struct dhd_conf {
 #ifdef GET_CUSTOM_MAC_FROM_CONFIG
 	char hw_ether[62];
 #endif
+	wait_queue_head_t event_complete;
+#ifdef PROPTX_MAXCOUNT
+	int proptx_maxcnt_2g;
+	int proptx_maxcnt_5g;
+#endif /* DYNAMIC_PROPTX_MAXCOUNT */
 } dhd_conf_t;
 
 #ifdef BCMSDIO
-int dhd_conf_get_mac(dhd_pub_t *dhd, bcmsdh_info_t *sdh, si_t *sih, uint8 *mac);
+void dhd_conf_get_otp(dhd_pub_t *dhd, bcmsdh_info_t *sdh, si_t *sih);
 #if defined(HW_OOB) || defined(FORCE_WOWLAN)
 void dhd_conf_set_hw_oob_intr(bcmsdh_info_t *sdh, struct si_pub *sih);
 #endif
 void dhd_conf_set_txglom_params(dhd_pub_t *dhd, bool enable);
-int dhd_conf_set_blksize(bcmsdh_info_t *sdh);
 #endif
-void dhd_conf_set_path_params(dhd_pub_t *dhd, void *sdh, void *sih,
-	char *fw_path, char *nv_path);
+void dhd_conf_set_path_params(dhd_pub_t *dhd, char *fw_path, char *nv_path);
 int dhd_conf_set_intiovar(dhd_pub_t *dhd, uint cmd, char *name, int val,
 	int def, bool down);
 int dhd_conf_get_band(dhd_pub_t *dhd);
 int dhd_conf_set_country(dhd_pub_t *dhd, wl_country_t *cspec);
 int dhd_conf_get_country(dhd_pub_t *dhd, wl_country_t *cspec);
 int dhd_conf_map_country_list(dhd_pub_t *dhd, wl_country_t *cspec);
+#ifdef CCODE_LIST
+int dhd_ccode_map_country_list(dhd_pub_t *dhd, wl_country_t *cspec);
+#endif
 int dhd_conf_fix_country(dhd_pub_t *dhd);
 bool dhd_conf_match_channel(dhd_pub_t *dhd, uint32 channel);
 void dhd_conf_set_wme(dhd_pub_t *dhd, int ifidx, int mode);
@@ -307,4 +327,7 @@ int dhd_conf_attach(dhd_pub_t *dhd);
 void dhd_conf_detach(dhd_pub_t *dhd);
 void *dhd_get_pub(struct net_device *dev);
 int wl_pattern_atoh(char *src, char *dst);
+#ifdef BCMSDIO
+extern int dhd_bus_sleep(dhd_pub_t *dhdp, bool sleep, uint32 *intstatus);
+#endif
 #endif /* _dhd_config_ */

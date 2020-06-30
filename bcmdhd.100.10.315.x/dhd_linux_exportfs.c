@@ -36,6 +36,9 @@
 #ifdef DHD_ADPS_BAM_EXPORT
 #include <wl_bam.h>
 #endif // endif
+#ifdef CSI_SUPPORT
+#include <dhd_csi.h>
+#endif /* CSI_SUPPORT */
 
 #ifdef SHOW_LOGTRACE
 extern dhd_pub_t* g_dhd_pub;
@@ -558,7 +561,7 @@ static struct dhd_attr dhd_attr_cntl_macaddr =
 
 #ifdef DHD_FW_COREDUMP
 
-#define MEMDUMPINFO "/data/vendor/misc/wifi/.memdump.info"
+#define MEMDUMPINFO "/data/misc/wifi/.memdump.info"
 
 uint32
 get_mem_val_from_file(void)
@@ -674,7 +677,7 @@ static struct dhd_attr dhd_attr_cntl_memdump =
 #endif /* DHD_FW_COREDUMP */
 
 #ifdef BCMASSERT_LOG
-#define ASSERTINFO "/data/vendor/misc/wifi/.assert.info"
+#define ASSERTINFO "/data/misc/wifi/.assert.info"
 int
 get_assert_val_from_file(void)
 {
@@ -1334,6 +1337,29 @@ static struct kobj_type dhd_cntl_file_ktype = {
 	.default_attrs = control_file_attrs,
 };
 
+#ifdef CSI_SUPPORT
+/* Function to show current ccode */
+static ssize_t read_csi_data(struct file *filp, struct kobject *kobj,
+	struct bin_attribute *bin_attr, char *buf, loff_t off, size_t count)
+{
+	dhd_info_t *dhd = to_dhd(kobj);
+	int n = 0;
+
+	n = dhd_csi_dump_list(&dhd->pub, buf);
+	DHD_INFO(("Dump data to file, size %d\n", n));
+	dhd_csi_clean_list(&dhd->pub);
+
+	return n;
+}
+
+static struct bin_attribute dhd_attr_csi = {
+	.attr = { .name = "csi",
+		  .mode = 0660, },
+	.size = MAX_CSI_FILESZ,
+	.read = read_csi_data,
+};
+#endif /* CSI_SUPPORT */
+
 /* Create a kobject and attach to sysfs interface */
 int dhd_sysfs_init(dhd_info_t *dhd)
 {
@@ -1357,6 +1383,15 @@ int dhd_sysfs_init(dhd_info_t *dhd)
 		DHD_ERROR(("%s(): Unable to allocate kobject \r\n", __FUNCTION__));
 		return ret;
 	}
+
+#ifdef CSI_SUPPORT
+	ret = sysfs_create_bin_file(&dhd->dhd_kobj, &dhd_attr_csi);
+	if (ret) {
+		DHD_ERROR(("%s: can't create %s\n", __FUNCTION__, dhd_attr_csi.attr.name));
+		kobject_put(&dhd->dhd_kobj);
+		return ret;
+	}
+#endif /* CSI_SUPPORT */
 
 	/*
 	 * We are always responsible for sending the uevent that the kobject

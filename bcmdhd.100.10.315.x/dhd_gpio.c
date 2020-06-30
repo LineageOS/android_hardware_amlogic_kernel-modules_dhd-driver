@@ -24,6 +24,7 @@ static int gpio_wl_host_wake = -1; // WL_HOST_WAKE is output pin of WLAN module
 #include <linux/amlogic/aml_gpio_consumer.h>
 extern int wifi_irq_trigger_level(void);
 extern u8 *wifi_get_mac(void);
+extern u8 *wifi_get_ap_mac(void);
 #endif
 extern  void sdio_reinit(void);
 extern void set_usb_bt_power(int is_power);
@@ -177,18 +178,45 @@ static int dhd_wlan_set_carddetect(int present)
 	return err;
 }
 
-static int dhd_wlan_get_mac_addr(unsigned char *buf)
+static int dhd_wlan_get_mac_addr(unsigned char *buf
+#ifdef CUSTOM_MULTI_MAC
+	, char *name
+#endif
+)
 {
 	int err = 0;
 
-	printf("======== %s ========\n", __FUNCTION__);
-#ifdef EXAMPLE_GET_MAC
-	/* EXAMPLE code */
+#ifdef CUSTOM_MULTI_MAC
+	if (!strcmp("wlan1", name)) {
+#ifdef CUSTOMER_HW_AMLOGIC
+#ifdef CUSTOM_AP_MAC
+		bcopy((char *)wifi_get_ap_mac(), buf, sizeof(struct ether_addr));
+		if (buf[0] == 0xff) {
+			printf("custom wifi ap mac is not set\n");
+			err = -1;
+		} else
+			printf("custom wifi ap mac-addr: %02x:%02x:%02x:%02x:%02x:%02x\n",
+				buf[0], buf[1], buf[2],
+				buf[3], buf[4], buf[5]);
+#else
+		err = -1;
+#endif
+#endif
+	} else
+#endif /* CUSTOM_MULTI_MAC */
 	{
-		struct ether_addr ea_example = {{0x00, 0x11, 0x22, 0x33, 0x44, 0xFF}};
-		bcopy((char *)&ea_example, buf, sizeof(struct ether_addr));
+#ifdef CUSTOMER_HW_AMLOGIC
+		bcopy((char *)wifi_get_mac(), buf, sizeof(struct ether_addr));
+		if (buf[0] == 0xff) {
+			printf("custom wifi mac is not set\n");
+			err = -1;
+		} else
+			printf("custom wifi mac-addr: %02x:%02x:%02x:%02x:%02x:%02x\n",
+				buf[0], buf[1], buf[2],
+				buf[3], buf[4], buf[5]);
+#endif
 	}
-#endif /* EXAMPLE_GET_MAC */
+
 #ifdef EXAMPLE_GET_MAC_VER2
 	/* EXAMPLE code */
 	{
@@ -203,6 +231,8 @@ static int dhd_wlan_get_mac_addr(unsigned char *buf)
 		bcopy(macpad, buf+6, sizeof(macpad));
 	}
 #endif /* EXAMPLE_GET_MAC_VER2 */
+
+	printf("======== %s err=%d ========\n", __FUNCTION__, err);
 
 	return err;
 }
@@ -295,7 +325,7 @@ int dhd_wlan_init_gpio(void)
 #ifdef CUSTOMER_HW_AMLOGIC
 #if defined(BCMPCIE)
 	printf("======== Card detection to detect PCIE card! ========\n");
-	pci_remove_reinit(0x14e4, 0x43ec, 1);
+	//pci_remove_reinit(0x14e4, 0x449d, 1);
 #endif
 #endif
 

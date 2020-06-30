@@ -53,7 +53,9 @@
 #if defined(CONFIG_HAS_WAKELOCK)
 #include <linux/wakelock.h>
 #endif /* defined CONFIG_HAS_WAKELOCK */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
+#include <uapi/linux/sched/types.h>
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 #include <linux/sched/types.h>
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0) */
 /* The kernel threading is sdio-specific */
@@ -1387,6 +1389,10 @@ typedef struct dhd_pub {
 	void *pktcnts;
 #endif /* DHD_PKTDUMP_ROAM */
 	bool disable_dtim_in_suspend;	/* Disable set bcn_li_dtim in suspend */
+#ifdef CSI_SUPPORT
+	struct list_head csi_list;
+	int csi_count;
+#endif /* CSI_SUPPORT */
 	char *clm_path;		/* module_param: path to clm vars file */
 	char *conf_path;		/* module_param: path to config vars file */
 	struct dhd_conf *conf;	/* Bus module handle */
@@ -2358,6 +2364,7 @@ extern uint dhd_console_ms;
 extern uint android_msg_level;
 extern uint config_msg_level;
 extern uint sd_msglevel;
+extern uint dump_msg_level;
 #ifdef BCMDBUS
 extern uint dbus_msglevel;
 #endif /* BCMDBUS */
@@ -2925,6 +2932,12 @@ extern void *dhd_pub_shim(dhd_pub_t *dhd_pub);
 void* dhd_get_fwdump_buf(dhd_pub_t *dhd_pub, uint32 length);
 #endif /* DHD_FW_COREDUMP */
 
+#if defined(SET_XPS_CPUS)
+int dhd_xps_cpus_enable(struct net_device *net, int enable);
+int custom_xps_map_set(struct net_device *net, char *buf, size_t len);
+void custom_xps_map_clear(struct net_device *net);
+#endif
+
 #if defined(SET_RPS_CPUS)
 int dhd_rps_cpus_enable(struct net_device *net, int enable);
 int custom_rps_map_set(struct netdev_rx_queue *queue, char *buf, size_t len);
@@ -2937,9 +2950,9 @@ void custom_rps_map_clear(struct netdev_rx_queue *queue);
 #define RPS_CPUS_MASK_IBSS "10"
 #define RPS_CPUS_WLAN_CORE_ID 4
 #else
-#define RPS_CPUS_MASK "6"
-#define RPS_CPUS_MASK_P2P "6"
-#define RPS_CPUS_MASK_IBSS "6"
+#define RPS_CPUS_MASK "f"
+#define RPS_CPUS_MASK_P2P "f"
+#define RPS_CPUS_MASK_IBSS "f"
 #endif /* CONFIG_MACH_UNIVERSAL7420 || CONFIG_SOC_EXYNOS8890 */
 #endif // endif
 

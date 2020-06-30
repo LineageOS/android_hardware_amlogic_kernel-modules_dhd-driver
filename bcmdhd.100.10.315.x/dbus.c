@@ -2703,7 +2703,7 @@ dhd_bus_update_fw_nv_path(struct dhd_bus *bus, char *pfw_path,
 	bus->dhd->clm_path = pclm_path;
 	bus->dhd->conf_path = pconf_path;
 
-	dhd_conf_set_path_params(bus->dhd, NULL, NULL, bus->fw_path, bus->nv_path);
+	dhd_conf_set_path_params(bus->dhd, bus->fw_path, bus->nv_path);
 
 }
 

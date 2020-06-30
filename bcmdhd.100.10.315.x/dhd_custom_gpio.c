@@ -85,7 +85,7 @@ dhd_customer_gpio_wlan_ctrl(void *adapter, int onoff)
 	return err;
 }
 
-#ifdef GET_CUSTOM_MAC_ENABLE
+#if 0
 /* Function to get custom MAC address */
 int
 dhd_custom_get_mac_address(void *adapter, unsigned char *buf)

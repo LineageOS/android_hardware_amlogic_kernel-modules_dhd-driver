@@ -348,7 +348,7 @@ si_get_pmu_reg_addr(si_t *sih, uint32 offset)
 		pmuaddr = SI_ENUM_BASE(sih) + offset;
 
 done:
-	printf("%s: addrRET: %x\n", __FUNCTION__, pmuaddr);
+	SI_MSG(("%s: addrRET: %x\n", __FUNCTION__, pmuaddr));
 	return pmuaddr;
 }
 

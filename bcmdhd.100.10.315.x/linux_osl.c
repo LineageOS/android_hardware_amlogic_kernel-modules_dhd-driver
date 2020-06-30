@@ -1208,10 +1208,10 @@ osl_get_localtime(uint64 *sec, uint64 *usec)
 uint64
 osl_systztime_us(void)
 {
-	struct timeval tv;
+	struct osl_timespec tv;
 	uint64 tzusec;
 
-	do_gettimeofday(&tv);
+	osl_do_gettimeofday(&tv);
 	/* apply timezone */
 	tzusec = (uint64)((tv.tv_sec - (sys_tz.tz_minuteswest * 60)) *
 		USEC_PER_SEC);
@@ -2064,13 +2064,19 @@ osl_dma_lock_init(osl_t *osh)
 void
 osl_do_gettimeofday(struct osl_timespec *ts)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
+	struct timespec64 curtime;
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)
 	struct timespec curtime;
 #else
 	struct timeval curtime;
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
+	ktime_get_real_ts64(&curtime);
+	ts->tv_nsec = curtime.tv_nsec;
+	ts->tv_usec	= curtime.tv_nsec / 1000;
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)
 	getnstimeofday(&curtime);
 	ts->tv_nsec = curtime.tv_nsec;
 	ts->tv_usec = curtime.tv_nsec / 1000;
@@ -2085,9 +2091,15 @@ osl_do_gettimeofday(struct osl_timespec *ts)
 void
 osl_get_monotonic_boottime(struct osl_timespec *ts)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
+	struct timespec64 curtime;
+#else
 	struct timespec curtime;
+#endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
+	curtime = ktime_to_timespec64(ktime_get_boottime());
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
 	curtime = ktime_to_timespec(ktime_get_boottime());
 #else
 	get_monotonic_boottime(&curtime);

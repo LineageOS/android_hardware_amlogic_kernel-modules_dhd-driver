@@ -7575,7 +7575,6 @@ dhd_msgbuf_iovar_timeout_dump(dhd_pub_t *dhd)
 	if (prot->curr_ioctl_cmd == WLC_SET_VAR ||
 			prot->curr_ioctl_cmd == WLC_GET_VAR) {
 		char iovbuf[32];
-		int i;
 		int dump_size = 128;
 		uint8 *ioctl_buf = (uint8 *)prot->ioctbuf.va;
 		memset(iovbuf, 0, sizeof(iovbuf));
@@ -7585,12 +7584,7 @@ dhd_msgbuf_iovar_timeout_dump(dhd_pub_t *dhd)
 			prot->curr_ioctl_cmd == WLC_SET_VAR ?
 			"WLC_SET_VAR" : "WLC_GET_VAR", iovbuf));
 		DHD_ERROR(("========== START IOCTL REQBUF DUMP ==========\n"));
-		for (i = 0; i < dump_size; i++) {
-			DHD_ERROR(("%02X ", ioctl_buf[i]));
-			if ((i % 32) == 31) {
-				DHD_ERROR(("\n"));
-			}
-		}
+		prhex("ioctl_buf", (const u8 *) ioctl_buf, dump_size);
 		DHD_ERROR(("\n========== END IOCTL REQBUF DUMP ==========\n"));
 	}
 

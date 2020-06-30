@@ -340,7 +340,7 @@ extern uint64 osl_systztime_us(void);
 #define OSL_LOCALTIME_NS()	osl_localtime_ns()
 #define OSL_GET_LOCALTIME(sec, usec)	osl_get_localtime((sec), (usec))
 #define OSL_SYSTZTIME_US()	osl_systztime_us()
-#define	printf(fmt, args...)	printk(fmt , ## args)
+#define	printf(fmt, args...)	printk("[dhd] " fmt , ## args)
 #include <linux/kernel.h>	/* for vsn/printf's */
 #include <linux/string.h>	/* for mem*, str* */
 /* bcopy's: Linux kernel doesn't provide these (anymore) */
@@ -445,7 +445,11 @@ extern uint64 osl_systztime_us(void);
 
 /* map/unmap physical to virtual I/O */
 #if !defined(CONFIG_MMC_MSM7X00A)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0))
+#define	REG_MAP(pa, size)	ioremap((unsigned long)(pa), (unsigned long)(size))
+#else
 #define	REG_MAP(pa, size)	ioremap_nocache((unsigned long)(pa), (unsigned long)(size))
+#endif
 #else
 #define REG_MAP(pa, size)       (void *)(0)
 #endif /* !defined(CONFIG_MMC_MSM7X00A */
@@ -617,7 +621,11 @@ extern unsigned long osl_spin_lock(void *lock);
 extern void osl_spin_unlock(void *lock, unsigned long flags);
 
 typedef struct osl_timespec {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0))
+	__kernel_old_time_t	tv_sec;			/* seconds */
+#else
 	__kernel_time_t	tv_sec;			/* seconds */
+#endif
 	__kernel_suseconds_t	tv_usec;	/* microseconds */
 	long		tv_nsec;		/* nanoseconds */
 } osl_timespec_t;

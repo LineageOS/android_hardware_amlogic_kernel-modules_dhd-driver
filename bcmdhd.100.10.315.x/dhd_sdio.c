@@ -449,6 +449,9 @@ typedef struct dhd_bus {
 	uint		txglomframes;	/* Number of tx glom frames (superframes) */
 	uint		txglompkts;		/* Number of packets from tx glom frames */
 	uint8		*membuf;		/* Buffer for dhdsdio_membytes */
+#ifdef CONSOLE_DPC
+	char		cons_cmd[16];
+#endif
 } dhd_bus_t;
 
 /*
@@ -7085,6 +7088,12 @@ clkwait:
 
 	if (TXCTLOK(bus) && bus->ctrl_frame_stat && (bus->clkstate == CLK_AVAIL))
 		dhdsdio_sendpendctl(bus);
+#ifdef CONSOLE_DPC
+	else if (DATAOK(bus) && strlen(bus->cons_cmd) && (bus->clkstate == CLK_AVAIL) &&
+			!bus->fcstate) {
+		dhd_bus_console_in(bus->dhd, bus->cons_cmd, strlen(bus->cons_cmd));
+	}
+#endif
 
 	/* Send queued frames (limit 1 if rx may still be pending) */
 	else if ((bus->clkstate == CLK_AVAIL) && !bus->fcstate &&
@@ -7846,23 +7855,36 @@ dhd_bus_console_in(dhd_pub_t *dhdp, uchar *msg, uint msglen)
 	int rv;
 	void *pkt;
 
-	/* Address could be zero if CONSOLE := 0 in dongle Makefile */
-	if (bus->console_addr == 0)
-		return BCME_UNSUPPORTED;
-
+#ifndef CONSOLE_DPC
 	/* Exclusive bus access */
 	dhd_os_sdlock(bus->dhd);
+#endif
+
+	/* Address could be zero if CONSOLE := 0 in dongle Makefile */
+	if (bus->console_addr == 0) {
+		rv = BCME_UNSUPPORTED;
+		goto exit;
+	}
 
 	/* Don't allow input if dongle is in reset */
 	if (bus->dhd->dongle_reset) {
-		dhd_os_sdunlock(bus->dhd);
-		return BCME_NOTREADY;
+		rv = BCME_NOTREADY;
+		goto exit;
+	}
+
+#ifndef CONSOLE_DPC
+	if (!DATAOK(bus)) {
+		DHD_CTL(("%s: No bus credit bus->tx_max %d, bus->tx_seq %d, pktq_len %d\n",
+			__FUNCTION__, bus->tx_max, bus->tx_seq, pktq_n_pkts_tot(&bus->txq)));
+		rv = BCME_NOTREADY;
+		goto exit;
 	}
 
 	/* Request clock to allow SDIO accesses */
 	BUS_WAKE(bus);
 	/* No pend allowed since txpkt is called later, ht clk has to be on */
 	dhdsdio_clkctl(bus, CLK_AVAIL, FALSE);
+#endif
 
 	/* Zero cbuf_index */
 	addr = bus->console_addr + OFFSETOF(hnd_cons_t, cbuf_idx);
@@ -7881,11 +7903,6 @@ dhd_bus_console_in(dhd_pub_t *dhdp, uchar *msg, uint msglen)
 	if ((rv = dhdsdio_membytes(bus, TRUE, addr, (uint8 *)&val, sizeof(val))) < 0)
 		goto done;
 
-	if (!DATAOK(bus)) {
-		rv = BCME_NOTREADY;
-		goto done;
-	}
-
 	/* Bump dongle by sending an empty packet on the event channel.
 	 * sdpcm_sendup (RX) checks for virtual console input.
 	 */
@@ -7893,17 +7910,71 @@ dhd_bus_console_in(dhd_pub_t *dhdp, uchar *msg, uint msglen)
 		rv = dhdsdio_txpkt(bus, SDPCM_EVENT_CHANNEL, &pkt, 1, TRUE);
 
 done:
+#ifndef CONSOLE_DPC
 	if ((bus->idletime == DHD_IDLE_IMMEDIATE) && !bus->dpc_sched &&
 		NO_OTHER_ACTIVE_BUS_USER(bus)) {
 		bus->activity = FALSE;
 		dhdsdio_bussleep(bus, TRUE);
 		dhdsdio_clkctl(bus, CLK_NONE, FALSE);
 	}
+#endif
 
+exit:
+#ifdef CONSOLE_DPC
+	memset(bus->cons_cmd, 0, sizeof(bus->cons_cmd));
+#else
 	dhd_os_sdunlock(bus->dhd);
-
+#endif
 	return rv;
 }
+
+#ifdef CONSOLE_DPC
+extern int
+dhd_bus_txcons(dhd_pub_t *dhdp, uchar *msg, uint msglen)
+{
+	dhd_bus_t *bus = dhdp->bus;
+	int ret = BCME_OK;
+
+	dhd_os_sdlock(bus->dhd);
+
+	/* Address could be zero if CONSOLE := 0 in dongle Makefile */
+	if (bus->console_addr == 0) {
+		ret = BCME_UNSUPPORTED;
+		goto exit;
+	}
+
+	/* Don't allow input if dongle is in reset */
+	if (bus->dhd->dongle_reset) {
+		ret = BCME_NOTREADY;
+		goto exit;
+	}
+
+	if (msglen >= sizeof(bus->cons_cmd)) {
+		DHD_ERROR(("%s: \"%s\"(%d) too long\n", __FUNCTION__, msg, msglen));
+		ret = BCME_BADARG;
+		goto exit;
+	}
+
+	if (!strlen(bus->cons_cmd)) {
+		strncpy(bus->cons_cmd, msg, sizeof(bus->cons_cmd));
+		DHD_CTL(("%s: \"%s\" delay send, tx_max %d, tx_seq %d, pktq_len %d\n",
+			__FUNCTION__, bus->cons_cmd, bus->tx_max, bus->tx_seq, pktq_n_pkts_tot(&bus->txq)));
+		if (!bus->dpc_sched) {
+			bus->dpc_sched = TRUE;
+			dhd_sched_dpc(bus->dhd);
+		}
+	} else {
+		DHD_CTL(("%s: \"%s\" is pending, tx_max %d, tx_seq %d, pktq_len %d\n",
+			__FUNCTION__, bus->cons_cmd, bus->tx_max, bus->tx_seq, pktq_n_pkts_tot(&bus->txq)));
+		ret = BCME_NOTREADY;
+	}
+
+exit:
+	dhd_os_sdunlock(bus->dhd);
+
+	return ret;
+}
+#endif
 
 #if defined(DHD_DEBUG) && !defined(BCMSDIOLITE)
 static void
@@ -7999,9 +8070,6 @@ dhdsdio_probe(uint16 venid, uint16 devid, uint16 bus_no, uint16 slot,
 {
 	int ret;
 	dhd_bus_t *bus;
-#ifdef GET_OTP_MAC_ENABLE
-	struct ether_addr ea_addr;
-#endif
 
 	DHD_MUTEX_LOCK();
 
@@ -8107,6 +8175,10 @@ dhdsdio_probe(uint16 venid, uint16 devid, uint16 bus_no, uint16 slot,
 		goto fail;
 	}
 
+#if defined(GET_OTP_MAC_ENABLE) || defined(GET_OTP_MODULE_NAME)
+	dhd_conf_get_otp(bus->dhd, sdh, bus->sih);
+#endif
+
 	/* Allocate buffers */
 	if (!(dhdsdio_probe_malloc(bus, osh, sdh))) {
 		DHD_ERROR(("%s: dhdsdio_probe_malloc failed\n", __FUNCTION__));
@@ -8165,10 +8237,8 @@ dhdsdio_probe(uint16 venid, uint16 devid, uint16 bus_no, uint16 slot,
 #endif /* BT_OVER_SDIO */
 
 #ifdef GET_OTP_MAC_ENABLE
-	if (dhd_conf_get_mac(bus->dhd, sdh, bus->sih, ea_addr.octet)) {
-		DHD_TRACE(("%s: Can not read MAC address\n", __FUNCTION__));
-	} else
-		memcpy(bus->dhd->mac.octet, (void *)&ea_addr, ETHER_ADDR_LEN);
+	if (memcmp(&ether_null, &bus->dhd->conf->otp_mac, ETHER_ADDR_LEN))
+		memcpy(bus->dhd->mac.octet, (void *)&bus->dhd->conf->otp_mac, ETHER_ADDR_LEN);
 #endif /* GET_CUSTOM_MAC_ENABLE */
 
 	/* Ok, have the per-port tell the stack we're open for business */
@@ -8697,11 +8767,11 @@ dhdsdio_download_firmware(struct dhd_bus *bus, osl_t *osh, void *sdh)
 		__FUNCTION__, bus->fw_path, bus->nv_path));
 	DHD_OS_WAKE_LOCK(bus->dhd);
 
+	dhd_conf_set_path_params(bus->dhd, bus->fw_path, bus->nv_path);
+	dhd_set_bus_params(bus);
+
 	/* Download the firmware */
 	dhdsdio_clkctl(bus, CLK_AVAIL, FALSE);
-
-	dhd_conf_set_path_params(bus->dhd, bus->sdh, bus->sih, bus->fw_path, bus->nv_path);
-	dhd_set_bus_params(bus);
 
 	ret = _dhdsdio_download_firmware(bus);
 
@@ -10479,3 +10549,31 @@ dhd_bus_get_bus_wake(dhd_pub_t *dhd)
 	return bcmsdh_set_get_wake(dhd->bus->sdh, 0);
 }
 #endif /* DHD_WAKE_STATUS */
+
+int
+dhd_bus_sleep(dhd_pub_t *dhdp, bool sleep, uint32 *intstatus)
+{
+	dhd_bus_t *bus = dhdp->bus;
+	uint32 retry = 0;
+	int ret = 0;
+
+	if (bus) {
+		dhd_os_sdlock(dhdp);
+		BUS_WAKE(bus);
+		R_SDREG(*intstatus, &bus->regs->intstatus, retry);
+		if (sleep) {
+			if (SLPAUTO_ENAB(bus)) {
+				ret = dhdsdio_bussleep(bus, sleep);
+				if (ret != BCME_BUSY)
+					dhd_os_wd_timer(bus->dhd, 0);
+			} else
+				dhdsdio_clkctl(bus, CLK_NONE, FALSE);
+		}
+		dhd_os_sdunlock(dhdp);
+	} else {
+		DHD_ERROR(("bus is NULL\n"));
+		ret = -1;
+	}
+
+	return ret;
+}

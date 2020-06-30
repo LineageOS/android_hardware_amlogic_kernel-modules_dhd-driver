@@ -44,8 +44,8 @@
 #include <dhd_linux_pktdump.h>
 #include <dhd_config.h>
 
-#define DHD_PKTDUMP(arg)	DHD_ERROR(arg)
-#define DHD_PKTDUMP_MEM(arg)	DHD_ERROR(arg)
+#define DHD_PKTDUMP(arg)	printk arg
+#define DHD_PKTDUMP_MEM(arg)	printk arg
 #define PACKED_STRUCT __attribute__ ((packed))
 
 #define EAPOL_HDR_LEN		4
@@ -161,6 +161,7 @@ typedef struct pkt_cnt_log {
 #define PKT_CNT_RSN_VALID(rsn)	\
 	(((rsn) > (PKT_CNT_RSN_INVALID)) && ((rsn) < (PKT_CNT_RSN_MAX)))
 
+#ifdef DHD_PKTDUMP_ROAM
 static const char pkt_cnt_msg[][20] = {
 	"INVALID",
 	"ROAM_SUCCESS",
@@ -168,6 +169,7 @@ static const char pkt_cnt_msg[][20] = {
 	"CONNECT_SUCCESS",
 	"INVALID"
 };
+#endif
 
 static const char tx_pktfate[][30] = {
 	"TX_PKT_FATE_ACKED",		/* 0: WLFC_CTL_PKTFLAG_DISCARD */
@@ -197,60 +199,78 @@ static const char tx_pktfate[][30] = {
 #define TX_FATE(fate)		((fate) ? (TX_FATE_STR(fate)) : "N/A")
 #define TX_FATE_ACKED(fate)	((fate) ? ((*fate) == (WLFC_CTL_PKTFLAG_DISCARD)) : (0))
 
-#define EAP_PRINT(str) \
+#define EAP_PRINT(x, args...) \
 	do { \
-		if (tx) { \
-			DHD_PKTDUMP(("[dhd-%s] ETHER_TYPE_802_1X [TX]: " \
-				str TXFATE_FMT "\n", ifname, \
-				TX_PKTHASH(pkthash), TX_FATE(pktfate))); \
-		} else { \
-			DHD_PKTDUMP(("[dhd-%s] ETHER_TYPE_802_1X [RX]: " \
-				str "\n", ifname)); \
+		if (dump_msg_level & DUMP_EAPOL_VAL) { \
+			if (tx) { \
+				DHD_PKTDUMP(("[dhd-%s] 802_1X " x " [TX] : (%s) %s (%s)"TXFATE_FMT"\n", \
+					ifname, ## args, \
+					tx?seabuf:deabuf, tx?"->":"<-", tx?deabuf:seabuf, \
+					TX_PKTHASH(pkthash), TX_FATE(pktfate))); \
+			} else { \
+				DHD_PKTDUMP(("[dhd-%s] 802_1X " x " [RX] : (%s) %s (%s)\n", \
+					ifname, ## args, \
+					tx?seabuf:deabuf, tx?"->":"<-", tx?deabuf:seabuf)); \
+			} \
 		} \
 	} while (0)
 
-#define EAP_PRINT_REPLAY(str) \
+#define EAP_PRINT_REPLAY(x, args...) \
 	do { \
-		if (tx) { \
-			DHD_PKTDUMP(("[dhd-%s] ETHER_TYPE_802_1X [TX]: " \
-				str DBGREPLAY TXFATE_FMT "\n", ifname, \
-				REPLAY_FMT(eap_key), TX_PKTHASH(pkthash), \
-				TX_FATE(pktfate))); \
-		} else { \
-			DHD_PKTDUMP(("[dhd-%s] ETHER_TYPE_802_1X [RX]: " \
-				str DBGREPLAY "\n", ifname, \
-				REPLAY_FMT(eap_key))); \
+		if (dump_msg_level & DUMP_EAPOL_VAL) { \
+			if (tx) { \
+				DHD_PKTDUMP(("[dhd-%s] 802_1X " x " [TX] : (%s) %s (%s)"DBGREPLAY TXFATE_FMT"\n", \
+					ifname, ## args, \
+					tx?seabuf:deabuf, tx?"->":"<-", tx?deabuf:seabuf, \
+					REPLAY_FMT(eap_key), TX_PKTHASH(pkthash), TX_FATE(pktfate))); \
+			} else { \
+				DHD_PKTDUMP(("[dhd-%s] 802_1X " x " [RX] : (%s) %s (%s)"DBGREPLAY"\n", \
+					ifname, ## args, \
+					tx?seabuf:deabuf, tx?"->":"<-", tx?deabuf:seabuf, \
+					REPLAY_FMT(eap_key))); \
+			} \
 		} \
 	} while (0)
 
-#define EAP_PRINT_OTHER(str) \
+#define EAP_PRINT_OTHER(x, args...) \
 	do { \
-		if (tx) { \
-			DHD_PKTDUMP(("[dhd-%s] ETHER_TYPE_802_1X [TX]: " \
-				str "ver %d, type %d" TXFATE_FMT "\n", ifname, \
-				eapol_hdr->version, eapol_hdr->type, \
-				TX_PKTHASH(pkthash), TX_FATE(pktfate))); \
-		} else { \
-			DHD_PKTDUMP(("[dhd-%s] ETHER_TYPE_802_1X [RX]: " \
-				str "ver %d, type %d\n", ifname, \
-				eapol_hdr->version, eapol_hdr->type)); \
+		if (dump_msg_level & DUMP_EAPOL_VAL) { \
+			if (tx) { \
+				DHD_PKTDUMP(("[dhd-%s] 802_1X " x " [TX] : (%s) %s (%s) " \
+					"ver %d, type %d"TXFATE_FMT"\n", \
+					ifname, ## args, \
+					tx?seabuf:deabuf, tx?"->":"<-", tx?deabuf:seabuf, \
+					eapol_hdr->version, eapol_hdr->type, \
+					TX_PKTHASH(pkthash), TX_FATE(pktfate))); \
+			} else { \
+				DHD_PKTDUMP(("[dhd-%s] 802_1X " x " [RX] : (%s) %s (%s) " \
+					"ver %d, type %d\n", \
+					ifname, ## args, \
+					tx?seabuf:deabuf, tx?"->":"<-", tx?deabuf:seabuf, \
+					eapol_hdr->version, eapol_hdr->type)); \
+			} \
 		} \
 	} while (0)
 
-#define EAP_PRINT_OTHER_4WAY(str) \
+#define EAP_PRINT_OTHER_4WAY(x, args...) \
 	do { \
-		if (tx) { \
-			DHD_PKTDUMP(("[dhd-%s] ETHER_TYPE_802_1X [TX]: " str \
-				"ver %d type %d keytype %d keyinfo 0x%02X" \
-				TXFATE_FMT "\n", ifname, eapol_hdr->version, \
-				eapol_hdr->type, eap_key->type, \
-				(uint32)hton16(eap_key->key_info), \
-				TX_PKTHASH(pkthash), TX_FATE(pktfate))); \
-		} else { \
-			DHD_PKTDUMP(("[dhd-%s] ETHER_TYPE_802_1X [RX]: " str \
-				"ver %d type %d keytype %d keyinfo 0x%02X\n", \
-				ifname, eapol_hdr->version, eapol_hdr->type, \
-				eap_key->type, (uint32)hton16(eap_key->key_info))); \
+		if (dump_msg_level & DUMP_EAPOL_VAL) { \
+			if (tx) { \
+				DHD_PKTDUMP(("[dhd-%s] 802_1X " x " [TX] : (%s) %s (%s) " \
+					"ver %d type %d keytype %d keyinfo 0x%02X"TXFATE_FMT"\n", \
+					ifname, ## args, \
+					tx?seabuf:deabuf, tx?"->":"<-", tx?deabuf:seabuf, \
+					eapol_hdr->version, eapol_hdr->type, eap_key->type, \
+					(uint32)hton16(eap_key->key_info), \
+					TX_PKTHASH(pkthash), TX_FATE(pktfate))); \
+			} else { \
+				DHD_PKTDUMP(("[dhd-%s] 802_1X " x " [RX] : (%s) %s (%s) " \
+					"ver %d type %d keytype %d keyinfo 0x%02X\n", \
+					ifname, ## args, \
+					tx?seabuf:deabuf, tx?"->":"<-", tx?deabuf:seabuf, \
+					eapol_hdr->version, eapol_hdr->type, eap_key->type, \
+					(uint32)hton16(eap_key->key_info))); \
+			} \
 		} \
 	} while (0)
 
@@ -551,6 +571,8 @@ dhd_dump_wsc_message(dhd_pub_t *dhd, int ifidx, uint8 *pktdata,
 	char *ifname;
 	uint16 eap_len;
 	bool cond;
+	char seabuf[ETHER_ADDR_STR_LEN]="";
+	char deabuf[ETHER_ADDR_STR_LEN]="";
 
 	if (!pktdata) {
 		DHD_ERROR(("%s: pktdata is NULL\n", __FUNCTION__));
@@ -561,6 +583,9 @@ dhd_dump_wsc_message(dhd_pub_t *dhd, int ifidx, uint8 *pktdata,
 		DHD_ERROR(("%s: invalid pkt length\n", __FUNCTION__));
 		return;
 	}
+
+	bcm_ether_ntoa((struct ether_addr *)pktdata, deabuf);
+	bcm_ether_ntoa((struct ether_addr *)(pktdata+6), seabuf);
 
 	eapol_hdr = (eapol_header_t *)pktdata;
 	eap_hdr = (eap_header_fmt_t *)(eapol_hdr->body);
@@ -660,11 +685,16 @@ dhd_dump_eap_packet(dhd_pub_t *dhd, int ifidx, uint8 *pktdata,
 	eap_header_fmt_t *eap_hdr;
 	char *ifname;
 	bool cond;
+	char seabuf[ETHER_ADDR_STR_LEN]="";
+	char deabuf[ETHER_ADDR_STR_LEN]="";
 
 	if (!pktdata) {
 		DHD_PKTDUMP(("%s: pktdata is NULL\n", __FUNCTION__));
 		return;
 	}
+
+	bcm_ether_ntoa((struct ether_addr *)pktdata, deabuf);
+	bcm_ether_ntoa((struct ether_addr *)(pktdata+6), seabuf);
 
 	eapol_hdr = (eapol_header_t *)pktdata;
 	eap_hdr = (eap_header_fmt_t *)(eapol_hdr->body);
@@ -783,11 +813,16 @@ dhd_dump_eapol_4way_message(dhd_pub_t *dhd, int ifidx, uint8 *pktdata, bool tx,
 	msg_eapol_t type;
 	char *ifname;
 	bool cond;
+	char seabuf[ETHER_ADDR_STR_LEN]="";
+	char deabuf[ETHER_ADDR_STR_LEN]="";
 
 	if (!pktdata) {
 		DHD_PKTDUMP(("%s: pktdata is NULL\n", __FUNCTION__));
 		return;
 	}
+
+	bcm_ether_ntoa((struct ether_addr *)pktdata, deabuf);
+	bcm_ether_ntoa((struct ether_addr *)(pktdata+6), seabuf);
 
 	type = dhd_is_4way_msg(pktdata);
 	ifname = dhd_ifname(dhd, ifidx);
@@ -846,11 +881,16 @@ dhd_dump_eapol_message(dhd_pub_t *dhd, int ifidx, uint8 *pktdata,
 	char *ifname;
 	eapol_header_t *eapol_hdr = (eapol_header_t *)pktdata;
 	bool cond;
+	char seabuf[ETHER_ADDR_STR_LEN]="";
+	char deabuf[ETHER_ADDR_STR_LEN]="";
 
 	if (!pktdata) {
 		DHD_ERROR(("%s: pktdata is NULL\n", __FUNCTION__));
 		return;
 	}
+
+	bcm_ether_ntoa((struct ether_addr *)pktdata, deabuf);
+	bcm_ether_ntoa((struct ether_addr *)(pktdata+6), seabuf);
 
 	eapol_hdr = (eapol_header_t *)pktdata;
 	ifname = dhd_ifname(dhd, ifidx);
@@ -891,12 +931,14 @@ dhd_dump_eapol_message(dhd_pub_t *dhd, int ifidx, uint8 *pktdata,
 #define DHCP_PRINT(str) \
 	do { \
 		if (tx) { \
-			DHD_PKTDUMP(("[dhd-%s] "str " %s[%s] [TX] -" TXFATE_FMT "\n", \
-				ifname, typestr, opstr, \
+			DHD_PKTDUMP(("[dhd-%s] " str " %8s[%8s] [TX] : %s(%s) %s %s(%s)"TXFATE_FMT"\n", \
+				ifname, typestr, opstr, tx?sabuf:dabuf, tx?seabuf:deabuf, \
+				tx?"->":"<-", tx?dabuf:sabuf, tx?deabuf:seabuf, \
 				TX_PKTHASH(pkthash), TX_FATE(pktfate))); \
 		} else { \
-			DHD_PKTDUMP(("[dhd-%s] "str" %s[%s] [RX]\n", \
-				ifname, typestr, opstr)); \
+			DHD_PKTDUMP(("[dhd-%s] " str " %8s[%8s] [RX] : %s(%s) %s %s(%s)\n", \
+				ifname, typestr, opstr, tx?sabuf:dabuf, tx?seabuf:deabuf, \
+				tx?"->":"<-", tx?dabuf:sabuf, tx?deabuf:seabuf)); \
 		} \
 	} while (0)
 
@@ -944,6 +986,12 @@ dhd_dhcp_dump(dhd_pub_t *dhdp, int ifidx, uint8 *pktdata, bool tx,
 	int dhcp_type = 0, len, opt_len;
 	char *ifname = NULL, *typestr = NULL, *opstr = NULL;
 	bool cond;
+	char sabuf[20]="", dabuf[20]="";
+	char seabuf[ETHER_ADDR_STR_LEN]="";
+	char deabuf[ETHER_ADDR_STR_LEN]="";
+
+	if (!(dump_msg_level & DUMP_DHCP_VAL))
+		return;
 
 	/* check IP header */
 	if ((IPV4_HLEN(iph) < IPV4_HLEN_MIN) ||
@@ -964,6 +1012,10 @@ dhd_dhcp_dump(dhd_pub_t *dhdp, int ifidx, uint8 *pktdata, bool tx,
 	if (ntohs(iph->tot_len) < ntohs(b->udph.len) + sizeof(struct bcmudp_hdr)) {
 		return;
 	}
+	bcm_ip_ntoa((struct ipv4_addr *)iph->src_ip, sabuf);
+	bcm_ip_ntoa((struct ipv4_addr *)iph->dst_ip, dabuf);
+	bcm_ether_ntoa((struct ether_addr *)pktdata, deabuf);
+	bcm_ether_ntoa((struct ether_addr *)(pktdata+6), seabuf);
 
 	ifname = dhd_ifname(dhdp, ifidx);
 	cond = (tx && pktfate) ? FALSE : TRUE;
@@ -1008,7 +1060,7 @@ dhd_dhcp_dump(dhd_pub_t *dhdp, int ifidx, uint8 *pktdata, bool tx,
 	do { \
 		if (tx) { \
 			DHD_PKTDUMP_MEM(("[dhd-%s] "str " [TX] : %s(%s) %s %s(%s) SEQNUM=%d" \
-				TXFATE_FMT "\n", ifname, tx?sabuf:dabuf, tx?seabuf:deabuf, \
+				TXFATE_FMT"\n", ifname, tx?sabuf:dabuf, tx?seabuf:deabuf, \
 				tx?"->":"<-", tx?dabuf:sabuf, tx?deabuf:seabuf, seqnum, \
 				TX_PKTHASH(pkthash), TX_FATE(pktfate))); \
 		} else { \
@@ -1045,6 +1097,9 @@ dhd_icmp_dump(dhd_pub_t *dhdp, int ifidx, uint8 *pktdata, bool tx,
 	char sabuf[20]="", dabuf[20]="";
 	char seabuf[ETHER_ADDR_STR_LEN]="";
 	char deabuf[ETHER_ADDR_STR_LEN]="";
+
+	if (!(dump_msg_level & DUMP_ICMP_VAL))
+		return;
 
 	/* check IP header */
 	if ((IPV4_HLEN(iph) < IPV4_HLEN_MIN) ||
@@ -1091,12 +1146,12 @@ dhd_icmp_dump(dhd_pub_t *dhdp, int ifidx, uint8 *pktdata, bool tx,
 	do { \
 		if (tx) { \
 			if (dump_enabled && pktfate && !TX_FATE_ACKED(pktfate)) { \
-				DHD_PKTDUMP(("[dhd-%s] "str " [TX] : %s(%s) %s %s(%s)" TXFATE_FMT "\n", \
+				DHD_PKTDUMP(("[dhd-%s] "str " [TX] : %s(%s) %s %s(%s)"TXFATE_FMT"\n", \
 					ifname, tx?sabuf:dabuf, tx?seabuf:deabuf, \
 					tx?"->":"<-", tx?dabuf:sabuf, tx?deabuf:seabuf, \
 					TX_PKTHASH(pkthash), TX_FATE(pktfate))); \
 			} else { \
-				DHD_PKTDUMP_MEM(("[dhd-%s] "str " [TX] : %s(%s) %s %s(%s)" TXFATE_FMT "\n", \
+				DHD_PKTDUMP_MEM(("[dhd-%s] "str " [TX] : %s(%s) %s %s(%s)"TXFATE_FMT"\n", \
 					ifname, tx?sabuf:dabuf, tx?seabuf:deabuf, \
 					tx?"->":"<-", tx?dabuf:sabuf, tx?deabuf:seabuf, \
 					TX_PKTHASH(pkthash), TX_FATE(pktfate))); \
@@ -1112,18 +1167,20 @@ dhd_icmp_dump(dhd_pub_t *dhdp, int ifidx, uint8 *pktdata, bool tx,
 	do { \
 		if (tx) { \
 			if (dump_enabled && pktfate && !TX_FATE_ACKED(pktfate)) { \
-				DHD_PKTDUMP(("[dhd-%s] "str " [TX] op_code=%d" \
-					TXFATE_FMT "\n", ifname, opcode, \
-					TX_PKTHASH(pkthash), \
-					TX_FATE(pktfate))); \
+				DHD_PKTDUMP(("[dhd-%s] "str " [TX] : %s(%s) %s %s(%s) op_code=%d" \
+					TXFATE_FMT "\n", ifname, tx?sabuf:dabuf, tx?seabuf:deabuf, \
+					tx?"->":"<-", tx?dabuf:sabuf, tx?deabuf:seabuf, opcode, \
+					TX_PKTHASH(pkthash), TX_FATE(pktfate))); \
 			} else { \
-				DHD_PKTDUMP_MEM(("[dhd-%s] "str " [TX] op_code=%d" \
-				TXFATE_FMT "\n", ifname, opcode, \
+				DHD_PKTDUMP_MEM(("[dhd-%s] "str " [TX] : %s(%s) %s %s(%s) op_code=%d" \
+				TXFATE_FMT "\n", ifname, tx?sabuf:dabuf, tx?seabuf:deabuf, \
+					tx?"->":"<-", tx?dabuf:sabuf, tx?deabuf:seabuf, opcode, \
 				TX_PKTHASH(pkthash), TX_FATE(pktfate))); \
 			} \
 		} else { \
-			DHD_PKTDUMP_MEM(("[dhd-%s] "str " [RX] op_code=%d\n", \
-				ifname, opcode)); \
+			DHD_PKTDUMP_MEM(("[dhd-%s] "str " [RX] : %s(%s) %s %s(%s) op_code=%d\n", \
+				ifname, tx?sabuf:dabuf, tx?seabuf:deabuf, \
+					tx?"->":"<-", tx?dabuf:sabuf, tx?deabuf:seabuf, opcode)); \
 		} \
 	} while (0)
 
@@ -1139,6 +1196,9 @@ dhd_arp_dump(dhd_pub_t *dhdp, int ifidx, uint8 *pktdata, bool tx,
 	char sabuf[20]="", dabuf[20]="";
 	char seabuf[ETHER_ADDR_STR_LEN]="";
 	char deabuf[ETHER_ADDR_STR_LEN]="";
+
+	if (!(dump_msg_level & DUMP_ARP_VAL))
+		return;
 
 	/* validation check */
 	if (arph->htype != hton16(HTYPE_ETHERNET) ||
@@ -1206,17 +1266,20 @@ static const char dns_opcode_types[][11] = {
 	do { \
 		if (tx) { \
 			if (dump_enabled && pktfate && !TX_FATE_ACKED(pktfate)) { \
-				DHD_PKTDUMP(("[dhd-%s] "str " [TX] ID:0x%04X OPCODE:%s" \
-					TXFATE_FMT "\n", ifname, id, DNSOPCODE(opcode), \
-					TX_PKTHASH(pkthash), TX_FATE(pktfate))); \
+				DHD_PKTDUMP(("[dhd-%s] " str " [TX] : %s(%s) %s %s(%s) ID:0x%04X OPCODE:%s" \
+					TXFATE_FMT "\n", ifname, tx?sabuf:dabuf, tx?seabuf:deabuf, \
+					tx?"->":"<-", tx?dabuf:sabuf, tx?deabuf:seabuf, \
+					id, DNSOPCODE(opcode), TX_PKTHASH(pkthash), TX_FATE(pktfate))); \
 			} else { \
-				DHD_PKTDUMP_MEM(("[dhd-%s] "str " [TX] ID:0x%04X OPCODE:%s" \
-					TXFATE_FMT "\n", ifname, id, DNSOPCODE(opcode), \
-					TX_PKTHASH(pkthash), TX_FATE(pktfate))); \
+				DHD_PKTDUMP_MEM(("[dhd-%s] " str " [TX] : %s(%s) %s %s(%s) ID:0x%04X OPCODE:%s" \
+					TXFATE_FMT "\n", ifname, tx?sabuf:dabuf, tx?seabuf:deabuf, \
+					tx?"->":"<-", tx?dabuf:sabuf, tx?deabuf:seabuf, \
+					id, DNSOPCODE(opcode), TX_PKTHASH(pkthash), TX_FATE(pktfate))); \
 			} \
 		} else { \
-			DHD_PKTDUMP_MEM(("[dhd-%s] "str " [RX] ID:0x%04X OPCODE:%s\n", \
-				ifname, id, DNSOPCODE(opcode))); \
+			DHD_PKTDUMP_MEM(("[dhd-%s] " str " [RX] : %s(%s) %s %s(%s) ID:0x%04X OPCODE:%s\n", \
+				ifname, tx?sabuf:dabuf, tx?seabuf:deabuf, tx?"->":"<-", \
+				tx?dabuf:sabuf, tx?deabuf:seabuf, id, DNSOPCODE(opcode))); \
 		} \
 	} while (0)
 
@@ -1224,19 +1287,21 @@ static const char dns_opcode_types[][11] = {
 	do { \
 		if (tx) { \
 			if (dump_enabled && pktfate && !TX_FATE_ACKED(pktfate)) { \
-				DHD_PKTDUMP(("[dhd-%s] "str " [TX] ID:0x%04X OPCODE:%s RCODE:%d" \
-					TXFATE_FMT "\n", ifname, id, DNSOPCODE(opcode), \
-					GET_DNS_RCODE(flags), TX_PKTHASH(pkthash), \
-					TX_FATE(pktfate))); \
+				DHD_PKTDUMP(("[dhd-%s] " str " [TX] : %s(%s) %s %s(%s) ID:0x%04X OPCODE:%s RCODE:%d" \
+					TXFATE_FMT "\n", ifname, tx?sabuf:dabuf, tx?seabuf:deabuf, \
+					tx?"->":"<-", tx?dabuf:sabuf, tx?deabuf:seabuf, id, DNSOPCODE(opcode), \
+					GET_DNS_RCODE(flags), TX_PKTHASH(pkthash), TX_FATE(pktfate))); \
 			} else { \
-				DHD_PKTDUMP_MEM(("[dhd-%s] "str " [TX] ID:0x%04X OPCODE:%s RCODE:%d" \
-					TXFATE_FMT "\n", ifname, id, DNSOPCODE(opcode), \
-					GET_DNS_RCODE(flags), TX_PKTHASH(pkthash), \
-					TX_FATE(pktfate))); \
+				DHD_PKTDUMP_MEM(("[dhd-%s] " str " [TX] : %s(%s) %s %s(%s) ID:0x%04X OPCODE:%s RCODE:%d" \
+					TXFATE_FMT "\n", ifname, tx?sabuf:dabuf, tx?seabuf:deabuf, \
+					tx?"->":"<-", tx?dabuf:sabuf, tx?deabuf:seabuf, id, DNSOPCODE(opcode), \
+					GET_DNS_RCODE(flags), TX_PKTHASH(pkthash), TX_FATE(pktfate))); \
 			} \
 		} else { \
-			DHD_PKTDUMP_MEM(("[dhd-%s] "str " [RX] ID:0x%04X OPCODE:%s RCODE:%d\n", \
-				ifname, id, DNSOPCODE(opcode), GET_DNS_RCODE(flags))); \
+			DHD_PKTDUMP_MEM(("[dhd-%s] " str " [RX] : %s(%s) %s %s(%s) ID:0x%04X OPCODE:%s RCODE:%d\n", \
+				ifname, tx?sabuf:dabuf, tx?seabuf:deabuf, \
+				tx?"->":"<-", tx?dabuf:sabuf, tx?deabuf:seabuf, \
+				id, DNSOPCODE(opcode), GET_DNS_RCODE(flags))); \
 		} \
 	} while (0)
 
@@ -1249,6 +1314,12 @@ dhd_dns_dump(dhd_pub_t *dhdp, int ifidx, uint8 *pktdata, bool tx,
 	uint16 flags, opcode, id;
 	char *ifname;
 	bool cond, dump_enabled;
+	char sabuf[20]="", dabuf[20]="";
+	char seabuf[ETHER_ADDR_STR_LEN]="";
+	char deabuf[ETHER_ADDR_STR_LEN]="";
+
+	if (!(dump_msg_level & DUMP_DNS_VAL))
+		return;
 
 	/* check IP header */
 	if ((IPV4_HLEN(iph) < IPV4_HLEN_MIN) ||
@@ -1275,6 +1346,10 @@ dhd_dns_dump(dhd_pub_t *dhdp, int ifidx, uint8 *pktdata, bool tx,
 	flags = hton16(dnsh->flags);
 	opcode = GET_DNS_OPCODE(flags);
 	id = hton16(dnsh->id);
+	bcm_ip_ntoa((struct ipv4_addr *)iph->src_ip, sabuf);
+	bcm_ip_ntoa((struct ipv4_addr *)iph->dst_ip, dabuf);
+	bcm_ether_ntoa((struct ether_addr *)pktdata, deabuf);
+	bcm_ether_ntoa((struct ether_addr *)(pktdata+6), seabuf);
 	if (GET_DNS_QR(flags)) {
 		/* Response */
 		DHD_STATLOG_DATA(dhdp, ST(DNS_RESP), ifidx, tx, cond);
@@ -1298,6 +1373,9 @@ dhd_trx_pkt_dump(dhd_pub_t *dhdp, int ifidx, uint8 *pktdata, uint32 pktlen, bool
 	struct ether_header *eh;
 	uint16 protocol;
 	char *pkttype = "UNKNOWN";
+
+	if (!(dump_msg_level & DUMP_TRX_VAL))
+		return;
 
 	if (!dhdp) {
 		DHD_ERROR(("%s: dhdp is NULL\n", __FUNCTION__));

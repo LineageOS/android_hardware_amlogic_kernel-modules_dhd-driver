@@ -274,6 +274,7 @@ typedef struct wifi_adapter_info {
 
 #define WLAN_PLAT_NODFS_FLAG	0x01
 #define WLAN_PLAT_AP_FLAG	0x02
+#if !defined(CONFIG_WIFI_CONTROL_FUNC)
 struct wifi_platform_data {
 #ifdef BUS_POWER_RESTORE
 	int (*set_power)(int val, wifi_adapter_info_t *adapter);
@@ -283,7 +284,11 @@ struct wifi_platform_data {
 	int (*set_reset)(int val);
 	int (*set_carddetect)(int val);
 	void *(*mem_prealloc)(int section, unsigned long size);
+#ifdef CUSTOM_MULTI_MAC
+	int (*get_mac_addr)(unsigned char *buf, char *name);
+#else
 	int (*get_mac_addr)(unsigned char *buf);
+#endif
 #ifdef BCMSDIO
 	int (*get_wake_irq)(void);
 #endif // endif
@@ -293,6 +298,7 @@ struct wifi_platform_data {
 	void *(*get_country_code)(char *ccode);
 #endif
 };
+#endif
 
 typedef struct bcmdhd_wifi_platdata {
 	uint				num_adapters;
@@ -409,7 +415,7 @@ wifi_adapter_info_t* dhd_wifi_platform_get_adapter(uint32 bus_type, uint32 bus_n
 int wifi_platform_set_power(wifi_adapter_info_t *adapter, bool on, unsigned long msec);
 int wifi_platform_bus_enumerate(wifi_adapter_info_t *adapter, bool device_present);
 int wifi_platform_get_irq_number(wifi_adapter_info_t *adapter, unsigned long *irq_flags_ptr);
-int wifi_platform_get_mac_addr(wifi_adapter_info_t *adapter, unsigned char *buf);
+int wifi_platform_get_mac_addr(wifi_adapter_info_t *adapter, unsigned char *buf, char *name);
 #ifdef CUSTOM_COUNTRY_CODE
 void *wifi_platform_get_country_code(wifi_adapter_info_t *adapter, char *ccode,
 	u32 flags);

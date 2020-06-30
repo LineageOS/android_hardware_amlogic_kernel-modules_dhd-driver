@@ -134,70 +134,67 @@ enum wl_cfgp2p_status {
 /* dword align allocation */
 #define WLC_IOCTL_MAXLEN 8192
 
-#define CFGP2P_ERROR_TEXT		"CFGP2P-ERROR) "
+#define CFGP2P_ERROR_TEXT		"[dhd] CFGP2P-ERROR) "
 
 #ifdef DHD_LOG_DUMP
-#define CFGP2P_ERR(args)									\
-	do {										\
-		if (wl_dbg_level & WL_DBG_ERR) {				\
-			printk(KERN_INFO CFGP2P_ERROR_TEXT "%s : ", __func__);	\
-			printk args;						\
-			DHD_LOG_DUMP_WRITE("[%s] %s: ",	\
-			dhd_log_dump_get_timestamp(), __func__);	\
-			DHD_LOG_DUMP_WRITE args;	\
-		}									\
+#define	CFGP2P_ERR_MSG(x, args...)	\
+	do {	\
+		if (wl_dbg_level & WL_DBG_ERR) {	\
+			printk(KERN_INFO CFGP2P_ERROR_TEXT "%s : " x, __func__, ## args);	\
+			DHD_LOG_DUMP_WRITE("[%s] %s: ", dhd_log_dump_get_timestamp(), __func__);	\
+			DHD_LOG_DUMP_WRITE(x, ## args);	\
+		}	\
 	} while (0)
-#define	CFGP2P_INFO(args)									\
+#define CFGP2P_ERR(x) CFGP2P_ERR_MSG x
+#define	CFGP2P_INFO_MSG(x, args...)									\
 	do {										\
 		if (wl_dbg_level & WL_DBG_INFO) {				\
-			printk(KERN_INFO "CFGP2P-INFO) %s : ", __func__);	\
-			printk args;						\
-			DHD_LOG_DUMP_WRITE("[%s] %s: ",	\
-			dhd_log_dump_get_timestamp(), __func__);	\
-			DHD_LOG_DUMP_WRITE args;	\
+			printk(KERN_INFO "[dhd] CFGP2P-INFO) %s : " x, __func__, ## args);	\
+			DHD_LOG_DUMP_WRITE("[%s] %s: ", dhd_log_dump_get_timestamp(), __func__);	\
+			DHD_LOG_DUMP_WRITE(x, ## args);	\
 		}									\
 	} while (0)
-#define	CFGP2P_ACTION(args)								\
+#define CFGP2P_INFO(x) CFGP2P_INFO_MSG x
+#define	CFGP2P_ACTION_MSG(x, args...)								\
 	do {									\
 		if (wl_dbg_level & WL_DBG_P2P_ACTION) {			\
-			printk(KERN_DEBUG "CFGP2P-ACTION) %s :", __func__);	\
-			printk args;							\
-			DHD_LOG_DUMP_WRITE("[%s] %s: ",	\
-			dhd_log_dump_get_timestamp(), __func__);	\
-			DHD_LOG_DUMP_WRITE args;	\
+			printk(KERN_INFO "[dhd] CFGP2P-ACTION) %s :" x, __func__, ## args);	\
+			DHD_LOG_DUMP_WRITE("[%s] %s: ", dhd_log_dump_get_timestamp(), __func__);	\
+			DHD_LOG_DUMP_WRITE(x, ## args);	\
 		}									\
 	} while (0)
+#define CFGP2P_ACTION(x) CFGP2P_ACTION_MSG x
 #else
-#define CFGP2P_ERR(args)									\
+#define CFGP2P_ERR_MSG(x, args...)									\
 	do {										\
 		if (wl_dbg_level & WL_DBG_ERR) {				\
-			printk(KERN_INFO CFGP2P_ERROR_TEXT "%s : ", __func__);	\
-			printk args;						\
+			printk(KERN_INFO CFGP2P_ERROR_TEXT "%s : " x, __func__, ## args);	\
 		}									\
 	} while (0)
-#define	CFGP2P_INFO(args)									\
+#define CFGP2P_ERR(x) CFGP2P_ERR_MSG x
+#define	CFGP2P_INFO_MSG(x, args...)									\
 	do {										\
 		if (wl_dbg_level & WL_DBG_INFO) {				\
-			printk(KERN_INFO "CFGP2P-INFO) %s : ", __func__);	\
-			printk args;						\
+			printk(KERN_INFO "[dhd] CFGP2P-INFO) %s : " x, __func__, ## args);	\
 		}									\
 	} while (0)
-#define	CFGP2P_ACTION(args)								\
+#define CFGP2P_INFO(x) CFGP2P_INFO_MSG x
+#define	CFGP2P_ACTION_MSG(x, args...)								\
 	do {									\
 		if (wl_dbg_level & WL_DBG_P2P_ACTION) {			\
-			printk(KERN_INFO "CFGP2P-ACTION) %s :", __func__);	\
-			printk args;							\
+			printk(KERN_INFO "[dhd] CFGP2P-ACTION) %s :" x, __func__, ## args);	\
 		}									\
 	} while (0)
+#define CFGP2P_ACTION(x) CFGP2P_ACTION_MSG x
 #endif /* DHD_LOG_DUMP */
 
-#define	CFGP2P_DBG(args)								\
+#define	CFGP2P_DBG_MSG(x, args...)								\
 	do {									\
 		if (wl_dbg_level & WL_DBG_DBG) {			\
-			printk(KERN_INFO "CFGP2P-DEBUG) %s :", __func__);	\
-			printk args;							\
+			printk(KERN_INFO "[dhd] CFGP2P-DEBUG) %s :" x, __func__, ## args);	\
 		}									\
 	} while (0)
+#define CFGP2P_DBG(x) CFGP2P_DBG_MSG x
 
 #define INIT_TIMER(timer, func, duration, extra_delay)	\
 	do {				   \

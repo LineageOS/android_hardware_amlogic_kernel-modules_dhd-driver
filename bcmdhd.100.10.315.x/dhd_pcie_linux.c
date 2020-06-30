@@ -1498,6 +1498,11 @@ dhdpcie_request_irq(dhdpcie_info_t *dhdpcie_info)
 			}
 		}
 
+		if (bus->d2h_intr_method == PCIE_MSI)
+			printf("%s: MSI enabled\n", __FUNCTION__);
+		else
+			printf("%s: INTx enabled\n", __FUNCTION__);
+
 		if (request_irq(pdev->irq, dhdpcie_isr, IRQF_SHARED,
 			dhdpcie_info->pciname, bus) < 0) {
 			DHD_ERROR(("%s: request_irq() failed\n", __FUNCTION__));
@@ -1824,8 +1829,11 @@ int dhdpcie_init(struct pci_dev *pdev)
 		if (bus->dev->bus) {
 			/* self member of structure pci_bus is bridge device as seen by parent */
 			bus->rc_dev = bus->dev->bus->self;
-			DHD_ERROR(("%s: rc_dev from dev->bus->self (%x:%x) is %pK\n", __FUNCTION__,
-				bus->rc_dev->vendor, bus->rc_dev->device, bus->rc_dev));
+			if (bus->rc_dev)
+				DHD_ERROR(("%s: rc_dev from dev->bus->self (%x:%x) is %pK\n", __FUNCTION__,
+					bus->rc_dev->vendor, bus->rc_dev->device, bus->rc_dev));
+			else
+				DHD_ERROR(("%s: bus->dev->bus->self is NULL\n", __FUNCTION__));
 		} else {
 			DHD_ERROR(("%s: unable to get rc_dev as dev->bus is NULL\n", __FUNCTION__));
 		}
@@ -2541,7 +2549,7 @@ int dhdpcie_oob_intr_register(dhd_bus_t *bus)
 
 	dhdpcie_osinfo->oob_irq_registered = TRUE;
 
-	return err;
+	return 0;
 }
 
 void dhdpcie_oob_intr_unregister(dhd_bus_t *bus)

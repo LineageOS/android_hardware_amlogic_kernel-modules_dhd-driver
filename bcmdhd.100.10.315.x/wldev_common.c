@@ -47,17 +47,17 @@
 #define htodchanspec(i) (i)
 #define dtohchanspec(i) (i)
 
-#define	WLDEV_ERROR(args)						\
-	do {										\
-		printk(KERN_ERR "WLDEV-ERROR) ");	\
-		printk args;							\
+#define	WLDEV_ERROR_MSG(x, args...)						\
+	do {												\
+		printk(KERN_INFO "[dhd] WLDEV-ERROR) " x, ## args);	\
 	} while (0)
+#define WLDEV_ERROR(x) WLDEV_ERROR_MSG x
 
-#define	WLDEV_INFO(args)						\
-	do {										\
-		printk(KERN_INFO "WLDEV-INFO) ");	\
-		printk args;							\
+#define	WLDEV_INFO_MSG(x, args...)						\
+	do {												\
+		printk(KERN_INFO "[dhd] WLDEV-INFO) " x, ## args);	\
 	} while (0)
+#define WLDEV_INFO(x) WLDEV_INFO_MSG x
 
 extern int dhd_ioctl_entry_local(struct net_device *net, wl_ioctl_t *ioc, int cmd);
 

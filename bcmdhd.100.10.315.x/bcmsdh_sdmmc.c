@@ -1180,6 +1180,9 @@ sdioh_request_packet_chain(sdioh_info_t *sd, uint fix_inc, uint write, uint func
 			 * a restriction on max tx/glom count (based on host->max_segs).
 			 */
 			if (sg_count >= ARRAYSIZE(sd->sg_list)) {
+				sd_err(("%s: sg list entries(%u) exceed limit(%zu),"
+					" sd blk_size=%u\n",
+					__FUNCTION__, sg_count, (size_t)ARRAYSIZE(sd->sg_list), blk_size));
 				return (SDIOH_API_RC_FAIL);
 			}
 			pdata += pkt_offset;
@@ -1274,21 +1277,13 @@ txglomfail:
 				pkt_len += blk_size - (pkt_len % blk_size);
 
 			if ((write) && (!fifo))
-				err_ret = sdio_memcpy_toio(
-						sd->func[func],
-						addr, buf, pkt_len);
+				err_ret = sdio_memcpy_toio(sd->func[func], addr, buf, pkt_len);
 			else if (write)
-				err_ret = sdio_memcpy_toio(
-						sd->func[func],
-						addr, buf, pkt_len);
+				err_ret = sdio_memcpy_toio(sd->func[func], addr, buf, pkt_len);
 			else if (fifo)
-				err_ret = sdio_readsb(
-						sd->func[func],
-						buf, addr, pkt_len);
+				err_ret = sdio_readsb(sd->func[func], buf, addr, pkt_len);
 			else
-				err_ret = sdio_memcpy_fromio(
-						sd->func[func],
-						buf, addr, pkt_len);
+				err_ret = sdio_memcpy_fromio(sd->func[func], buf, addr, pkt_len);
 
 			if (err_ret)
 				sd_err(("%s: %s FAILED %p[%d], addr=0x%05x, pkt_len=%d, ERR=%d\n",

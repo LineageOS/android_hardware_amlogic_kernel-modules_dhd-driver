@@ -1890,7 +1890,7 @@ wl_cfg80211_scan(struct wiphy *wiphy, struct net_device *ndev,
 			 return -ENODEV;
 		}
 	}
-	err = wl_cfg80211_check_in4way(cfg, ndev, NO_SCAN_IN4WAY,
+	err = wl_cfg80211_check_in4way(cfg, ndev_to_wlc_ndev(ndev, cfg), NO_SCAN_IN4WAY,
 		WL_EXT_STATUS_SCAN, NULL);
 	if (err)
 		return err;
@@ -2068,7 +2068,7 @@ s32 wl_notify_escan_complete(struct bcm_cfg80211 *cfg,
 #if defined(ESCAN_RESULT_PATCH)
 	if (likely(cfg->scan_request)) {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
-		if (aborted && p2p_scan(cfg) &&
+		if (aborted && cfg->p2p && p2p_scan(cfg) &&
 			(cfg->scan_request->flags & NL80211_SCAN_FLAG_FLUSH)) {
 			WL_ERR(("scan list is changed"));
 			cfg->bss_list = wl_escan_get_buf(cfg, !aborted);
@@ -2106,6 +2106,7 @@ s32 wl_notify_escan_complete(struct bcm_cfg80211 *cfg,
 	if (p2p_is_on(cfg))
 		wl_clr_p2p_status(cfg, SCANNING);
 	wl_clr_drv_status(cfg, SCANNING, dev);
+	wake_up_interruptible(&dhdp->conf->event_complete);
 
 	DHD_OS_SCAN_WAKE_UNLOCK((dhd_pub_t *)(cfg->pub));
 	DHD_ENABLE_RUNTIME_PM((dhd_pub_t *)(cfg->pub));
@@ -2730,12 +2731,12 @@ static void wl_scan_timeout(unsigned long data)
 		dhdp->memdump_type = DUMP_TYPE_SCAN_TIMEOUT;
 		dhd_bus_mem_dump(dhdp);
 	}
+#endif /* DHD_FW_COREDUMP */
 	/*
 	 * For the memdump sanity, blocking bus transactions for a while
 	 * Keeping it TRUE causes the sequential private cmd error
 	 */
 	dhdp->scan_timeout_occurred = FALSE;
-#endif /* DHD_FW_COREDUMP */
 	msg.event_type = hton32(WLC_E_ESCAN_RESULT);
 	msg.status = hton32(WLC_E_STATUS_TIMEOUT);
 	msg.reason = 0xFFFFFFFF;

@@ -926,7 +926,8 @@
 #define WLC_GET_RSSI_QDB			321 /* qdB portion of the RSSI */
 #define WLC_DUMP_RATESET			322
 #define WLC_ECHO				323
-#define WLC_LAST				324	/* The last ioctl. Also push this
+#define WLC_SCB_AUTHENTICATE	325
+#define WLC_LAST				326	/* The last ioctl. Also push this
 							 * number when adding new ioctls
 							 */
 /*
@@ -998,6 +999,7 @@
 #define WL_AUTH_OPEN_SYSTEM		0	/* d11 open authentication */
 #define WL_AUTH_SHARED_KEY		1	/* d11 shared authentication */
 #define WL_AUTH_OPEN_SHARED		2	/* try open, then shared if open failed w/rc 13 */
+#define WL_AUTH_SAE_KEY			3	/* d11 sae authentication */
 #define WL_AUTH_FILS_SHARED		4	/* d11 fils shared key authentication */
 #define WL_AUTH_FILS_SHARED_PFS		5	/* d11 fils shared key w/ pfs authentication */
 #define WL_AUTH_FILS_PUBLIC		6	/* d11 fils public key authentication */

@@ -96,6 +96,9 @@ extern bool dhd_bus_dev_pm_enabled(dhd_pub_t *dhdpub);
 
 /* Device console input function */
 extern int dhd_bus_console_in(dhd_pub_t *dhd, uchar *msg, uint msglen);
+#ifdef CONSOLE_DPC
+extern int dhd_bus_txcons(dhd_pub_t *dhd, uchar *msg, uint msglen);
+#endif
 
 /* Deferred processing for the bus, return TRUE requests reschedule */
 extern bool dhd_bus_dpc(struct dhd_bus *bus);

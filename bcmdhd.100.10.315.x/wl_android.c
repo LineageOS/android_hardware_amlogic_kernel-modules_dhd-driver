@@ -2994,73 +2994,6 @@ extern int g_mhs_chan_for_cpcoex;
 #define APCS_DEFAULT_2G_CH	1
 #define APCS_DEFAULT_5G_CH	149
 
-#ifdef WL_ESCAN
-static int
-wl_android_escan_autochannel(struct net_device *dev, uint32 band)
-{
-	struct dhd_pub *dhd = dhd_get_pub(dev);
-	wlc_ssid_t ssid;
-	struct wl_escan_info *escan = NULL;
-	int ret = 0, retry = 0, retry_max, retry_interval = 250, channel = 0, up = 1;
-#ifdef WL_CFG80211
-	struct bcm_cfg80211 *cfg = wl_get_cfg(dev);
-#endif
-
-	escan = dhd->escan;
-	if (dhd) {
-		retry_max = WL_ESCAN_TIMER_INTERVAL_MS/retry_interval;
-		memset(&ssid, 0, sizeof(ssid));
-		ret = wldev_ioctl_get(dev, WLC_GET_UP, &up, sizeof(s32));
-		if (ret < 0 || up == 0) {
-			ret = wldev_ioctl_set(dev, WLC_UP, &up, sizeof(s32));
-		}
-		retry = retry_max;
-		while (retry--) {
-#ifdef WL_CFG80211
-			if (wl_get_drv_status_all(cfg, SCANNING) ||
-					escan->escan_state == ESCAN_STATE_SCANING)
-#else
-			if (escan->escan_state == ESCAN_STATE_SCANING)
-#endif
-			{
-				ANDROID_INFO(("Scanning %d tried, ret = %d\n",
-					(retry_max - retry), ret));
-			} else {
-				escan->autochannel = 1;
-				ret = wl_escan_set_scan(dev, dhd, &ssid, TRUE);
-				if (!ret)
-					break;
-			}
-			OSL_SLEEP(retry_interval);
-		}
-		if ((retry == 0) || (ret < 0))
-			goto done;
-		retry = retry_max;
-		while (retry--) {
-			if (escan->escan_state == ESCAN_STATE_IDLE) {
-				if (band == WLC_BAND_5G)
-					channel = escan->best_5g_ch;
-				else
-					channel = escan->best_2g_ch;
-				WL_MSG(dev->name, "selected channel = %d\n", channel);
-				goto done;
-			}
-			ANDROID_INFO(("escan_state=%d, %d tried, ret = %d\n",
-				escan->escan_state, (retry_max - retry), ret));
-			OSL_SLEEP(retry_interval);
-		}
-		if ((retry == 0) || (ret < 0))
-			goto done;
-	}
-
-done:
-	if (escan)
-		escan->autochannel = 0;
-
-	return channel;
-}
-#endif /* WL_ESCAN */
-
 static int
 wl_android_set_auto_channel(struct net_device *dev, const char* cmd_str,
 	char* command, int total_len)
@@ -3145,13 +3078,11 @@ wl_android_set_auto_channel(struct net_device *dev, const char* cmd_str,
 		goto done2;
 	}
 
-#ifdef WL_ESCAN
-	channel = wl_android_escan_autochannel(dev, band);
+	channel = wl_ext_autochannel(dev, ACS_FW_BIT|ACS_DRV_BIT, band);
 	if (channel)
 		goto done2;
 	else
 		goto done;
-#endif /* WL_ESCAN */
 
 	ret = wldev_ioctl_get(dev, WLC_GET_SPECT_MANAGMENT, &spect, sizeof(spect));
 	if (ret) {
@@ -3944,7 +3875,7 @@ wl_android_set_rps_cpus(struct net_device *dev, char *command)
 	enable = command[strlen(CMD_RPSMODE) + 1] - '0';
 	error = dhd_rps_cpus_enable(dev, enable);
 
-#if defined(DHDTCPACK_SUPPRESS) && defined(BCMPCIE) && defined(WL_CFG80211)
+#if 0 //defined(DHDTCPACK_SUPPRESS) && defined(BCMPCIE) && defined(WL_CFG80211)
 	if (!error) {
 		void *dhdp = wl_cfg80211_get_dhdp(net);
 		if (enable) {
@@ -6512,6 +6443,7 @@ wl_android_set_wifi_on_flag(bool enable)
 #endif /* BT_OVER_SDIO */
 
 #ifdef WL_STATIC_IF
+#include <dhd_linux_priv.h>
 struct net_device *
 wl_cfg80211_register_static_if(struct bcm_cfg80211 *cfg, u16 iftype, char *ifname)
 {
@@ -6523,6 +6455,10 @@ wl_cfg80211_register_static_if(struct bcm_cfg80211 *cfg, u16 iftype, char *ifnam
 #ifdef DHD_USE_RANDMAC
 	struct ether_addr ea_addr;
 #endif /* DHD_USE_RANDMAC */
+#ifdef CUSTOM_MULTI_MAC
+	char hw_ether[62];
+	dhd_pub_t *dhd = cfg->pub;
+#endif
 
 	WL_INFORM_MEM(("[STATIC_IF] Enter (%s) iftype:%d\n", ifname, iftype));
 
@@ -6536,9 +6472,17 @@ wl_cfg80211_register_static_if(struct bcm_cfg80211 *cfg, u16 iftype, char *ifnam
 	dhd_generate_mac_addr(&ea_addr);
 	(void)memcpy_s(mac_addr, ETH_ALEN, ea_addr.octet, ETH_ALEN);
 #else
+#if defined(CUSTOM_MULTI_MAC)
+	if (wifi_platform_get_mac_addr(dhd->info->adapter, hw_ether, "wlan1")) {
+#endif
 	/* Use primary mac with locally admin bit set */
 	(void)memcpy_s(mac_addr, ETH_ALEN, primary_ndev->dev_addr, ETH_ALEN);
 	mac_addr[0] |= 0x02;
+#if defined(CUSTOM_MULTI_MAC)
+	} else {
+		(void)memcpy_s(mac_addr, ETH_ALEN, hw_ether, ETH_ALEN);
+	}
+#endif
 #endif /* DHD_USE_RANDMAC */
 
 	ndev = wl_cfg80211_allocate_if(cfg, ifidx, ifname, mac_addr,
@@ -6601,6 +6545,10 @@ wl_cfg80211_static_if_open(struct net_device *net)
 	struct net_device *primary_ndev = bcmcfg_to_prmry_ndev(cfg);
 	u16 iftype = net->ieee80211_ptr ? net->ieee80211_ptr->iftype : 0;
 	u16 wl_iftype, wl_mode;
+#ifdef CUSTOM_MULTI_MAC
+	char hw_ether[62];
+	dhd_pub_t *dhd = dhd_get_pub(net);
+#endif
 
 	WL_INFORM_MEM(("[STATIC_IF] dev_open ndev %p and wdev %p\n", net, net->ieee80211_ptr));
 	ASSERT(cfg->static_ndev == net);
@@ -6612,7 +6560,15 @@ wl_cfg80211_static_if_open(struct net_device *net)
 #ifdef DHD_USE_RANDMAC
 		wdev = wl_cfg80211_add_if(cfg, primary_ndev, wl_iftype, net->name, net->dev_addr);
 #else
+#if defined(CUSTOM_MULTI_MAC)
+		if (wifi_platform_get_mac_addr(dhd->info->adapter, hw_ether, net->name)) {
+#endif
 		wdev = wl_cfg80211_add_if(cfg, primary_ndev, wl_iftype, net->name, NULL);
+#if defined(CUSTOM_MULTI_MAC)
+		} else {
+			wdev = wl_cfg80211_add_if(cfg, primary_ndev, wl_iftype, net->name, hw_ether);
+		}
+#endif
 #endif // endif
 		if (!wdev) {
 			ANDROID_ERROR(("[STATIC_IF] wdev is NULL, can't proceed"));

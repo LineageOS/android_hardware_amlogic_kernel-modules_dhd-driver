@@ -185,7 +185,7 @@ exit:
 }
 #endif /* !__STDC_WANT_SECURE_LIB__ && !(__STDC_LIB_EXT1__ && __STDC_WANT_LIB_EXT1__) */
 
-#if !defined(FREEBSD) && !defined(BCM_USE_PLATFORM_STRLCPY)
+#if 0
 /**
  * strlcpy - Copy a %NUL terminated string into a sized buffer
  * @dest: Where to copy the string to
