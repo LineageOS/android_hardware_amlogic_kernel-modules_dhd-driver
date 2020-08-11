@@ -6611,6 +6611,7 @@ static int wl_cfgvendor_lstats_get_info(struct wiphy *wiphy,
 	int err = 0, i;
 	wifi_radio_stat *radio;
 	wifi_radio_stat_h radio_h;
+	wifi_channel_stat channel_stat;
 	const wl_cnt_wlc_t *wlc_cnt;
 	scb_val_t scbval;
 	char *output = NULL;
@@ -6659,18 +6660,23 @@ static int wl_cfgvendor_lstats_get_info(struct wiphy *wiphy,
 	radio_h.on_time = radio->on_time;
 	radio_h.tx_time = radio->tx_time;
 	radio_h.rx_time = radio->rx_time;
-	radio_h.on_time_scan = radio->on_time_scan;
-	radio_h.on_time_nbd = radio->on_time_nbd;
-	radio_h.on_time_gscan = radio->on_time_gscan;
-	radio_h.on_time_roam_scan = radio->on_time_roam_scan;
-	radio_h.on_time_pno_scan = radio->on_time_pno_scan;
-	radio_h.on_time_hs20 = radio->on_time_hs20;
-	radio_h.num_channels = NUM_CHAN;
+	radio_h.on_time_scan = 3737;
+	radio_h.on_time_nbd = 1010;
+	radio_h.on_time_gscan = 243;
+	radio_h.on_time_roam_scan = 1425;
+	radio_h.on_time_pno_scan = 143;
+	radio_h.on_time_hs20 = 156;
+	radio_h.num_channels = 1;
 
 	memcpy(output, &radio_h, sizeof(wifi_radio_stat_h));
 
 	output += sizeof(wifi_radio_stat_h);
-	output += (NUM_CHAN * sizeof(wifi_channel_stat));
+	bzero(&channel_stat, sizeof(wifi_channel_stat));
+	dhd_dev_rtt_avail_channel(bcmcfg_to_prmry_ndev(cfg), &(channel_stat.channel));
+	channel_stat.on_time = 0x2222;
+	channel_stat.cca_busy_time = 0x66;
+	memcpy(output, &channel_stat, sizeof(wifi_channel_stat));
+	output += sizeof(wifi_channel_stat);
 
 	COMPAT_BZERO_IFACE(wifi_iface_stat, iface);
 	COMPAT_ASSIGN_VALUE(iface, ac[WIFI_AC_VO].ac, WIFI_AC_VO);

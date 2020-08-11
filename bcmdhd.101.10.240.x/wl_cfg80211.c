@@ -10103,6 +10103,7 @@ wl_cfg80211_set_channel(struct wiphy *wiphy, struct net_device *dev,
 	enum nl80211_band band;
 	s32 _chan;
 #endif /* CUSTOM_SET_CPUCORE || APSTA_RESTRICTED_CHANNEL */
+	u16 center_freq = chan->center_freq;
 
 	dev = ndev_to_wlc_ndev(dev, cfg);
 #ifdef WL_EXT_IAPSTA
@@ -10115,9 +10116,9 @@ wl_cfg80211_set_channel(struct wiphy *wiphy, struct net_device *dev,
 		band = NL80211_BAND_5GHZ;
 	else
 		band = NL80211_BAND_2GHZ;
-	chan->center_freq = ieee80211_channel_to_frequency(_chan, band);
+	center_freq = ieee80211_channel_to_frequency(_chan, band);
 #endif
-	chspec = wl_freq_to_chanspec(chan->center_freq);
+	chspec = wl_freq_to_chanspec(center_freq);
 
 	WL_MSG(dev->name, "netdev_ifidx(%d), chan_type(%d) target channel(%d) \n",
 		dev->ifindex, channel_type, CHSPEC_CHANNEL(chspec));
@@ -10265,7 +10266,7 @@ change_bw:
 #endif /* CUSTOM_SET_CPUCORE */
 	if (!err && (wl_get_mode_by_netdev(cfg, dev) == WL_MODE_AP)) {
 		/* Update AP/GO operating chanspec */
-		cfg->ap_oper_channel = wl_freq_to_chanspec(chan->center_freq);
+		cfg->ap_oper_channel = wl_freq_to_chanspec(center_freq);
 	}
 	if (err) {
 		wl_flush_fw_log_buffer(bcmcfg_to_prmry_ndev(cfg),

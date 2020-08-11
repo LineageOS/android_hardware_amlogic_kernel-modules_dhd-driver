@@ -1308,7 +1308,7 @@ wl_ext_pm_work_handler(struct work_struct *work)
 
 	BCM_SET_CONTAINER_OF(cur_if, work, struct wl_if_info, pm_enable_work.work);
 
-	WL_TRACE(("%s: Enter\n", __FUNCTION__));
+	AEXT_TRACE("wlan", "%s: Enter\n", __FUNCTION__);
 
 	if (cur_if->dev == NULL)
 		return;
@@ -1837,7 +1837,7 @@ wl_ext_add_del_bss(struct net_device *ndev, s32 bsscfg_idx,
 	ret = wl_ext_iovar_setbuf(ndev, "bss", &bss_setbuf, sizeof(bss_setbuf),
 		ioctl_buf, WLC_IOCTL_SMLEN, NULL);
 	if (ret != 0)
-		WL_ERR(("'bss %d' failed with %d\n", val, ret));
+		AEXT_ERROR(ndev->name, "'bss %d' failed with %d\n", val, ret);
 
 	return ret;
 }
@@ -1882,7 +1882,7 @@ wl_ext_interface_ops(struct net_device *dev,
 				&iface_v3, sizeof(wl_interface_create_v3_t),
 				ioctl_buf, sizeof(ioctl_buf), NULL);
 			if (unlikely(ret)) {
-				WL_ERR(("Interface v3 create failed!! ret %d\n", ret));
+				AEXT_ERROR(dev->name, "Interface v3 create failed!! ret %d\n", ret);
 				return ret;
 			}
 		}
