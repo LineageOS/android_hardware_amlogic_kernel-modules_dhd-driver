@@ -15911,6 +15911,7 @@ dhd_dev_get_feature_set(struct net_device *dev)
 		feature_set |= WIFI_FEATURE_D2AP_RTT;
 	}
 #endif /* RTT_SUPPORT */
+		feature_set |= WIFI_FEATURE_SET_LATENCY_MODE;
 #ifdef LINKSTAT_SUPPORT
 	feature_set |= WIFI_FEATURE_LINKSTAT;
 #endif /* LINKSTAT_SUPPORT */
