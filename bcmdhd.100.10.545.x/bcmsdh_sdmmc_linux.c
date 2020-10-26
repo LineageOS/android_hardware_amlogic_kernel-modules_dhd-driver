@@ -192,7 +192,7 @@ static void bcmsdh_sdmmc_remove(struct sdio_func *func)
 
 /* devices we support, null terminated */
 static const struct sdio_device_id bcmsdh_sdmmc_ids[] = {
-	{ SDIO_DEVICE(SDIO_VENDOR_ID_BROADCOM, SDIO_DEVICE_ID_BROADCOM_DEFAULT) },
+	/* { SDIO_DEVICE(SDIO_VENDOR_ID_BROADCOM, SDIO_DEVICE_ID_BROADCOM_DEFAULT) }, */
 	{ SDIO_DEVICE(SDIO_VENDOR_ID_BROADCOM, BCM4362_CHIP_ID) },
 	{ SDIO_DEVICE(SDIO_VENDOR_ID_BROADCOM, BCM43751_CHIP_ID) },
 	{ SDIO_DEVICE(SDIO_VENDOR_ID_BROADCOM, BCM43752_CHIP_ID) },
@@ -202,7 +202,7 @@ static const struct sdio_device_id bcmsdh_sdmmc_ids[] = {
 	{ SDIO_DEVICE(SDIO_VENDOR_ID_BROADCOM, BCM43014_D11N2G_ID) },
 	{ SDIO_DEVICE(SDIO_VENDOR_ID_BROADCOM, BCM43014_D11N5G_ID) },
 	/* { SDIO_DEVICE(SDIO_VENDOR_ID_BROADCOM, SDIO_ANY_ID) }, */
-	{ SDIO_DEVICE_CLASS(SDIO_CLASS_NONE)		},
+	/* { SDIO_DEVICE_CLASS(SDIO_CLASS_NONE)		}, */
 	 /* end: all zeroes */
 	{ 0, 0, 0, 0},
 };
