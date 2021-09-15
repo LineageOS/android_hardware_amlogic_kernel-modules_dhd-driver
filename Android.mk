@@ -16,6 +16,8 @@
 
 LOCAL_PATH := $(call my-dir)
 
+include $(call all-makefiles-under,$(LOCAL_PATH))
+
 ifeq ($(TARGET_PREBUILT_KERNEL),)
 TARGET_DHD_VERSION ?= bcmdhd.101.10.240.x
 DHD_PATH := $(abspath $(call my-dir))/$(TARGET_DHD_VERSION)
