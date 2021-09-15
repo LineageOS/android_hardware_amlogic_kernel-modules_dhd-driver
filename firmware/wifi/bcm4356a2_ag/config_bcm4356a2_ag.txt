@@ -1,0 +1,3 @@
+kso_enable=0
+dhd_txbound=128
+wl_preinit=ampdu_mpdu=32

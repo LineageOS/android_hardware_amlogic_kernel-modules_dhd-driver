@@ -1,0 +1,25 @@
+country_list= \
+    WW:WW/68, \
+    EU:EU/68, \
+    US:US/68, \
+    CA:CA/68, \
+    JP:JP/68, \
+    GB:GB/68, \
+    IE:IE/68, \
+    DE:DE/68, \
+    FR:FR/68, \
+    NL:NL/68, \
+    BE:BE/68, \
+    AT:AT/68, \
+    CH:CH/68, \
+    NO:NO/68, \
+    FI:FI/68, \
+    SE:SE/68, \
+    DK:DK/68, \
+    IT:IT/68, \
+    ES:ES/68, \
+    AU:AU/68, \
+    NZ:NZ/68, \
+    KR:KR/68
+ccode=WW
+wl_dbg_level=1
