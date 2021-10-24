@@ -218,12 +218,13 @@ dhd_conf_free_chip_nv_path_list(wl_chip_nv_path_list_ctrl_t *chip_nv_list)
 {
 	CONFIG_TRACE("called\n");
 
-	if (chip_nv_list->m_chip_nv_path_head) {
+	if (chip_nv_list->count > 0 && chip_nv_list->m_chip_nv_path_head) {
 		CONFIG_TRACE("Free %p\n", chip_nv_list->m_chip_nv_path_head);
 		kfree(chip_nv_list->m_chip_nv_path_head);
 		chip_nv_list->m_chip_nv_path_head = NULL;
 	}
 	chip_nv_list->count = 0;
+	chip_nv_list->m_chip_nv_path_head = NULL;
 }
 
 #if defined(BCMSDIO) || defined(BCMPCIE)
