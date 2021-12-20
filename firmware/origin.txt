@@ -1,4 +1,4 @@
-# The following files are extracted from adt3-user 11 RTT1.200909.003.A2 6832896 release-keys.
+# The following files are extracted from adt3-user-12-STT1.211025.001.Z4-7928920-release-keys.
 
 bluetooth/bcm20703a2/BCM20703A2.hcd
 bluetooth/bcm20710a1/BCM20702.hcd
