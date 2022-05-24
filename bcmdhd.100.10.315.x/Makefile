@@ -249,8 +249,8 @@ all: bcmdhd_sdio
 EXTRA_CFLAGS += -I$(KERNEL_SRC)/$(M)/include -I$(KERNEL_SRC)/$(M)/
 modules_install:
 	@$(MAKE) INSTALL_MOD_STRIP=1 M=$(M) -C $(KERNEL_SRC) modules_install
-	mkdir -p ${OUT_DIR}/private/modules
-	cd ${OUT_DIR}/$(M)/; find -name "*.ko" -exec cp {} ${OUT_DIR}/private/modules/ \;
+	mkdir -p ${OUT_DIR}/../private/modules
+	cd ${OUT_DIR}/$(M)/; find -name "*.ko" -exec cp {} ${OUT_DIR}/../private/modules/ \;
 
 clean:
 	$(MAKE) -C $(KERNEL_SRC) M=$(M) clean $(KBUILD_OPTIONS)
