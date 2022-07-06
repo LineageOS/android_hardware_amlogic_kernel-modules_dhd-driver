@@ -12416,6 +12416,11 @@ wl_handle_link_down(struct bcm_cfg80211 *cfg, wl_assoc_status_t *as)
 	}
 #endif
 
+	if (wl_get_drv_status(cfg, DISCONNECTING, ndev)) {
+		/* If DISCONNECTING bit is set, mark locally generated */
+		loc_gen = 1;
+	}
+
 	CFG80211_DISCONNECTED(ndev, reason, ie_ptr, ie_len,
 		loc_gen, GFP_KERNEL);
 	WL_MSG(ndev->name, "Disconnect event sent to upper layer"
