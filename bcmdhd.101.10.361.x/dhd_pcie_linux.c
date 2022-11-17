@@ -1576,7 +1576,7 @@ dhdpcie_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 		goto exit;
 	}
 
-	printf("PCI_PROBE:  bus %X, slot %X,vendor %X, device %X"
+	printf("PCI_PROBE:  bus 0x%X, slot 0x%X,vendor 0x%X, device 0x%X"
 		"(good PCI location)\n", pdev->bus->number,
 		PCI_SLOT(pdev->devfn), pdev->vendor, pdev->device);
 
