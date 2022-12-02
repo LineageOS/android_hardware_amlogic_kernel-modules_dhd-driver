@@ -17,7 +17,7 @@
 LOCAL_PATH := $(call my-dir)
 
 ifeq ($(TARGET_PREBUILT_KERNEL),)
-TARGET_DHD_VERSION ?= bcmdhd.101.10.240.x
+TARGET_DHD_VERSION ?= bcmdhd.101.10.361.x
 DHD_PATH := $(abspath $(call my-dir))/$(TARGET_DHD_VERSION)
 
 include $(CLEAR_VARS)
