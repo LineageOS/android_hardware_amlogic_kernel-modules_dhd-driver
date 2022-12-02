@@ -1,4 +1,4 @@
-#AP6356S_NVRAM_V1.3_20180508
+#AP6356S_NVRAM_V1.4.1_20210114
 #Modified from AP6356SDP_V1.0_NVRAM_20150216
 NVRAMRev=$Rev: 373428 $
 sromrev=11
@@ -62,7 +62,7 @@ extpagain5g=2
 tempthresh=255
 tempoffset=255
 rawtempsense=0x1ff
-pa2ga0=-135,5769,-647
+pa2ga0=-135,5769,-647   
 pa2ga1=-143,6023,-677
 pa5ga0=-183,5746,-697,-172,5801,-685,-176,5707,-680,-180,5445,-659
 pa5ga1=-186,5543,-669,-193,5506,-675,-210,5282,-661,-199,5367,-665
@@ -119,6 +119,7 @@ rssicorrnorm_c1=4,4
 rssicorrnorm5g_c0=1,2,3,1,2,3,6,6,8,6,6,8
 rssicorrnorm5g_c1=1,2,3,2,2,2,7,7,8,7,7,8
 muxenab=0x10
+
 swctrlmap_2g=0x00001141,0x00004212,0x00001040,0x211212,0x0ff
 swctrlmap_5g=0x00000202,0x00000101,0x00000202,0x000000,0x047
 swctrlmapext_5g=0x00000000,0x00000000,0x00000000,0x000000,0x003
