@@ -58,8 +58,10 @@ extern void pci_remove_reinit(unsigned int vid, unsigned int pid, int delBus);
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0))
 extern int wifi_irq_num(void);
 #endif
+#ifdef BCMDBUS
 int dhd_pwr_ctrl = 1;
 module_param(dhd_pwr_ctrl, int, 0);
+#endif
 #endif
 
 static int
@@ -69,7 +71,9 @@ dhd_wlan_set_power(int on, wifi_adapter_info_t *adapter)
 	int err = 0;
 
 #ifdef CUSTOMER_HW_AMLOGIC
+#ifdef BCMDBUS
     printf("######### dhd_pwr_ctrl=%d #########\n", dhd_pwr_ctrl);
+#endif
 #endif
 
 	if (on) {
@@ -125,7 +129,6 @@ dhd_wlan_set_power(int on, wifi_adapter_info_t *adapter)
 #endif /* BCMPCIE */
 #endif /* BUS_POWER_RESTORE */
 		/* Lets customer power to get stable */
-		mdelay(100);
 	} else {
 #ifdef BUS_POWER_RESTORE
 #ifdef BCMSDIO

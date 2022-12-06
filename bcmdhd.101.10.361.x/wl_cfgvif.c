@@ -5085,7 +5085,7 @@ wl_cfg80211_dfs_ap_move(struct net_device *ndev, char *data, char *command, int 
 }
 
 #ifdef WL_CFG80211_ACL
-static int
+int
 wl_cfg80211_set_mac_acl(struct wiphy *wiphy, struct net_device *cfgdev,
 	const struct cfg80211_acl_data *acl)
 {

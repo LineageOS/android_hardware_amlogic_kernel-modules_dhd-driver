@@ -213,6 +213,10 @@ extern s32 wl_cfg80211_add_set_beacon(struct wiphy *wiphy, struct net_device *de
 	struct beacon_parameters *info);
 extern s32 wl_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev);
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)  || WL_COMPAT_WIRELESS */
+#ifdef WL_CFG80211_ACL
+extern int wl_cfg80211_set_mac_acl(struct wiphy *wiphy, struct net_device *cfgdev,
+	const struct cfg80211_acl_data *acl);
+#endif /* WL_CFG80211_ACL */
 
 extern s32 wl_ap_start_ind(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev,
 	const wl_event_msg_t *e, void *data);

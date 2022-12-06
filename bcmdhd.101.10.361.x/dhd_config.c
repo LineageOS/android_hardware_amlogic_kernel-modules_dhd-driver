@@ -1061,14 +1061,26 @@ dhd_conf_set_nv_name_by_chip(dhd_pub_t *dhd, char *nv_path, int ag_type)
 		strcat(name_ptr, ".txt");
 #ifdef COMPAT_OLD_MODULE
 		if (dhd->conf->chip == BCM4359_CHIP_ID) {
-			struct file *fp;
 			// compatible for AP6398S and AP6398SA
+#ifdef DHD_LINUX_STD_FW_API
+			const struct firmware *nv = NULL;
+			int ret = BCME_ERROR;
+			ret = dhd_os_get_img_fwreq(&nv, nv_path);
+			if (ret < 0) {
+				strcpy(name_ptr, nv_name);
+			}
+			if (nv) {
+				dhd_os_close_img_fwreq(nv);
+			}
+#else
+			struct file *fp;
 			fp = dhd_filp_open(nv_path, O_RDONLY, 0);
 			if (IS_ERR(fp) || (fp == NULL)) {
 				strcpy(name_ptr, nv_name);
 			} else {
 				dhd_filp_close((struct file *)fp, NULL);
 			}
+#endif
 		}
 #endif
 	}
@@ -1314,7 +1326,7 @@ dhd_conf_dump_tput_patch(dhd_pub_t *dhd)
 }
 #endif /* DHD_TPUT_PATCH */
 
-#ifdef DHD_LINUX_STD_FW_API
+#ifdef DHD_REQUEST_FW_PATH
 #define FIRMWARE_CLASS_PATH "/sys/module/firmware_class/parameters/path"
 static void
 dhd_conf_get_filename(char *pFilename)
@@ -1355,14 +1367,7 @@ dhd_conf_add_filepath(dhd_pub_t *dhd, char *pFilename)
 		strcat(name_ptr, FW_AMPAK_PATH);
 #endif
 #ifdef MODULE_PATH
-#if defined(BCMSDIO) && defined(GET_OTP_MODULE_NAME)
-		if (strlen(dhd->conf->module_name))
-			module_name = dhd->conf->module_name;
-		else
-#endif
-		{
-			module_name = dhd_conf_get_module_name(dhd, DONT_CARE);
-		}
+		module_name = dhd_conf_get_module_name(dhd, DONT_CARE);
 #endif
 		if (module_name) {
 			strcat(name_ptr, "/");
@@ -1375,7 +1380,7 @@ dhd_conf_add_filepath(dhd_pub_t *dhd, char *pFilename)
 
 	return;
 }
-#endif /* DHD_LINUX_STD_FW_API */
+#endif /* DHD_REQUEST_FW_PATH */
 
 void
 dhd_conf_set_path_params(dhd_pub_t *dhd, char *fw_path, char *nv_path)
@@ -1385,7 +1390,7 @@ dhd_conf_set_path_params(dhd_pub_t *dhd, char *fw_path, char *nv_path)
 	/* External conf takes precedence if specified */
 	dhd_conf_preinit(dhd);
 
-#ifdef DHD_LINUX_STD_FW_API
+#ifdef DHD_REQUEST_FW_PATH
 	// preprocess the filename to only left 'name'
 	dhd_conf_get_filename(fw_path);
 	dhd_conf_get_filename(nv_path);
@@ -1411,7 +1416,7 @@ dhd_conf_set_path_params(dhd_pub_t *dhd, char *fw_path, char *nv_path)
 	dhd_conf_set_nv_name_by_mac(dhd, nv_path);
 #endif
 
-#ifdef DHD_LINUX_STD_FW_API
+#ifdef DHD_REQUEST_FW_PATH
 	dhd_conf_add_filepath(dhd, fw_path);
 	dhd_conf_add_filepath(dhd, nv_path);
 	dhd_conf_add_filepath(dhd, dhd->clm_path);

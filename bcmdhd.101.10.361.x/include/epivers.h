@@ -45,7 +45,7 @@
 #elif (defined (BCMDBG_ASSERT) && !defined (BCMDBG_ASSERT_DISABLED))
 #define EPI_VERSION_STR		"101.10.361 (wlan=r892223 ASSRT)"
 #else
-#define EPI_VERSION_STR		"101.10.361.28 (wlan=r892223-20221116-5)"
+#define EPI_VERSION_STR		"101.10.361.28 (wlan=r892223-20221202-3)"
 #endif /* BCMINTERNAL */
 
 #endif /* _epivers_h_ */

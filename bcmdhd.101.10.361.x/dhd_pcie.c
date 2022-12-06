@@ -1508,13 +1508,13 @@ dhdpcie_bus_isr(dhd_bus_t *bus)
 			}
 		}
 
+#ifndef DHD_READ_INTSTATUS_IN_DPC
 		if (bus->d2h_intr_method == PCIE_MSI &&
 				!dhd_conf_legacy_msi_chip(bus->dhd)) {
 			/* For MSI, as intstatus is cleared by firmware, no need to read */
 			goto skip_intstatus_read;
 		}
 
-#ifndef DHD_READ_INTSTATUS_IN_DPC
 		intstatus = dhdpcie_bus_intstatus(bus);
 
 		/* Check if the interrupt is ours or not */
