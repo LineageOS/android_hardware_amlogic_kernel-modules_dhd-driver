@@ -8470,15 +8470,15 @@ static int __wl_cfgvendor_dbg_get_pkt_fates(struct wiphy *wiphy,
 				user_buf = (void __user *)(unsigned long) nla_get_u64(iter);
 				break;
 			default:
-				WL_ERR(("%s: no such attribute %d\n", __FUNCTION__, type));
+				WL_ERR(("no such attribute %d\n", type));
 				ret = -EINVAL;
 				goto exit;
 		}
 	}
 
 	if (!req_count || !user_buf) {
-		WL_ERR(("%s: invalid request, user_buf=%p, req_count=%u\n",
-			__FUNCTION__, user_buf, req_count));
+		WL_ERR(("invalid request, user_buf=%p, req_count=%u\n",
+			user_buf, req_count));
 		ret = -EINVAL;
 		goto exit;
 	}

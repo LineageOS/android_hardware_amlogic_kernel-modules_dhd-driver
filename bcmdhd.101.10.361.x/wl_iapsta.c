@@ -4620,7 +4620,6 @@ wl_cur_if_tput_dump(struct wl_apsta_params *apsta_params, struct wl_if_info *cur
 {
 #ifdef WLDWDS
 	struct wl_dwds_info *dwds_if;
-	int i;
 #endif /* WLDWDS */
 	struct ether_addr bssid;
 	int ret = 0;
