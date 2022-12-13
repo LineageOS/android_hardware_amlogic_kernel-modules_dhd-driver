@@ -354,7 +354,7 @@ static struct notifier_block dhd_inet6addr_notifier = {
 static bool dhd_inet6addr_notifier_registered = FALSE;
 #endif /* CONFIG_IPV6 && IPV6_NDO_SUPPORT */
 
-#if defined (CONFIG_PM_SLEEP)
+#if defined (CONFIG_PM)
 #include <linux/suspend.h>
 volatile bool dhd_mmc_suspend = FALSE;
 DECLARE_WAIT_QUEUE_HEAD(dhd_dpc_wait);
@@ -362,7 +362,7 @@ DECLARE_WAIT_QUEUE_HEAD(dhd_dpc_wait);
 volatile bool dhd_mmc_wake = FALSE;
 long long temp_raw;
 #endif /* ENABLE_WAKEUP_PKT_DUMP */
-#endif /* defined(CONFIG_PM_SLEEP) */
+#endif /* defined(CONFIG_PM) */
 
 #if defined(OOB_INTR_ONLY) || defined(BCMSPI_ANDROID) || defined(FORCE_WOWLAN)
 extern void dhd_enable_oob_intr(struct dhd_bus *bus, bool enable);
