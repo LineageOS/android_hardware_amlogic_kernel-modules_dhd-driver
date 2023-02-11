@@ -6297,7 +6297,7 @@ s32
 wl_handle_reassoc(struct bcm_cfg80211 *cfg, struct net_device *dev,
 		wlcfg_assoc_info_t *info)
 {
-	wl_reassoc_params_t *reassoc_params;
+	wl_reassoc_params_t *reassoc_params = NULL;
 	s32 err = BCME_OK;
 	size_t reassoc_params_size;
 	u32 chan_cnt = info->chan_cnt;
