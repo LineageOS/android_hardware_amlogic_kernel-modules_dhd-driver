@@ -66,7 +66,7 @@ DHDCFLAGS = -Wall -Wstrict-prototypes -Wno-date-time                      \
 	-DPOWERUP_MAX_RETRY=1 -DIFACE_HANG_FORCE_DEV_CLOSE -DWAIT_DEQUEUE     \
 	-DUSE_NEW_RSPEC_DEFS                                                  \
 	-DWL_EXT_IAPSTA -DWL_ESCAN -DCCODE_LIST -DSUSPEND_EVENT               \
-	-DKEY_INSTALL_CHECK                                                   \
+	-DKEY_INSTALL_CHECK -DWL_P2P_RAND                                     \
 	-DENABLE_INSMOD_NO_FW_LOAD
 
 DHDOFILES = aiutils.o siutils.o sbutils.o                                 \
