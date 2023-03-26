@@ -49,7 +49,7 @@ endif
 DHDCFLAGS = -Wall -Wstrict-prototypes -Wno-date-time                      \
 	-Dlinux -DLINUX -DBCMDRIVER                                           \
 	-Wno-unknown-warning-option                                           \
-	-Wno-maybe-uninitialized -Wno-error -Wno-format-security              \
+	-Wno-uninitialized -Wno-error -Wno-format-security                    \
 	-Wno-implicit-fallthrough                                             \
 	-DBCMDONGLEHOST -DBCMDMA32 -DBCMFILEIMAGE                             \
 	-DDHDTHREAD -DDHD_DEBUG -DSHOW_EVENTS -DGET_OTP_MAC_ENABLE            \
