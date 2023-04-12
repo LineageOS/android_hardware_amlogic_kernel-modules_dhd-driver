@@ -10685,7 +10685,7 @@ dhdsdio_download_nvram(struct dhd_bus *bus)
 		goto err;
 
 #ifdef DHD_LINUX_STD_FW_API
-	memblock_len = len;
+	memblock_len = MAX_NVRAMBUF_SIZE;
 #else
 	memblock_len = MAX_NVRAMBUF_SIZE;
 #endif /* DHD_LINUX_STD_FW_API */

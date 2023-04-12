@@ -7848,7 +7848,7 @@ int dhd_get_download_buffer(dhd_pub_t	*dhd, char *file_path, download_type_t com
 					*length = fw->size;
 					goto err;
 				}
-				*buffer = VMALLOCZ(dhd->osh, fw->size);
+				*buffer = VMALLOCZ(dhd->osh, *length);
 				if (*buffer == NULL) {
 					DHD_ERROR(("%s: Failed to allocate memory %d bytes\n",
 						__FUNCTION__, (int)fw->size));
@@ -8360,7 +8360,7 @@ dhd_apply_default_clm(dhd_pub_t *dhd, char *clm_path)
 	len = MAX_CLM_BUF_SIZE;
 	dhd_get_download_buffer(dhd, clm_blob_path, CLM_BLOB, &memblock, &len);
 #ifdef DHD_LINUX_STD_FW_API
-	memblock_len = len;
+	memblock_len = MAX_CLM_BUF_SIZE;
 #else
 	memblock_len = MAX_CLM_BUF_SIZE;
 #endif /* DHD_LINUX_STD_FW_API */
