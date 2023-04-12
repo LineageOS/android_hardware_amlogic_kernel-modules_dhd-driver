@@ -4674,7 +4674,7 @@ dhd_conf_read_config(dhd_pub_t *dhd, char *conf_path)
 	}
 
 #ifdef DHD_LINUX_STD_FW_API
-	memblock_len = len;
+	memblock_len = MAXSZ_CONFIG;
 #else
 	memblock_len = MAXSZ_CONFIG;
 #endif /* DHD_LINUX_STD_FW_API */
