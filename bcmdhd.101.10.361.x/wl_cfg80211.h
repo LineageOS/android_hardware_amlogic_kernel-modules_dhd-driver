@@ -2849,10 +2849,11 @@ extern int wl_get_public_action(void *frame, u32 frame_len, u8 *ret_action);
 struct net_device *wl_cfg80211_get_remain_on_channel_ndev(struct bcm_cfg80211 *cfg);
 #endif /* WL_CFG80211_VSDB_PRIORITIZE_SCAN_REQUEST */
 
-#ifdef WL_SUPPORT_ACS
-#define ACS_MSRMNT_DELAY 1000 /* dump_obss delay in ms */
 #define IOCTL_RETRY_COUNT 5
 #define CHAN_NOISE_DUMMY -80
+
+#ifdef WL_SUPPORT_ACS
+#define ACS_MSRMNT_DELAY 1000 /* dump_obss delay in ms */
 #define OBSS_TOKEN_IDX 15
 #define IBSS_TOKEN_IDX 15
 #define TX_TOKEN_IDX 14

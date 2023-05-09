@@ -2913,7 +2913,7 @@ dbus_resume(void *context)
 	if (bus->dhd->up == FALSE) {
 		return BCME_OK;
 	}
-	
+
 	dlneeded = dbus_dlneeded(bus);
 	if (dlneeded == 0) {
 		ret = dbus_up(bus);

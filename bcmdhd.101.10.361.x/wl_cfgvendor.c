@@ -1262,6 +1262,7 @@ wl_cfgvendor_gscan_get_channel_list(struct wiphy *wiphy,
 	} else if (err == BCME_OK) {
 		reply_len = (num_channels * sizeof(uint32));
 	} else if (err == BCME_UNSUPPORTED) {
+		MFREE(cfg->osh, reply, CHANINFO_LIST_BUF_SIZE);
 		reply = dhd_pno_get_gscan(dhdp,
 			DHD_PNO_GET_CHANNEL_LIST, &band, &reply_len);
 		if (!reply) {
@@ -6949,7 +6950,7 @@ static int wl_cfgvendor_lstats_get_info(struct wiphy *wiphy,
 	pwrstats = (wl_pwrstats_t *) iovar_buf;
 
 	if (dtoh16(pwrstats->version) != WL_PWRSTATS_VERSION) {
-		WL_ERR(("PWRSTATS Version mismatch\n"));
+		WL_ERR(("PWRSTATS Version mismatch %d\n", dtoh16(pwrstats->version)));
 		err = BCME_ERROR;
 		goto exit;
 	}
@@ -10115,7 +10116,9 @@ const struct nla_policy andr_dbg_policy[DEBUG_ATTRIBUTE_MAX] = {
 	[DEBUG_ATTRIBUTE_LOG_MIN_DATA_SIZE] = { .type = NLA_U32 },
 	[DEBUG_ATTRIBUTE_FW_DUMP_LEN] = { .type = NLA_U32 },
 	[DEBUG_ATTRIBUTE_FW_DUMP_DATA] = { .type = NLA_U64 },
+#if (ANDROID_VERSION >= 11)
 	[DEBUG_ATTRIBUTE_FW_ERR_CODE] = { .type = NLA_U32 },
+#endif
 	[DEBUG_ATTRIBUTE_RING_DATA] = { .type = NLA_BINARY },
 	[DEBUG_ATTRIBUTE_RING_STATUS] = { .type = NLA_BINARY },
 	[DEBUG_ATTRIBUTE_RING_NUM] = { .type = NLA_U32 },

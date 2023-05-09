@@ -475,23 +475,23 @@ static s32 wl_cfg80211_get_tx_power(struct wiphy *wiphy, s32 *dbm);
 #endif /* WL_CFG80211_P2P_DEV_IF */
 static s32 wl_cfg80211_config_default_key(struct wiphy *wiphy,
 	struct net_device *dev,
-#if defined(CFG80211_BKPORT_MLO)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO)
 	int link_id,
 #endif
 	u8 key_idx, bool unicast, bool multicast);
 static s32 wl_cfg80211_add_key(struct wiphy *wiphy, struct net_device *dev,
-#if defined(CFG80211_BKPORT_MLO)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO)
 	int link_id,
 #endif
 	u8 key_idx, bool pairwise, const u8 *mac_addr,
 	struct key_params *params);
 static s32 wl_cfg80211_del_key(struct wiphy *wiphy, struct net_device *dev,
-#if defined(CFG80211_BKPORT_MLO)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO)
 	int link_id,
 #endif
 	u8 key_idx, bool pairwise, const u8 *mac_addr);
 static s32 wl_cfg80211_get_key(struct wiphy *wiphy, struct net_device *dev,
-#if defined(CFG80211_BKPORT_MLO)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO)
 	int link_id,
 #endif
 	u8 key_idx, bool pairwise, const u8 *mac_addr,
@@ -499,7 +499,7 @@ static s32 wl_cfg80211_get_key(struct wiphy *wiphy, struct net_device *dev,
 	struct key_params *params));
 static s32 wl_cfg80211_config_default_mgmt_key(struct wiphy *wiphy,
 	struct net_device *dev,
-#if defined(CFG80211_BKPORT_MLO)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO)
 	int link_id,
 #endif
 	u8 key_idx);
@@ -572,6 +572,10 @@ static int wl_cfg80211_set_pmk(struct wiphy *wiphy, struct net_device *dev,
 static int wl_cfg80211_del_pmk(struct wiphy *wiphy, struct net_device *dev,
         const u8 *aa);
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0) */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0))
+static int wl_cfg80211_update_owe_info(struct wiphy *wiphy, struct net_device *dev,
+	struct cfg80211_update_owe_info *oweinfo);
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0) */
 
 /*
  * event & event Q handlers for cfg80211 interfaces
@@ -6088,13 +6092,57 @@ wl_config_assoc_params(struct bcm_cfg80211 *cfg, struct net_device *dev,
 }
 
 static s32
+wl_ext_get_scan_rssi(struct bcm_cfg80211 *cfg, u8 *bssid)
+{
+	wl_scan_results_t *bss_list;
+	wl_bss_info_t *bi = NULL;
+	s32 i, rssi = 0;
+
+	mutex_lock(&cfg->scan_sync);
+	bss_list = cfg->bss_list;
+	bi = next_bss(bss_list, bi);
+	for_each_bss(bss_list, bi, i) {
+		if (!memcmp(&bi->BSSID, bssid, ETHER_ADDR_LEN))
+			rssi = dtoh32(bi->RSSI);
+	}
+	mutex_unlock(&cfg->scan_sync);
+
+	return rssi;
+}
+
+#ifdef CONNECT_INFO_WAR
+static chanspec_t
+wl_ext_get_scan_chanspec(struct bcm_cfg80211 *cfg, u8 *bssid)
+{
+	wl_scan_results_t *bss_list;
+	wl_bss_info_t *bi = NULL;
+	chanspec_t chanspec = 0;
+	s32 i;
+
+	mutex_lock(&cfg->scan_sync);
+	bss_list = cfg->bss_list;
+	bi = next_bss(bss_list, bi);
+	for_each_bss(bss_list, bi, i) {
+		if (!memcmp(&bi->BSSID, bssid, ETHER_ADDR_LEN))
+			chanspec = wl_chspec_driver_to_host(bi->chanspec);
+	}
+	mutex_unlock(&cfg->scan_sync);
+
+	return chanspec;
+}
+#endif /* CONNECT_INFO_WAR */
+
+static s32
 wl_handle_assoc_hints(struct bcm_cfg80211 *cfg, struct net_device *dev,
 	struct cfg80211_connect_params *sme, wlcfg_assoc_info_t *info)
 {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 15, 0))
 	bool skip_hints = false;
 #endif /* KERNEL >= 3.15 */
-	chanspec_t chspec;
+#ifdef CONNECT_INFO_WAR
+	chanspec_t scan_chspec;
+#endif /* CONNECT_INFO_WAR */
+	chanspec_t chspec = 0;
 
 	if (!sme || !info) {
 		WL_ERR(("wrong args\n"));
@@ -6119,8 +6167,18 @@ wl_handle_assoc_hints(struct bcm_cfg80211 *cfg, struct net_device *dev,
 		/* Use user space requested BSSID and channel */
 		info->targeted_join = true;
 		(void)memcpy_s(info->bssid, ETH_ALEN, sme->bssid, ETH_ALEN);
-		if (sme->channel && ((chspec =
-			wl_freq_to_chanspec(sme->channel->center_freq)) != INVCHANSPEC)) {
+		if (sme->channel) {
+			chspec = wl_freq_to_chanspec(sme->channel->center_freq);
+		}
+#ifdef CONNECT_INFO_WAR
+		scan_chspec = wl_ext_get_scan_chanspec(cfg, info->bssid);
+		if (scan_chspec && (scan_chspec != chspec)) {
+			WL_MSG(dev->name, "replace chspec 0x%x to previous scan chanspec 0x%x\n",
+				chspec, scan_chspec);
+			chspec = scan_chspec;
+		}
+#endif /* CONNECT_INFO_WAR */
+		if (chspec && (chspec != INVCHANSPEC)) {
 			info->chan_cnt = 1;
 			info->chanspecs[0] = chspec;
 			/* Skip p2p connection on 6G */
@@ -6192,7 +6250,11 @@ wl_sync_fw_assoc_states(struct bcm_cfg80211 *cfg,
 	s32 err = BCME_OK;
 	u8 bssid[ETH_ALEN];
 
-	if (wl_get_drv_status(cfg, CONNECTED, dev) && wl_reassoc_support) {
+	if (wl_get_drv_status(cfg, CONNECTED, dev) && wl_reassoc_support
+#ifdef WL_EXT_IAPSTA
+		&& wl_ext_sta_connected(dev)
+#endif /* WL_EXT_IAPSTA */
+	) {
 		/* ROAM case */
 		info->reassoc = true;
 	} else {
@@ -6269,25 +6331,6 @@ wl_pkt_mon_start(struct bcm_cfg80211 *cfg, struct net_device *dev)
 }
 #endif /* DBG_PKT_MON && BCMDONGLEHOST */
 
-static s32
-wl_ext_get_rssi(struct bcm_cfg80211 *cfg, u8 *bssid)
-{
-	wl_scan_results_t *bss_list;
-	wl_bss_info_t *bi = NULL;
-	s32 i, rssi = 0;
-
-	mutex_lock(&cfg->scan_sync);
-	bss_list = cfg->bss_list;
-	bi = next_bss(bss_list, bi);
-	for_each_bss(bss_list, bi, i) {
-		if (!memcmp(&bi->BSSID, bssid, ETHER_ADDR_LEN))
-			rssi = dtoh32(bi->RSSI);
-	}
-	mutex_unlock(&cfg->scan_sync);
-
-	return rssi;
-}
-
 void
 wl_conn_debug_info(struct bcm_cfg80211 *cfg, struct net_device *dev, wlcfg_assoc_info_t *info)
 {
@@ -6304,7 +6347,7 @@ wl_conn_debug_info(struct bcm_cfg80211 *cfg, struct net_device *dev, wlcfg_assoc
 		return;
 	}
 
-	target_rssi = wl_ext_get_rssi(cfg, info->bssid);
+	target_rssi = wl_ext_get_scan_rssi(cfg, info->bssid);
 	wl_ext_get_sec(dev, 0, sec_info, sizeof(sec_info), TRUE);
 	if (info->reassoc) {
 		memset(&scb_val, 0, sizeof(scb_val_t));
@@ -6451,6 +6494,7 @@ wl_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 	s32 err = BCME_OK;
 	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
 	wlcfg_assoc_info_t assoc_info;
+	chanspec_t scan_chspec = 1;
 
 	WL_DBG(("Enter len=%zu\n", sme->ie_len));
 	RETURN_EIO_IF_NOT_UP(cfg);
@@ -6496,10 +6540,20 @@ wl_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 			goto fail;
 		}
 
-		err = wl_get_assoc_channels(cfg, dev, &assoc_info);
-		if (unlikely(err)) {
-			WL_ERR(("get assoc channels failed\n"));
-			goto fail;
+#ifdef CONNECT_INFO_WAR
+		if (!ETHER_ISBCAST(assoc_info.bssid)) {
+			scan_chspec = wl_ext_get_scan_chanspec(cfg, assoc_info.bssid);
+		}
+		if(!scan_chspec)
+			WL_MSG(dev->name, "BSSID %pM not in previous scan results\n",
+				assoc_info.bssid);
+#endif /* CONNECT_INFO_WAR */
+		if (scan_chspec) {
+			err = wl_get_assoc_channels(cfg, dev, &assoc_info);
+			if (unlikely(err)) {
+				WL_ERR(("get assoc channels failed\n"));
+				goto fail;
+			}
 		}
 
 		err = wl_config_assoc_ies(cfg, dev, sme, &assoc_info);
@@ -6803,7 +6857,7 @@ wl_cfg80211_get_tx_power(struct wiphy *wiphy, s32 *dbm)
 
 static s32
 wl_cfg80211_config_default_key(struct wiphy *wiphy, struct net_device *dev,
-#if defined(CFG80211_BKPORT_MLO)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO)
 	int link_id,
 #endif
 	u8 key_idx, bool unicast, bool multicast)
@@ -7017,7 +7071,7 @@ wl_cfg80211_block_arp(struct net_device *dev, int enable)
 
 static s32
 wl_cfg80211_add_key(struct wiphy *wiphy, struct net_device *dev,
-#if defined(CFG80211_BKPORT_MLO)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO)
 	int link_id,
 #endif
 	u8 key_idx, bool pairwise, const u8 *mac_addr,
@@ -7219,7 +7273,7 @@ exit:
 
 static s32
 wl_cfg80211_del_key(struct wiphy *wiphy, struct net_device *dev,
-#if defined(CFG80211_BKPORT_MLO)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO)
 	int link_id,
 #endif
 	u8 key_idx, bool pairwise, const u8 *mac_addr)
@@ -7285,7 +7339,7 @@ wl_cfg80211_del_key(struct wiphy *wiphy, struct net_device *dev,
 /* NOTE : this function cannot work as is and is never called */
 static s32
 wl_cfg80211_get_key(struct wiphy *wiphy, struct net_device *dev,
-#if defined(CFG80211_BKPORT_MLO)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO)
 	int link_id,
 #endif
 	u8 key_idx, bool pairwise, const u8 *mac_addr, void *cookie,
@@ -7363,7 +7417,7 @@ wl_cfg80211_get_key(struct wiphy *wiphy, struct net_device *dev,
 static s32
 wl_cfg80211_config_default_mgmt_key(struct wiphy *wiphy,
 	struct net_device *dev,
-#if defined(CFG80211_BKPORT_MLO)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO)
 	int link_id,
 #endif
 	u8 key_idx)
@@ -7421,7 +7475,7 @@ wl_cfg80211_get_rssi(struct net_device *dev, struct bcm_cfg80211 *cfg, s32 *rssi
 	/* Query RSSI sum across antennas */
 	bzero(&rssi_ant_mimo, sizeof(rssi_ant_mimo));
 	err = wl_get_rssi_per_ant(dev, dev->name, NULL, &rssi_ant_mimo);
-	if (err) {
+	if (err && err != BCME_UNSUPPORTED) {
 		WL_ERR(("Could not get rssi sum (%d)\n", err));
 		/* set rssi to zero and do not return error,
 		* because iovar phy_rssi_ant could return BCME_UNSUPPORTED
@@ -7429,9 +7483,10 @@ wl_cfg80211_get_rssi(struct net_device *dev, struct bcm_cfg80211 *cfg, s32 *rssi
 		*/
 		err = BCME_OK;
 	} else {
-		cfg->rssi_sum_report = TRUE;
 		if ((*rssi = rssi_ant_mimo.rssi_sum) >= 0) {
 			*rssi = 0;
+		} else {
+			cfg->rssi_sum_report = TRUE;
 		}
 	}
 #endif /* SUPPORT_RSSI_SUM_REPORT */
@@ -7825,9 +7880,9 @@ wl_cfg80211_get_station(struct wiphy *wiphy, struct net_device *dev,
 			(void)memset_s(&rssi_ant_mimo,
 				sizeof(rssi_ant_mimo), 0, sizeof(rssi_ant_mimo));
 			err = wl_get_rssi_per_ant(dev, dev->name, NULL, &rssi_ant_mimo);
-			if (err) {
+			if (err && err != BCME_UNSUPPORTED) {
 				WL_ERR(("Could not get rssi sum (%d)\n", err));
-			} else {
+			} else if (!err) {
 				chains = 0;
 				for (cnt = 0; cnt < rssi_ant_mimo.count; cnt++) {
 					sinfo->chain_signal[cnt] = rssi_ant_mimo.rssi_ant[cnt];
@@ -10234,7 +10289,7 @@ exit:
 	return err;
 }
 
-static int wl_cfg80211_dump_survey(struct wiphy *wiphy, struct net_device *ndev,
+static int wl_cfg80211_dump_survey_ap(struct wiphy *wiphy, struct net_device *ndev,
 	int idx, struct survey_info *info)
 {
 	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
@@ -10350,7 +10405,82 @@ exit:
 }
 #endif /* WL_SUPPORT_ACS */
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)
+/**
+ * A connected STA typically cannot afford to go off-channel to collect
+ * all form of stats like an AP sounding the air before going up, hence
+ * a dedicated interface. And NL only uses that for the noise field of
+ * wpa_cli's signal_poll.
+ */
+static int wl_cfg80211_dump_survey_sta(struct wiphy *wiphy, struct net_device *ndev,
+	int idx, struct survey_info *info)
+{
+	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
+	u16 wl_iftype = 0;
+	u16 wl_mode = 0;
+	chanspec_t *chanspec = NULL;
+	s32 freq = 0;
+	struct ieee80211_channel *channel = NULL;
+	int err, noise, retry;
+
+	if (cfg80211_to_wl_iftype(ndev->ieee80211_ptr->iftype, &wl_iftype, &wl_mode) < 0) {
+		return -ENOENT;
+	}
+
+	if (wl_iftype != WL_IF_TYPE_STA ||
+		!wl_get_drv_status(cfg, CONNECTED, ndev) ||
+		idx != 0) {
+		return -ENOENT;
+	}
+	chanspec = (chanspec_t *)wl_read_prof(cfg, ndev, WL_PROF_CHAN);
+	if (chanspec && (*chanspec) && (*chanspec != INVCHANNEL)) {
+		freq = wl_channel_to_frequency(wf_chspec_ctlchan(*chanspec), CHSPEC_BAND(*chanspec));
+		channel = ieee80211_get_channel(wiphy, freq);
+	} else {
+		return -ENOENT;
+	}
+
+	/* Get noise value */
+	retry = IOCTL_RETRY_COUNT;
+	while (retry--) {
+		noise = 0;
+		err = wldev_ioctl_get(ndev, WLC_GET_PHY_NOISE, &noise,
+			sizeof(noise));
+		if (err >=  0) {
+			break;
+		}
+		WL_DBG(("attempt = %d, err = %d, \n",
+			(IOCTL_RETRY_COUNT - retry), err));
+	}
+
+	if (retry <= 0)	{
+		WL_ERR(("Get Phy Noise failed, error = %d\n", err));
+		noise = CHAN_NOISE_DUMMY;
+	}
+
+	memset_s(info, sizeof(struct survey_info), 0, sizeof(struct survey_info));
+	info->channel = channel;
+	info->noise = noise;
+	info->filled = SURVEY_INFO_NOISE_DBM ;
+
+	return 0;
+}
+
+static int wl_cfg80211_dump_survey(struct wiphy *wiphy, struct net_device *ndev,
+	int idx, struct survey_info *info)
+{
+#ifdef WL_SUPPORT_ACS
+	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
+	dhd_pub_t *dhd = (dhd_pub_t *)(cfg->pub);
+	if ((dhd->op_mode & DHD_FLAG_HOSTAP_MODE)) {
+		return wl_cfg80211_dump_survey_ap(wiphy, ndev, idx, info);
+	} else
+#endif /* WL_SUPPORT_ACS */
+	{
+		return wl_cfg80211_dump_survey_sta(wiphy, ndev, idx, info);
+	}
+}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 static int
 wl_cfg80211_get_channel(struct wiphy *wiphy, struct wireless_dev *wdev,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 2) || defined(CFG80211_BKPORT_MLO)
@@ -10445,9 +10575,7 @@ static struct cfg80211_ops wl_cfg80211_ops = {
 	.tdls_mgmt = wl_cfg80211_tdls_mgmt,
 	.tdls_oper = wl_cfg80211_tdls_oper,
 #endif /* LINUX_VERSION > VERSION(3, 2, 0) || WL_COMPAT_WIRELESS */
-#ifdef WL_SUPPORT_ACS
 	.dump_survey = wl_cfg80211_dump_survey,
-#endif /* WL_SUPPORT_ACS */
 #ifdef WL_CFG80211_ACL
 	.set_mac_acl = wl_cfg80211_set_mac_acl,
 #endif /* WL_CFG80211_ACL */
@@ -10475,7 +10603,10 @@ static struct cfg80211_ops wl_cfg80211_ops = {
 	.update_ft_ies = wl_cfg80211_update_ft_ies,
 #endif /* WLFBT */
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0) */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION (3, 6, 0)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0))
+	.update_owe_info = wl_cfg80211_update_owe_info,
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0) */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION (3, 8, 0)
 	.get_channel = wl_cfg80211_get_channel,
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION (3, 6, 0) */
 };
@@ -13317,7 +13448,7 @@ wl_check_pmstatus(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev,
 		/* Query RSSI sum across antennas */
 		memset(&rssi_ant_mimo, 0, sizeof(rssi_ant_mimo));
 		err = wl_get_rssi_per_ant(ndev, ndev->name, NULL, &rssi_ant_mimo);
-		if (err) {
+		if (err && err != BCME_UNSUPPORTED) {
 			WL_ERR(("Could not get rssi sum (%d)\n", err));
 		}
 		rssi = rssi_ant_mimo.rssi_sum;
@@ -14847,11 +14978,9 @@ static s32
 wl_cfg80211_ccode_evt_handler(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev,
 	const wl_event_msg_t *event, void *data)
 {
-	dhd_pub_t *dhd = cfg->pub;
 	s32 err = 0;
 	struct wiphy *wiphy = bcmcfg_to_wiphy(cfg);
 	char country_str[WLC_CNTRY_BUF_SZ] = { 0 };
-	struct net_device *dev = bcmcfg_to_prmry_ndev(cfg);
 
 	if (strlcpy(country_str, data, WL_CCODE_LEN + 1) >= WLC_CNTRY_BUF_SZ) {
 		return -EINVAL;
@@ -14859,12 +14988,11 @@ wl_cfg80211_ccode_evt_handler(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgde
 
 	if (strncmp(cfg->country, country_str, WL_CCODE_LEN) == 0) {
 		/* If country code is updated from command context, skip wiphy update */
-		WL_MSG(dev->name, "No change in country (%s)\n", country_str);
+		WL_DBG_MEM(("No change in country (%s)\n", country_str));
 		return BCME_OK;
 	}
 
-	WL_MSG(dev->name, "Updating new country %s\n", country_str);
-	dhd_conf_country(dhd, "country", country_str);
+	WL_INFORM_MEM(("Updating new country %s\n", country_str));
 
 	/* Indicate to upper layer for regdom change */
 	err = wl_update_wiphybands(cfg, true);
@@ -14924,6 +15052,7 @@ static void wl_init_event_handler(struct bcm_cfg80211 *cfg)
 	cfg->evt_handler[WLC_E_DEAUTH] = wl_notify_connect_status;
 	cfg->evt_handler[WLC_E_DISASSOC_IND] = wl_notify_connect_status;
 	cfg->evt_handler[WLC_E_ASSOC_IND] = wl_notify_connect_status;
+	cfg->evt_handler[WLC_E_OWE_INFO] = wl_notify_connect_status;
 	cfg->evt_handler[WLC_E_REASSOC_IND] = wl_notify_connect_status;
 	cfg->evt_handler[WLC_E_ROAM] = wl_notify_roaming_status;
 	cfg->evt_handler[WLC_E_MIC_ERROR] = wl_notify_mic_status;
@@ -19676,6 +19805,21 @@ wl_cfg80211_filter_vndr_ext_id(const vndr_ie_t *vndrie)
 		WL_DBG(("%s:SKIP ADDING FILS HLP EXTN ID\n", __func__));
 		return true;
 	}
+#ifdef WL_CAP_OCE_STA
+	if (vndrie->oui[0] == FILS_EXTID_MNG_REQ_PARAMS) {
+		/* Skip adding fils FILS_MAX_CHANNEL_TIME, its already done in FW */
+		WL_DBG(("%s:SKIP ADDING FILS MNG REQ PARAMS \n", __func__));
+		return true;
+	}
+#endif /* WL_CAP_OCE_STA */
+	if ((vndrie->oui[0] == EXT_MNG_HE_CAP_ID) ||
+		(vndrie->oui[0] ==  EXT_MNG_HE_OP_ID)) {
+		/* Skip adding HE Capabilities ie and HE operation IE
+		 */
+		WL_DBG(("%s:SKIP ADDING HE EXTN ID\n", __func__));
+		return true;
+	}
+
 	return false;
 }
 
@@ -19699,12 +19843,7 @@ wl_cfg80211_parse_vndr_ies(const u8 *parse, u32 len,
 	while (ie) {
 		if (count >= MAX_VNDR_IE_NUMBER)
 			break;
-#ifdef HOSTAPD_EID_EXTENSION_SUPPORT
-		if (ie->id == DOT11_MNG_VS_ID || (ie->id == DOT11_MNG_ID_EXT_ID))
-#else
-		if (ie->id == DOT11_MNG_VS_ID)
-#endif
-		{
+		if (ie->id == DOT11_MNG_VS_ID || (ie->id == DOT11_MNG_ID_EXT_ID)) {
 			vndrie = (const vndr_ie_t *) ie;
 			if (ie->id == DOT11_MNG_ID_EXT_ID) {
 				/* len should be bigger than sizeof ID extn field at least */
@@ -20514,6 +20653,62 @@ static int wl_cfg80211_del_pmk(struct wiphy *wiphy, struct net_device *dev,
 }
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0) */
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0))
+static int wl_cfg80211_update_owe_info(struct wiphy *wiphy, struct net_device *dev,
+	struct cfg80211_update_owe_info *oweinfo)
+{
+	int err = 0;
+	struct bcm_cfg80211 *cfg = wl_get_cfg(dev);
+	dhd_pub_t *dhdp = (dhd_pub_t *)(cfg->pub);
+	wl_assoc_resp_params_v1_t *assoc_resp_params;
+	uint8 resp_buf[AP_OWE_IOCTL_BUF_SIZE];
+	uint8 *p_resp_ies_tlv = NULL;
+	uint16 assoc_params_iovsize;
+
+	WL_DBG(("%s: Enter\n", __func__));
+	assoc_params_iovsize = AP_OWE_ASSOC_RESP_PARAMS_BUFSZ +
+			OFFSETOF(wl_assoc_resp_params_v1_t, ies);
+	assoc_resp_params = (wl_assoc_resp_params_v1_t *)MALLOCZ(dhdp->osh, assoc_params_iovsize);
+
+	if (assoc_resp_params == NULL) {
+		WL_ERR(("error: failed to allocate %d bytes of memory\n", assoc_params_iovsize));
+		return BCME_ERROR;
+	}
+	/* setup assoc_resp_params iovar */
+	assoc_resp_params->version = WL_ASSOC_RESP_PARAMS_V1;
+	assoc_resp_params->len = assoc_params_iovsize;
+	assoc_resp_params->fixed_length = OFFSETOF(wl_assoc_resp_params_v1_t, ies);
+	/* setup TLVs */
+	p_resp_ies_tlv = (uint8 *)&assoc_resp_params->ies[0];
+
+	if (wl_dbg_level & WL_DBG_DBG) {
+		if (oweinfo) {
+			prhex("supplicant MAC", oweinfo->peer, ETHER_ADDR_LEN);
+			prhex("supplicant generated OWE IE", oweinfo->ie, oweinfo->ie_len);
+		}
+	}
+
+	if (oweinfo->ie_len > AP_OWE_ASSOC_RESP_PARAMS_BUFSZ) {
+		WL_ERR(("no resp ies buffer left\n"));
+		err = -EINVAL;
+		goto exit;
+	}
+	(void)memcpy_s(assoc_resp_params->mac_addr, ETHER_ADDR_LEN,
+			oweinfo->peer, ETHER_ADDR_LEN);
+	(void)memcpy_s(p_resp_ies_tlv, AP_OWE_ASSOC_RESP_PARAMS_BUFSZ,
+			oweinfo->ie, oweinfo->ie_len);
+	assoc_resp_params->resp_ie_len = oweinfo->ie_len;
+	assoc_resp_params->status = oweinfo->status;
+	err = wldev_iovar_setbuf(dev, "assoc_resp_params", assoc_resp_params,
+			assoc_params_iovsize, resp_buf, AP_OWE_IOCTL_BUF_SIZE, NULL);
+	if (err) {
+		WL_DBG(("ap_assoc_resp_params failed, err=%d\n", err));
+	}
+exit:
+	return err;
+}
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0) */
+
 u64
 wl_cfg80211_get_new_roc_id(struct bcm_cfg80211 *cfg)
 {
@@ -20905,8 +21100,8 @@ wl_get_rssi_per_ant(struct net_device *dev, char *ifname, char *peer_mac, void *
 		WL_ERR(("Failed to get rssi info, err=%d\n", err));
 	} else {
 		memcpy(get_param, iobuf, sizeof(wl_rssi_ant_mimo_t));
-		if (get_param->count == 0) {
-			WL_ERR(("Not supported on this chip\n"));
+		if (get_param->count == 0 || get_param->rssi_sum >= 0) {
+			WL_INFORM(("Not supported on this chip\n"));
 			err = BCME_UNSUPPORTED;
 		}
 	}

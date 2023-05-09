@@ -2686,14 +2686,14 @@ static int dhdsdio_txpkt_preprocess(dhd_bus_t *bus, void *pkt, int chan, int txs
 			real_pad = pkt_len - act_len;
 
 			if (PKTTAILROOM(osh, pkt) < real_pad) {
-				DHD_INFO(("%s : insufficient tailroom %d for %d real_pad\n", 
+				DHD_INFO(("%s : insufficient tailroom %d for %d real_pad\n",
 					__func__, (int)PKTTAILROOM(osh, pkt), real_pad));
 				if (PKTPADTAILROOM(osh, pkt, real_pad)) {
 					DHD_ERROR(("CHK1: padding error size %d\n", real_pad));
 				} else
 					frame = (uint8 *)PKTDATA(osh, pkt);
 			}
-		} else 
+		} else
 #endif
 		{
 			swhdr_offset += SDPCM_HWEXT_LEN;
@@ -6553,7 +6553,7 @@ dhdsdio_rxglom(dhd_bus_t *bus, uint8 rxseq)
 
 		/* Check window for sanity */
 		if ((uint8)(txmax - bus->tx_seq) > 0x70) {
-			DHD_ERROR(("%s: got unlikely tx max %d with tx_seq %d\n",
+			DHD_INFO(("%s: got unlikely tx max %d with tx_seq %d\n",
 			           __FUNCTION__, txmax, bus->tx_seq));
 			txmax = bus->tx_max;
 		}
@@ -7159,7 +7159,7 @@ dhdsdio_readframes(dhd_bus_t *bus, uint maxframes, bool *finished)
 					txmax = bus->tx_seq + 2;
 				} else {
 #endif /* BCMSPI */
-					DHD_ERROR(("%s: got unlikely tx max %d with tx_seq %d\n",
+					DHD_INFO(("%s: got unlikely tx max %d with tx_seq %d\n",
 						__FUNCTION__, txmax, bus->tx_seq));
 					txmax = bus->tx_max;
 #ifdef BCMSPI
@@ -7327,7 +7327,7 @@ dhdsdio_readframes(dhd_bus_t *bus, uint maxframes, bool *finished)
 
 		/* Check window for sanity */
 		if ((uint8)(txmax - bus->tx_seq) > 0x70) {
-			DHD_ERROR(("%s: got unlikely tx max %d with tx_seq %d\n",
+			DHD_INFO(("%s: got unlikely tx max %d with tx_seq %d\n",
 			           __FUNCTION__, txmax, bus->tx_seq));
 			txmax = bus->tx_max;
 		}
@@ -9009,11 +9009,6 @@ dhd_dump_cis(uint fn, uint8 *cis)
 	DHD_INFO(("Function %d CIS:\n", fn));
 
 	for (tdata = byte = 0; byte < SBSDIO_CIS_SIZE_LIMIT; byte++) {
-		if ((byte % 16) == 0)
-			DHD_INFO(("    "));
-		DHD_INFO(("%02x ", cis[byte]));
-		if ((byte % 16) == 15)
-			DHD_INFO(("\n"));
 		if (!tdata--) {
 			tag = cis[byte];
 			if (tag == 0xff)
@@ -9022,12 +9017,9 @@ dhd_dump_cis(uint fn, uint8 *cis)
 				tdata = 0;
 			else if ((byte + 1) < SBSDIO_CIS_SIZE_LIMIT)
 				tdata = cis[byte + 1] + 1;
-			else
-				DHD_INFO(("]"));
 		}
 	}
-	if ((byte % 16) != 15)
-		DHD_INFO(("\n"));
+	prhex(NULL, (const u8 *) cis, byte+1);
 }
 #endif /* DHD_DEBUG */
 
@@ -9253,10 +9245,15 @@ dhdsdio_probe(uint16 venid, uint16 devid, uint16 bus_no, uint16 slot,
 
 	/* if firmware path present try to download and bring up bus */
 	bus->dhd->hang_report  = TRUE;
-#if 0 // terence 20150325: fix for WPA/WPA2 4-way handshake fail in hostapd
+
+#if defined(BCMDHD_MODULAR) && defined(INSMOD_FW_LOAD)
+	if (1)
+#else
 #if defined(LINUX) || defined(linux)
-	if (dhd_download_fw_on_driverload) {
+	if (!dhd_conf_legacy_otp_chip(bus->dhd))
 #endif /* LINUX || linux */
+#endif
+	{
 		if ((ret = dhd_bus_start(bus->dhd)) != 0) {
 			DHD_ERROR(("%s: dhd_bus_start failed\n", __FUNCTION__));
 #if !defined(OEM_ANDROID)
@@ -9275,7 +9272,6 @@ dhdsdio_probe(uint16 venid, uint16 devid, uint16 bus_no, uint16 slot,
 		bus->dhd->mac.octet[2] = 0x4C;
 	}
 #endif /* LINUX || linux */
-#endif
 #if defined(BT_OVER_SDIO)
 	/* At this point Regulators are turned on and iconditionaly sdio bus is started
 	 * based upon dhd_download_fw_on_driverload check, so
@@ -10684,11 +10680,7 @@ dhdsdio_download_nvram(struct dhd_bus *bus)
 	if (bcmerror != BCME_OK)
 		goto err;
 
-#ifdef DHD_LINUX_STD_FW_API
 	memblock_len = MAX_NVRAMBUF_SIZE;
-#else
-	memblock_len = MAX_NVRAMBUF_SIZE;
-#endif /* DHD_LINUX_STD_FW_API */
 
 	if (len > 0 && len < MAX_NVRAMBUF_SIZE) {
 		bufp = (char *)memblock;

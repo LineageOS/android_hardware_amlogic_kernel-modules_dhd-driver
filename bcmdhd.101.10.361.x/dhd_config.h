@@ -125,7 +125,8 @@ enum war_flags {
 	FW_REINIT_INCSA	= (1 << (1)),
 	FW_REINIT_EMPTY_SCAN	= (1 << (2)),
 	P2P_AP_MAC_CONFLICT	= (1 << (3)),
-	RESEND_EAPOL_PKT	= (1 << (4))
+	RESEND_EAPOL_PKT	= (1 << (4)),
+	FW_REINIT_RXF0OVFL	= (1 << (5))
 };
 
 enum in4way_flags {
@@ -170,26 +171,27 @@ enum conn_state {
 	CONN_STATE_AUTH_SAE_M2 = 3,
 	CONN_STATE_AUTH_SAE_M3 = 4,
 	CONN_STATE_AUTH_SAE_M4 = 5,
-	CONN_STATE_REQID = 6,
-	CONN_STATE_RSPID = 7,
-	CONN_STATE_WSC_START = 8,
-	CONN_STATE_WPS_M1 = 9,
-	CONN_STATE_WPS_M2 = 10,
-	CONN_STATE_WPS_M3 = 11,
-	CONN_STATE_WPS_M4 = 12,
-	CONN_STATE_WPS_M5 = 13,
-	CONN_STATE_WPS_M6 = 14,
-	CONN_STATE_WPS_M7 = 15,
-	CONN_STATE_WPS_M8 = 16,
-	CONN_STATE_WSC_DONE = 17,
-	CONN_STATE_4WAY_M1 = 18,
-	CONN_STATE_4WAY_M2 = 19,
-	CONN_STATE_4WAY_M3 = 20,
-	CONN_STATE_4WAY_M4 = 21,
-	CONN_STATE_ADD_KEY = 22,
-	CONN_STATE_CONNECTED = 23,
-	CONN_STATE_GROUPKEY_M1 = 24,
-	CONN_STATE_GROUPKEY_M2 = 25,
+	CONN_STATE_ASSOCIATED = 6,
+	CONN_STATE_REQID = 7,
+	CONN_STATE_RSPID = 8,
+	CONN_STATE_WSC_START = 9,
+	CONN_STATE_WPS_M1 = 10,
+	CONN_STATE_WPS_M2 = 11,
+	CONN_STATE_WPS_M3 = 12,
+	CONN_STATE_WPS_M4 = 13,
+	CONN_STATE_WPS_M5 = 14,
+	CONN_STATE_WPS_M6 = 15,
+	CONN_STATE_WPS_M7 = 16,
+	CONN_STATE_WPS_M8 = 17,
+	CONN_STATE_WSC_DONE = 18,
+	CONN_STATE_4WAY_M1 = 19,
+	CONN_STATE_4WAY_M2 = 20,
+	CONN_STATE_4WAY_M3 = 21,
+	CONN_STATE_4WAY_M4 = 22,
+	CONN_STATE_ADD_KEY = 23,
+	CONN_STATE_CONNECTED = 24,
+	CONN_STATE_GROUPKEY_M1 = 25,
+	CONN_STATE_GROUPKEY_M2 = 26,
 };
 
 enum enq_pkt_type {
@@ -401,6 +403,7 @@ void dhd_conf_get_otp(dhd_pub_t *dhd, bcmsdh_info_t *sdh, si_t *sih);
 void dhd_conf_set_hw_oob_intr(bcmsdh_info_t *sdh, struct si_pub *sih);
 #endif
 void dhd_conf_set_txglom_params(dhd_pub_t *dhd, bool enable);
+bool dhd_conf_legacy_otp_chip(dhd_pub_t *dhd);
 #endif
 #ifdef BCMPCIE
 int dhd_conf_get_otp(dhd_pub_t *dhd, si_t *sih);
@@ -450,9 +453,7 @@ void dhd_conf_tput_monitor(dhd_pub_t *dhd);
 uint dhd_conf_get_insuspend(dhd_pub_t *dhd, uint mask);
 int dhd_conf_set_suspend_resume(dhd_pub_t *dhd, int suspend);
 void dhd_conf_postinit_ioctls(dhd_pub_t *dhd);
-#ifdef WL_STATIC_IF
 void dhd_conf_preinit_ioctls_sta(dhd_pub_t *dhd, int ifidx);
-#endif /* WL_STATIC_IF */
 int dhd_conf_preinit(dhd_pub_t *dhd);
 int dhd_conf_reset(dhd_pub_t *dhd);
 int dhd_conf_attach(dhd_pub_t *dhd);

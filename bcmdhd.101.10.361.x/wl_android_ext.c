@@ -185,6 +185,7 @@ const auth_name_map_t auth_name_map[] = {
 	{WL_AUTH_OPEN_SYSTEM,	0x20|WPA2_AUTH_PSK_SHA256|WPA2_AUTH_PSK,	"wpa3/psk/sha256"},
 	{WL_AUTH_SAE_KEY,		0x20|WPA2_AUTH_PSK_SHA256|WPA2_AUTH_PSK,	"wpa3sae/psk/sha256"},
 	{WL_AUTH_OPEN_SYSTEM,	WPA3_AUTH_OWE,	"owe"},
+	{WL_AUTH_OPEN_SYSTEM,	BRCM_AUTH_DPT,	"owe"},
 };
 
 typedef struct wsec_name_map_t {
@@ -2143,7 +2144,7 @@ wl_ext_recv_probresp(struct net_device *dev, char *data, char *command,
 
 	/* enable:
 	    1. dhd_priv wl pkt_filter_add 150 0 0 0 0xFF 0x50
-	    2. dhd_priv wl pkt_filter_enable 150 1 
+	    2. dhd_priv wl pkt_filter_enable 150 1
 	    3. dhd_priv wl mpc 0
 	    4. dhd_priv wl 108 1
 	    disable:
@@ -2454,27 +2455,43 @@ wl_ext_wowl_wakeind(struct net_device *dev, char *data, char *command,
 typedef struct notify_payload {
 	int index;
 	int len;
-	char payload[128];
+	char payload[256];
 } notify_payload_t;
 
 static int
 wl_ext_gpio_notify(struct net_device *dev, char *data, char *command,
 	int total_len)
 {
-	s8 iovar_buf[WLC_IOCTL_SMLEN];
+	s8 *iovar_buf = NULL;
 	notify_payload_t notify, *pnotify = NULL;
-	int i, ret = 0, bytes_written = 0;
-	char frame_str[WLC_IOCTL_SMLEN+3];
+	int i, ret = 0, bytes_written = 0, len;
+	char *frame_str = NULL;
 
 	if (data) {
+		iovar_buf = kmalloc(WLC_IOCTL_MEDLEN, GFP_KERNEL);
+		if (iovar_buf == NULL) {
+			AEXT_ERROR(dev->name, "Failed to allocate buffer of %d bytes\n", WLC_IOCTL_MEDLEN);
+			goto exit;
+		}
+		memset(iovar_buf, 0, WLC_IOCTL_MEDLEN);
+		frame_str = kmalloc(WLC_IOCTL_MEDLEN, GFP_KERNEL);
+		if (frame_str == NULL) {
+			AEXT_ERROR(dev->name, "Failed to allocate buffer of %d bytes\n", WLC_IOCTL_MEDLEN);
+			goto exit;
+		}
+		memset(frame_str, 0, WLC_IOCTL_MEDLEN);
 		memset(&notify, 0, sizeof(notify));
-		memset(frame_str, 0, sizeof(frame_str));
 		sscanf(data, "%d %s", &notify.index, frame_str);
 
 		if (notify.index < 0)
 			notify.index = 0;
 
-		if (strlen(frame_str)) {
+		len = strlen(frame_str);
+		if (len > sizeof(notify.payload)) {
+			AEXT_ERROR(dev->name, "playload size %d > %d\n", len, sizeof(notify.payload));
+			goto exit;
+		}
+		if (len) {
 			notify.len = wl_pattern_atoh(frame_str, notify.payload);
 			if (notify.len == -1) {
 				AEXT_ERROR(dev->name, "rejecting pattern=%s\n", frame_str);
@@ -2506,6 +2523,10 @@ wl_ext_gpio_notify(struct net_device *dev, char *data, char *command,
 	}
 
 exit:
+	if (iovar_buf)
+		kfree(iovar_buf);
+	if (frame_str)
+		kfree(frame_str);
 	return ret;
 }
 #endif /* WL_GPIO_NOTIFY */
@@ -2827,7 +2848,7 @@ wl_ext_conf_iovar(struct net_device *dev, char *command, int total_len)
 		goto exit;
 
 	strncpy(name, pch, sizeof(name));
-	
+
 	data = bcmstrtok(&pick_tmp, "", 0); // pick data
 
 	if (!strcmp(name, "pm")) {
