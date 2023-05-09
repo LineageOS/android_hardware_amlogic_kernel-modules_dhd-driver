@@ -23538,6 +23538,18 @@ typedef struct wl_filter_ie_iov_v1 {
 	uint8	tlvs[];		/* variable data (zero in for list ,clearall) */
 } wl_filter_ie_iov_v1_t;
 
+#define  WL_ASSOC_RESP_PARAMS_V1 (1u)
+typedef struct wl_assoc_resp_params_v1 {
+	uint16	version;			/* Structure version */
+	uint16	len;				/* Total length of the structure */
+	uint16	fixed_length;			/* Total length of fixed fields */
+	uint8	mac_addr[ETHER_ADDR_LEN];	/* peer MAC address */
+	uint8	resp_ie_len;			/* Assoc_resp IE's length */
+	uint8	pad;				/* Pad for alignment */
+	uint16	status;				/* AREQ status code from Host */
+	uint8	ies[];				/* Variable data (resp_ies) */
+} wl_assoc_resp_params_v1_t;
+
 /* Event aggregation config */
 #define EVENT_AGGR_CFG_VERSION		1
 #define EVENT_AGGR_DISABLED		0x0

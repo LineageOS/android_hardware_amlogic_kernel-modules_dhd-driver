@@ -565,6 +565,29 @@ dhd_conf_set_nv_name_by_mac(dhd_pub_t *dhd, char *nv_path)
 	}
 }
 #endif
+
+bool
+dhd_conf_legacy_otp_chip(dhd_pub_t *dhd)
+{
+	uint chip;
+
+	chip = dhd->conf->chip;
+
+	if (chip == BCM43362_CHIP_ID || chip == BCM4330_CHIP_ID ||
+			chip == BCM4334_CHIP_ID || chip == BCM43340_CHIP_ID ||
+			chip == BCM43341_CHIP_ID || chip == BCM4324_CHIP_ID ||
+			chip == BCM4335_CHIP_ID || chip == BCM4339_CHIP_ID ||
+			chip == BCM4354_CHIP_ID || chip == BCM4356_CHIP_ID ||
+			chip == BCM4371_CHIP_ID ||
+			chip == BCM43430_CHIP_ID ||
+			chip == BCM4345_CHIP_ID || chip == BCM43454_CHIP_ID ||
+			chip == BCM4359_CHIP_ID || chip == BCM43012_CHIP_ID ||
+			chip == BCM43751_CHIP_ID || chip == BCM43752_CHIP_ID) {
+		return true;
+	}
+
+	return false;
+}
 #endif
 
 #ifdef BCMPCIE
@@ -867,7 +890,7 @@ dhd_conf_get_module_name(dhd_pub_t *dhd, int ag_type)
 #endif
 	const chip_name_map_t *row_chip = NULL;
 	char *name = NULL;
-	
+
 #if defined(BCMPCIE) && defined(UPDATE_MODULE_NAME)
 	row_module = dhd_conf_match_module(dhd);
 	if (row_module && strlen(row_module->module_name)) {
@@ -1635,12 +1658,19 @@ dhd_conf_map_country_list(dhd_pub_t *dhd, wl_country_t *cspec)
 	return bcmerror;
 }
 
-int
+static int
 dhd_conf_set_country(dhd_pub_t *dhd, wl_country_t *cspec)
 {
 	int bcmerror = -1;
+	struct net_device *net;
+	int bytes_written = 0;
+	char event_msg[32];
 
 	memset(&dhd->dhd_cspec, 0, sizeof(wl_country_t));
+
+	net = dhd_idx2net(dhd, 0);
+	snprintf(event_msg, sizeof(event_msg), "wl event_msg %d 0", WLC_E_COUNTRY_CODE_CHANGED);
+	wl_android_ext_priv_cmd(net, event_msg, 0, &bytes_written);
 
 	CONFIG_MSG("set country %s, revision %d\n", cspec->ccode, cspec->rev);
 	bcmerror = dhd_conf_set_bufiovar(dhd, 0, WLC_SET_VAR, "country", (char *)cspec,
@@ -1648,6 +1678,9 @@ dhd_conf_set_country(dhd_pub_t *dhd, wl_country_t *cspec)
 	dhd_conf_get_country(dhd, cspec);
 	CONFIG_MSG("Country code: %s (%s/%d)\n",
 		cspec->country_abbrev, cspec->ccode, cspec->rev);
+
+	snprintf(event_msg, sizeof(event_msg), "wl event_msg %d 1", WLC_E_COUNTRY_CODE_CHANGED);
+	wl_android_ext_priv_cmd(net, event_msg, 0, &bytes_written);
 
 	return bcmerror;
 }
@@ -1911,7 +1944,7 @@ dhd_conf_country(dhd_pub_t *dhd, char *cmd, char *buf)
 		strlcpy(cspec.country_abbrev, buf, WL_CCODE_LEN + 1);
 		strlcpy(cspec.ccode, buf, WL_CCODE_LEN + 1);
 		dhd_conf_map_country_list(dhd, &cspec);
-		if (!memcmp(&cspec.ccode, &cur_cspec.ccode, WL_CCODE_LEN + 1) &&
+		if (!memcmp(&cspec.ccode, &cur_cspec.ccode, WL_CCODE_LEN) &&
 				(cspec.rev == cur_cspec.rev)) {
 			CONFIG_MSG("country code = %s/%d is already configured\n",
 				cspec.ccode, cspec.rev);
@@ -1925,6 +1958,33 @@ dhd_conf_country(dhd_pub_t *dhd, char *cmd, char *buf)
 	}
 
 	return err;
+}
+
+int
+dhd_conf_autocountry(dhd_pub_t *dhd, char *cmd, char *buf)
+{
+	struct net_device *net;
+	int bytes_written = 0;
+	char event_msg[32];
+	int enable = 0;
+
+	if (buf) {
+		sscanf(buf, "%d", &enable);
+	}
+
+	net = dhd_idx2net(dhd, 0);
+	snprintf(event_msg, sizeof(event_msg), "wl event_msg %d 0", WLC_E_COUNTRY_CODE_CHANGED);
+	wl_android_ext_priv_cmd(net, event_msg, 0, &bytes_written);
+
+	CONFIG_MSG("autocountry %d\n", enable);
+	dhd_conf_set_intiovar(dhd, 0, WLC_SET_VAR, "autocountry", enable, 0, FALSE);
+
+	snprintf(event_msg, sizeof(event_msg), "wl event_msg %d 1", WLC_E_COUNTRY_CODE_CHANGED);
+	wl_android_ext_priv_cmd(net, event_msg, 0, &bytes_written);
+
+	dhd_conf_country(dhd, "country", dhd->conf->cspec.country_abbrev);
+
+	return 0;
 }
 
 typedef int (tpl_parse_t)(dhd_pub_t *dhd, char *name, char *buf);
@@ -1943,6 +2003,7 @@ const iovar_tpl_t iovar_tpl_list[] = {
 	{WLC_SET_VAR,	"scanmac",		dhd_conf_scan_mac},
 #endif
 	{WLC_SET_VAR,	"country",		dhd_conf_country},
+	{WLC_SET_VAR,	"autocountry",	dhd_conf_autocountry},
 };
 
 static int iovar_tpl_parse(const iovar_tpl_t *tpl, int tpl_count,
@@ -4673,11 +4734,7 @@ dhd_conf_read_config(dhd_pub_t *dhd, char *conf_path)
 		goto err;
 	}
 
-#ifdef DHD_LINUX_STD_FW_API
 	memblock_len = MAXSZ_CONFIG;
-#else
-	memblock_len = MAXSZ_CONFIG;
-#endif /* DHD_LINUX_STD_FW_API */
 
 	pick = MALLOC(dhd->osh, MAXSZ_BUF);
 	if (!pick) {
@@ -5050,7 +5107,6 @@ dhd_conf_postinit_ioctls(dhd_pub_t *dhd)
 	dhd_conf_set_intiovar(dhd, 0, WLC_SET_SRL, "WLC_SET_SRL", conf->srl, 0, FALSE);
 	dhd_conf_set_intiovar(dhd, 0, WLC_SET_LRL, "WLC_SET_LRL", conf->lrl, 0, FALSE);
 	dhd_conf_set_bw_cap(dhd);
-	dhd_conf_set_roam(dhd, 0);
 
 #if defined(BCMPCIE)
 	dhd_conf_set_intiovar(dhd, 0, WLC_SET_VAR, "bus:deepsleep_disable",
@@ -5112,6 +5168,7 @@ dhd_conf_postinit_ioctls(dhd_pub_t *dhd)
 		}
 	}
 #endif /* WLEASYMESH */
+#if defined(BCMSDIO) || defined(BCMPCIE)
 #if defined(BCMSDIO)
 	if (conf->devid == BCM43751_CHIP_ID)
 #elif defined(BCMPCIE)
@@ -5123,6 +5180,7 @@ dhd_conf_postinit_ioctls(dhd_pub_t *dhd)
 			dhd_conf_set_wl_cmd(dhd, he_features, TRUE);
 		}
 	}
+#endif
 #ifdef UPDATE_MODULE_NAME
 	dhd_conf_compat_func(dhd);
 #endif
@@ -5330,7 +5388,8 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 	conf->in4way = STA_NO_SCAN_IN4WAY | STA_WAIT_DISCONNECTED |
 		AP_WAIT_STA_RECONNECT;
 	if (conf->chip == BCM43752_CHIP_ID)
-		conf->war = SET_CHAN_INCONN | FW_REINIT_INCSA | FW_REINIT_EMPTY_SCAN;
+		conf->war = SET_CHAN_INCONN | FW_REINIT_INCSA | FW_REINIT_EMPTY_SCAN |
+			FW_REINIT_RXF0OVFL;
 	else
 		conf->war = 0;
 #ifdef P2P_AP_CONCURRENT

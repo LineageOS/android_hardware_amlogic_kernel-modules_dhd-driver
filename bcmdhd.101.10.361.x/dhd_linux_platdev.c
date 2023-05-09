@@ -128,7 +128,7 @@ wifi_adapter_info_t* dhd_wifi_platform_attach_adapter(uint32 bus_type,
 		if ((adapter->bus_type == -1 || adapter->bus_type == bus_type) &&
 			(adapter->bus_num == -1 || adapter->bus_num == bus_num) &&
 			(adapter->slot_num == -1 || adapter->slot_num == slot_num)
-#if defined(ENABLE_INSMOD_NO_FW_LOAD)
+#if defined(ENABLE_INSMOD_NO_FW_LOAD) && !defined(ENABLE_INSMOD_NO_POWER_OFF)
 			&& (wifi_chk_adapter_status(adapter, status))
 #endif
 		) {
@@ -1024,7 +1024,7 @@ static int dhd_wifi_platform_load_usb(void)
 	int i;
 #endif
 
-#if !defined(DHD_PRELOAD)
+#if !defined(DHD_PRELOAD) && !defined(ENABLE_INSMOD_NO_POWER_OFF)
 	/* power down all adapters */
 	for (i = 0; i < dhd_wifi_platdata->num_adapters; i++) {
 		adapter = &dhd_wifi_platdata->adapters[i];

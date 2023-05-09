@@ -13,7 +13,7 @@
 #include <linux/amlogic/wlan_plat.h>
 #include <linux/amlogic/dhd_buf.h>
 
-#define	DHD_STATIC_VERSION_STR		"101.10.361.28 (wlan=r892223-20221018-1)"
+#define	DHD_STATIC_VERSION_STR		"101.10.361.31 (wlan=r892223-20230427-1)"
 #define STATIC_ERROR_LEVEL	BIT(0)
 #define STATIC_TRACE_LEVEL	BIT(1)
 #define STATIC_MSG_LEVEL	BIT(0)
@@ -38,17 +38,16 @@ do { \
 	} \
 } while (0)
 
-#ifdef DHD_STATIC_IN_DRIVER
-#if ANDROID_VERSION > 0
-#define CONFIG_BCMDHD_VTS { : = y}
-#define CONFIG_BCMDHD_DEBUG { : = y}
-#endif
-#else
+#ifndef DHD_STATIC_IN_DRIVER
+#ifndef BCMSDIO
 #define BCMSDIO
+#endif
+#ifndef BCMPCIE
 #define BCMPCIE
-//#define BCMDBUS
-#define CONFIG_BCMDHD_VTS { : = y}
-#define CONFIG_BCMDHD_DEBUG { : = y}
+#endif
+#ifndef BCMDBUS
+#define BCMDBUS
+#endif
 #define DHD_USE_STATIC_MEMDUMP { : = y}
 //#define BCMDHD_UNUSE_MEM
 #endif
@@ -75,9 +74,9 @@ enum dhd_prealloc_index {
 	DHD_PREALLOC_IF_FLOW_LKUP = 9,
 #endif /* BCMPCIE */
 	DHD_PREALLOC_MEMDUMP_BUF = 10,
-#if defined(CONFIG_BCMDHD_VTS) || defined(CONFIG_BCMDHD_DEBUG)
+#if defined(DHD_USE_STATIC_MEMDUMP) || defined(BCMDBUS)
 	DHD_PREALLOC_MEMDUMP_RAM = 11,
-#endif /* CONFIG_BCMDHD_VTS | CONFIG_BCMDHD_DEBUG */
+#endif /* DHD_USE_STATIC_MEMDUMP | BCMDBUS */
 #if defined(BCMSDIO) || defined(BCMDBUS)
 	DHD_PREALLOC_DHD_WLFC_HANGER = 12,
 #endif /* BCMSDIO | BCMDBUS */
@@ -112,10 +111,8 @@ enum dhd_prealloc_index {
 #define DHD_PREALLOC_DATABUF_SIZE	(64 * 1024)
 #define DHD_PREALLOC_OSL_BUF_SIZE	(STATIC_BUF_MAX_NUM * STATIC_BUF_SIZE)
 #define DHD_PREALLOC_WIPHY_ESCAN0_SIZE	(64 * 1024)
-#define DHD_PREALLOC_DHD_INFO_SIZE	(43 * 1024)
-#if defined(CONFIG_BCMDHD_VTS) || defined(CONFIG_BCMDHD_DEBUG)
+#define DHD_PREALLOC_DHD_INFO_SIZE	(44 * 1024)
 #define DHD_PREALLOC_MEMDUMP_RAM_SIZE	(1290 * 1024)
-#endif /* CONFIG_BCMDHD_VTS | CONFIG_BCMDHD_DEBUG */
 #define DHD_PREALLOC_DHD_WLFC_HANGER_SIZE	(73 * 1024)
 #ifdef DHD_USE_STATIC_MEMDUMP
 #define DHD_PREALLOC_DHD_LOG_DUMP_BUF_SIZE \
@@ -268,7 +265,7 @@ void *bcmdhd_mem_prealloc(int section, unsigned long size)
 		return wlan_static_if_flow_lkup[index];
 	}
 #endif /* BCMPCIE */
-#if defined(CONFIG_BCMDHD_VTS) || defined(CONFIG_BCMDHD_DEBUG)
+#if defined(DHD_USE_STATIC_MEMDUMP) || defined(BCMDBUS)
 	if (section == DHD_PREALLOC_MEMDUMP_RAM) {
 		if (size > DHD_PREALLOC_MEMDUMP_RAM_SIZE) {
 			DHD_STATIC_ERROR("request DHD_PREALLOC_MEMDUMP_RAM(%lu) > %d\n",
@@ -277,7 +274,7 @@ void *bcmdhd_mem_prealloc(int section, unsigned long size)
 		}
 		return wlan_static_dhd_memdump_ram_buf[index];
 	}
-#endif /* CONFIG_BCMDHD_VTS | CONFIG_BCMDHD_DEBUG */
+#endif /* DHD_USE_STATIC_MEMDUMP | BCMDBUS */
 #if defined(BCMSDIO) || defined(BCMDBUS)
 	if (section == DHD_PREALLOC_DHD_WLFC_HANGER) {
 		if (size > DHD_PREALLOC_DHD_WLFC_HANGER_SIZE) {
@@ -384,9 +381,9 @@ dhd_deinit_wlan_mem(int index)
 #ifdef BCMPCIE
 	kfree(wlan_static_if_flow_lkup[index]);
 #endif /* BCMPCIE */
-#if defined(CONFIG_BCMDHD_VTS) || defined(CONFIG_BCMDHD_DEBUG)
+#if defined(DHD_USE_STATIC_MEMDUMP) || defined(BCMDBUS)
 	kfree(wlan_static_dhd_memdump_ram_buf[index]);
-#endif /* CONFIG_BCMDHD_VTS | CONFIG_BCMDHD_DEBUG */
+#endif /* DHD_USE_STATIC_MEMDUMP | BCMDBUS */
 #if defined(BCMSDIO) || defined(BCMDBUS)
 	kfree(wlan_static_dhd_wlfc_hanger_buf[index]);
 #endif /* BCMSDIO | BCMDBUS */
@@ -517,14 +514,14 @@ dhd_init_wlan_mem(int index, unsigned int buf_level)
 #endif /* BCMPCIE */
 	}
 
-#if defined(CONFIG_BCMDHD_VTS) || defined(CONFIG_BCMDHD_DEBUG)
+#if defined(DHD_USE_STATIC_MEMDUMP) || defined(BCMDBUS)
 	wlan_static_dhd_memdump_ram_buf[index] = kmalloc(DHD_PREALLOC_MEMDUMP_RAM_SIZE, GFP_KERNEL);
 	if (!wlan_static_dhd_memdump_ram_buf[index])
 		goto err_mem_alloc;
 	size += DHD_PREALLOC_MEMDUMP_RAM_SIZE;
 	DHD_STATIC_TRACE("section %d, size=%d\n",
 		DHD_PREALLOC_MEMDUMP_RAM, DHD_PREALLOC_MEMDUMP_RAM_SIZE);
-#endif /* CONFIG_BCMDHD_VTS | CONFIG_BCMDHD_DEBUG */
+#endif /* DHD_USE_STATIC_MEMDUMP | BCMDBUS */
 
 	if (buf_level > 0) {
 #if defined(BCMSDIO) || defined(BCMDBUS)
@@ -625,10 +622,12 @@ bcmdhd_init_wlan_mem(unsigned int all_buf)
 			break;
 	}
 
+#ifndef DHD_STATIC_IN_DRIVER
 	if (ret) {
 		for (i = 0; i < MAX_NUM_ADAPTERS; i++)
 			dhd_deinit_wlan_mem(i);
 	}
+#endif
 
 	return ret;
 }

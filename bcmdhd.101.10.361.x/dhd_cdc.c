@@ -775,6 +775,7 @@ dhd_process_pkt_reorder_info(dhd_pub_t *dhd, uchar *reorder_info_buf, uint reord
 
 	cur_pkt = *pkt;
 	*pkt = NULL;
+	*pkt_count = 0;
 
 	ptr = dhd->reorder_bufs[flow_id];
 	if (flags & WLHOST_REORDERDATA_DEL_FLOW) {
@@ -784,10 +785,12 @@ dhd_process_pkt_reorder_info(dhd_pub_t *dhd, uchar *reorder_info_buf, uint reord
 			__FUNCTION__, flow_id));
 
 		if (ptr == NULL) {
-			DHD_REORDER(("%s: received flags to cleanup, but no flow (%d) yet\n",
+			DHD_ERROR(("%s: received flags to cleanup, but no flow (%d) yet\n",
 				__FUNCTION__, flow_id));
-			*pkt_count = 1;
-			*pkt = cur_pkt;
+			if (cur_pkt) {
+				*pkt_count = 1;
+				*pkt = cur_pkt;
+			}
 			return 0;
 		}
 
@@ -795,16 +798,22 @@ dhd_process_pkt_reorder_info(dhd_pub_t *dhd, uchar *reorder_info_buf, uint reord
 			ptr->exp_idx, ptr->exp_idx);
 		/* set it to the last packet */
 		if (plast) {
-			PKTSETNEXT(dhd->osh, plast, cur_pkt);
-			cnt++;
+			if (cur_pkt) {
+				PKTSETNEXT(dhd->osh, plast, cur_pkt);
+				cnt++;
+			}
 		}
 		else {
 			if (cnt != 0) {
 				DHD_ERROR(("%s: del flow: something fishy, pending packets %d\n",
 					__FUNCTION__, cnt));
 			}
-			*pkt = cur_pkt;
-			cnt = 1;
+			if (cur_pkt) {
+				*pkt = cur_pkt;
+				cnt = 1;
+			} else {
+				cnt = 0;
+			}
 		}
 		buf_size += ((ptr->max_idx + 1) * sizeof(void *));
 		MFREE(dhd->osh, ptr, buf_size);
@@ -825,7 +834,10 @@ dhd_process_pkt_reorder_info(dhd_pub_t *dhd, uchar *reorder_info_buf, uint reord
 		ptr = (struct reorder_info *)MALLOC(dhd->osh, buf_size_alloc);
 		if (ptr == NULL) {
 			DHD_ERROR(("%s: Malloc failed to alloc buffer\n", __FUNCTION__));
-			*pkt_count = 1;
+			if (cur_pkt) {
+				*pkt = cur_pkt;
+				*pkt_count = 1;
+			}
 			return 0;
 		}
 		bzero(ptr, buf_size_alloc);
@@ -847,6 +859,17 @@ dhd_process_pkt_reorder_info(dhd_pub_t *dhd, uchar *reorder_info_buf, uint reord
 		ptr->p[ptr->cur_idx] = cur_pkt;
 		ptr->pend_pkts++;
 		*pkt_count = cnt;
+		/* Corner case: wrong BA WSIZE make 'cur < exp' with FLUSH */
+		if ((ptr->cur_idx < ptr->exp_idx) ||
+		    (WLHOST_REORDERDATA_FLUSH_ALL & flags)) {
+			cur_idx = ptr->cur_idx;
+			exp_idx = ptr->exp_idx;
+			dhd_get_hostreorder_pkts(dhd->osh, ptr, pkt, &cnt, &plast,
+			                         cur_idx, exp_idx);
+			*pkt_count = cnt;
+			DHD_ERROR(("%s: *Warning, new+flush, out=%d, pending=%d\n",
+			           __FUNCTION__, cnt, ptr->pend_pkts));
+		}
 	}
 	else if (flags & WLHOST_REORDERDATA_CURIDX_VALID) {
 		cur_idx = reorder_info_buf[WLHOST_REORDERDATA_CURIDX_OFFSET];
@@ -874,7 +897,7 @@ dhd_process_pkt_reorder_info(dhd_pub_t *dhd, uchar *reorder_info_buf, uint reord
 			DHD_REORDER(("%s: got the right one now, cur_idx is %d\n",
 				__FUNCTION__, cur_idx));
 			if (ptr->p[cur_idx] != NULL) {
-				DHD_REORDER(("%s: Error buffer pending..free it\n",
+				DHD_ERROR(("%s: Error buffer pending..free it\n",
 					__FUNCTION__));
 				PKTFREE(dhd->osh, ptr->p[cur_idx], TRUE);
 				ptr->p[cur_idx] = NULL;
@@ -919,7 +942,9 @@ dhd_process_pkt_reorder_info(dhd_pub_t *dhd, uchar *reorder_info_buf, uint reord
 					PKTSETNEXT(dhd->osh, plast, cur_pkt);
 				else
 					*pkt = cur_pkt;
-				cnt++;
+				if (cur_pkt) {
+					cnt++;
+				}
 			}
 			else {
 				ptr->p[cur_idx] = cur_pkt;
@@ -947,7 +972,9 @@ dhd_process_pkt_reorder_info(dhd_pub_t *dhd, uchar *reorder_info_buf, uint reord
 			PKTSETNEXT(dhd->osh, plast, cur_pkt);
 		else
 			*pkt = cur_pkt;
-		cnt++;
+		if (cur_pkt) {
+			cnt++;
+		}
 		*pkt_count = cnt;
 		/* set the new expected idx */
 		ptr->exp_idx = exp_idx;

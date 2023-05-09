@@ -263,6 +263,8 @@ extern bool wl_cfg80211_is_tdls_tunneled_frame(void *frame, u32 frame_len);
 extern void wl_restore_ap_bw(struct bcm_cfg80211 *cfg);
 #endif /* SUPPORT_AP_BWCTRL */
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION (3, 8, 0))
 extern int wl_chspec_chandef(chanspec_t chanspec,
 	struct cfg80211_chan_def *chandef, struct wiphy *wiphy);
+#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION (3, 8, 0))) */
 #endif /* _wl_cfgvif_h_ */

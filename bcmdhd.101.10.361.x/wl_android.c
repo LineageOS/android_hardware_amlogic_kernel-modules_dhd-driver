@@ -4945,22 +4945,19 @@ int wl_android_wifi_on(struct net_device *dev)
 #endif /* BCMSDIO */
 			ret = dhd_dev_init_ioctl(dev);
 			if (ret < 0) {
-				goto retry_bus;
+				goto retry_power;
 			}
 #endif /* BCMSDIO || BCMDBUS */
 			if (ret == 0) {
 				break;
 			}
-#if defined(BCMSDIO) || defined(BCMDBUS)
-retry_bus:
-#ifdef BCMSDIO
-			dhd_net_bus_suspend(dev);
-#endif /* BCMSDIO */
-#endif /* BCMSDIO || BCMDBUS */
 retry_power:
 			ANDROID_ERROR(("failed to power up wifi chip, retry again (%d left) **\n\n",
 				retry));
 			dhd_net_bus_devreset(dev, TRUE);
+#ifdef BCMSDIO
+			dhd_net_bus_suspend(dev);
+#endif /* BCMSDIO */
 			dhd_net_wifi_platform_set_power(dev, FALSE, WIFI_TURNOFF_DELAY);
 #ifdef WBRC
 			/* Inform BT reset which will internally wait till BT reset is done */
@@ -6830,6 +6827,14 @@ wl_android_set_auto_channel(struct net_device *dev, const char* cmd_str,
 		goto done2;
 	}
 
+	chosen = wl_ext_autochannel(dev, ACS_DRV_BIT, band);
+	channel = wf_chspec_ctlchan(chosen);
+	if (channel) {
+		acs_band = CHSPEC_BAND(channel);
+		goto done2;
+	} else
+		goto done;
+
 	/* If AP is started on wlan0 iface,
 	 * do not issue any iovar to fw and choose default ACS channel for softap
 	 */
@@ -6839,14 +6844,6 @@ wl_android_set_auto_channel(struct net_device *dev, const char* cmd_str,
 			goto done;
 		}
 	}
-
-	chosen = wl_ext_autochannel(dev, ACS_DRV_BIT, band);
-	channel = wf_chspec_ctlchan(chosen);
-	if (channel) {
-		acs_band = CHSPEC_BAND(channel);
-		goto done2;
-	} else
-		goto done;
 
 	ret = wldev_ioctl_get(dev, WLC_GET_SPECT_MANAGMENT, &spect, sizeof(spect));
 	if (ret) {
@@ -13064,7 +13061,7 @@ int wl_android_init(void)
 
 #ifdef ENABLE_INSMOD_NO_POWER_OFF
 	dhd_download_fw_on_driverload = TRUE;
-#elif defined(ENABLE_INSMOD_NO_FW_LOAD) || defined(BUS_POWER_RESTORE)
+#elif defined(ENABLE_INSMOD_NO_FW_LOAD)
 	dhd_download_fw_on_driverload = FALSE;
 #endif /* ENABLE_INSMOD_NO_FW_LOAD */
 	if (!iface_name[0]) {

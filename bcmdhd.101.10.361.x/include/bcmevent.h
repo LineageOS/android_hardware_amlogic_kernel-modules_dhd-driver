@@ -314,9 +314,21 @@ typedef union bcm_event_msg_u {
 #define WLC_E_PFN_SCAN_ALLGONE_EXT	193	/* last found PFN network gets lost. */
 #define WLC_E_AUTH_START		194	/* notify upper layer to start auth */
 #define WLC_E_TWT			195	/* TWT event */
-#define WLC_E_LAST			196	/* highest val + 1 for range checking */
-#if (WLC_E_LAST > 196)
-#error "WLC_E_LAST: Invalid value for last event; must be <= 196."
+#define WLC_E_AMT			196	/* Address Management Table (AMT) */
+#define WLC_E_ROAM_SCAN_RESULT		197	/* roam/reassoc scan result event */
+
+#define WLC_E_MSCS			200	/* MSCS success/failure events */
+#define WLC_E_RXDMA_RECOVERY_ATMPT	201	/* RXDMA Recovery Attempted Event */
+#define WLC_E_PFN_PARTIAL_RESULT	202
+#define WLC_E_MLO_LINK_INFO		203	/* 11be MLO link information */
+#define WLC_E_C2C			204	/* Client to client (C2C) for 6GHz TX */
+#define WLC_E_BCN_TSF			205	/* Report Beacon TSF */
+#define WLC_E_OWE_INFO                  206     /* OWE Information */
+#define WLC_E_ULMU_DISABLED_REASON_UPD	207	/* OMI ULMU disable reason code update */
+#define WLC_E_AMSDU_RX_WAKEUP		208	/* When amsdu deagg SM is stuck in D3 condition */
+#define WLC_E_LAST			209	/* highest val + 1 for range checking */
+#if (WLC_E_LAST > 209)
+#error "WLC_E_LAST: Invalid value for last event; must be <= 209."
 #endif /* WLC_E_LAST */
 
 /* define an API for getting the string name of an event */

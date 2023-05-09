@@ -624,6 +624,10 @@ static void dhd_natoe_ct_event_hanlder(void *handle, void *event_info, u8 event)
 static void dhd_natoe_ct_ioctl_handler(void *handle, void *event_info, uint8 event);
 #endif /* WL_NATOE */
 
+#if defined(CONFIG_DHD_USE_STATIC_BUF) && defined(DHD_STATIC_IN_DRIVER)
+extern int dhd_static_buf_init(void);
+extern void dhd_static_buf_exit(void);
+#endif /* CONFIG_DHD_USE_STATIC_BUF && DHD_STATIC_IN_DRIVER */
 #ifdef DHD_UPDATE_INTF_MAC
 static void dhd_ifupdate_event_handler(void *handle, void *event_info, u8 event);
 #endif /* DHD_UPDATE_INTF_MAC */
@@ -8686,7 +8690,7 @@ static void dhd_rollback_cpu_freq(dhd_info_t *dhd)
 static int
 dhd_ioctl_entry_wrapper(struct net_device *net, struct ifreq *ifr,
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
-	void __user *data, 
+	void __user *data,
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(5, 15, 0) */
 	int cmd)
 {
@@ -9494,8 +9498,13 @@ dhd_open(struct net_device *net)
 		if (dhd->rx_napi_netdev == NULL) {
 			dhd->rx_napi_netdev = dhd->iflist[ifidx]->net;
 			memset(&dhd->rx_napi_struct, 0, sizeof(struct napi_struct));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+			netif_napi_add(dhd->rx_napi_netdev, &dhd->rx_napi_struct,
+				dhd_napi_poll);
+#else
 			netif_napi_add(dhd->rx_napi_netdev, &dhd->rx_napi_struct,
 				dhd_napi_poll, dhd_napi_weight);
+#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)) */
 			DHD_INFO(("%s napi<%p> enabled ifp->net<%p,%s> dhd_napi_weight: %d\n",
 				__FUNCTION__, &dhd->rx_napi_struct, net,
 				net->name, dhd_napi_weight));
@@ -14651,10 +14660,10 @@ dhd_legacy_preinit_ioctls(dhd_pub_t *dhd)
 	uint32 apsta = 0;
 	int ap_mode = 1;
 #endif /* (defined(AP) || defined(WLP2P)) && !defined(SOFTAP_AND_GC) */
-#ifdef GET_CUSTOM_MAC_ENABLE
 	struct ether_addr ea_addr;
 	char hw_ether[62];
-#endif /* GET_CUSTOM_MAC_ENABLE */
+	dhd_if_t *ifp = dhd->info->iflist[0];
+	bool set_mac = FALSE;
 #ifdef OKC_SUPPORT
 	uint32 okc = 1;
 #endif
@@ -14846,19 +14855,26 @@ dhd_legacy_preinit_ioctls(dhd_pub_t *dhd)
 	}
 #endif /* EVENT_LOG_RATE_HC */
 
-#ifdef GET_CUSTOM_MAC_ENABLE
 	memset(hw_ether, 0, sizeof(hw_ether));
-	ret = wifi_platform_get_mac_addr(dhd->info->adapter, hw_ether, 0);
+	if (ifp->set_macaddress) {
+		memcpy(hw_ether, ifp->mac_addr, ETHER_ADDR_LEN);
+		set_mac = TRUE;
+	}
+#ifdef GET_CUSTOM_MAC_ENABLE
 #ifdef GET_CUSTOM_MAC_FROM_CONFIG
-	if (!memcmp(&ether_null, &dhd->conf->hw_ether, ETHER_ADDR_LEN)) {
-		ret = 0;
-	} else
-#endif
-	if (!ret) {
-		memset(buf, 0, sizeof(buf));
-#ifdef GET_CUSTOM_MAC_FROM_CONFIG
+	else if (!memcmp(&ether_null, &dhd->conf->hw_ether, ETHER_ADDR_LEN)) {
+		set_mac = TRUE;
 		memcpy(hw_ether, &dhd->conf->hw_ether, sizeof(dhd->conf->hw_ether));
+	}
 #endif
+	else {
+		ret = wifi_platform_get_mac_addr(dhd->info->adapter, hw_ether, 0);
+		if (!ret)
+			set_mac = TRUE;
+	}
+#endif /* GET_CUSTOM_MAC_ENABLE */
+	if (set_mac) {
+		memset(buf, 0, sizeof(buf));
 		bcopy(hw_ether, ea_addr.octet, sizeof(struct ether_addr));
 		bcm_mkiovar("cur_etheraddr", (void *)&ea_addr, ETHER_ADDR_LEN, buf, sizeof(buf));
 		ret = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, buf, sizeof(buf), TRUE, 0);
@@ -14874,7 +14890,9 @@ dhd_legacy_preinit_ioctls(dhd_pub_t *dhd)
 				goto done;
 			}
 		}
-	} else {
+	}
+#ifdef GET_CUSTOM_MAC_ENABLE
+	else {
 		DHD_ERROR(("%s: can't get custom MAC address, ret=%d\n", __FUNCTION__, ret));
 		ret = BCME_NOTUP;
 		goto done;
@@ -15652,6 +15670,7 @@ dhd_legacy_preinit_ioctls(dhd_pub_t *dhd)
 //	setbit(mask, WLC_E_TXFAIL); // terence 20181106: remove unnecessary event
 #endif
 	setbit(mask, WLC_E_JOIN_START);
+	setbit(mask, WLC_E_OWE_INFO);
 //	setbit(mask, WLC_E_SCAN_COMPLETE); // terence 20150628: remove redundant event
 #ifdef DHD_DEBUG
 	setbit(mask, WLC_E_SCAN_CONFIRM_IND);
@@ -17800,6 +17819,9 @@ dhd_module_cleanup(void)
 	wifi_teardown_dt();
 #endif
 #endif
+#if defined(CONFIG_DHD_USE_STATIC_BUF) && defined(DHD_STATIC_IN_DRIVER)
+	dhd_static_buf_exit();
+#endif /* CONFIG_DHD_USE_STATIC_BUF && DHD_STATIC_IN_DRIVER */
 	printf("%s: Exit\n", __FUNCTION__);
 }
 
@@ -17828,6 +17850,12 @@ _dhd_module_init(void)
 		PRINTF_SYSTEM_TIME, __FUNCTION__, dhd_version);
 	if (ANDROID_VERSION > 0)
 		printf("ANDROID_VERSION = %d\n", ANDROID_VERSION);
+#if defined(CONFIG_DHD_USE_STATIC_BUF) && defined(DHD_STATIC_IN_DRIVER)
+	err = dhd_static_buf_init();
+	if (err) {
+		goto exit;
+	}
+#endif /* CONFIG_DHD_USE_STATIC_BUF && DHD_STATIC_IN_DRIVER */
 #ifdef CUSTOMER_HW_AMLOGIC
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0))
 	if (wifi_setup_dt()) {
@@ -17900,6 +17928,11 @@ _dhd_module_init(void)
 		}
 	}
 
+#if defined(CONFIG_DHD_USE_STATIC_BUF) && defined(DHD_STATIC_IN_DRIVER)
+exit:
+	if (err)
+		dhd_static_buf_exit();
+#endif /* CONFIG_DHD_USE_STATIC_BUF && DHD_STATIC_IN_DRIVER */
 	printf("%s: Exit err=%d\n", __FUNCTION__, err);
 	return err;
 }
@@ -21682,10 +21715,10 @@ dhd_os_check_wakelock_all(dhd_pub_t *pub)
 	lock_active = (l1 || l2 || l3 || l4 || l5 || l6 || l7 || l8 || l9 || l10);
 
 	/* Indicate to the Host to avoid going to suspend if internal locks are up */
+	DHD_ERROR(("%s wakelock c-%d wl-%d wd-%d rx-%d "
+		"ctl-%d intr-%d scan-%d evt-%d, pm-%d, txfl-%d nan-%d\n",
+		__FUNCTION__, c, l1, l2, l3, l4, l5, l6, l7, l8, l9, l10));
 	if (lock_active) {
-		DHD_ERROR(("%s wakelock c-%d wl-%d wd-%d rx-%d "
-			"ctl-%d intr-%d scan-%d evt-%d, pm-%d, txfl-%d nan-%d\n",
-			__FUNCTION__, c, l1, l2, l3, l4, l5, l6, l7, l8, l9, l10));
 		return 1;
 	}
 #elif defined(BCMSDIO)
@@ -25504,7 +25537,9 @@ void custom_xps_map_clear(struct net_device *net)
 	DHD_INFO(("%s : Entered.\n", __FUNCTION__));
 
     rcu_read_lock();
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0))
+	dev_maps = rcu_dereference(net->xps_maps[XPS_CPUS]);
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
 	dev_maps = rcu_dereference(net->xps_cpus_map);
 #else
     dev_maps = rcu_dereference(net->xps_maps);
@@ -25512,7 +25547,9 @@ void custom_xps_map_clear(struct net_device *net)
     rcu_read_unlock();
 
 	if (dev_maps) {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0))
+		RCU_INIT_POINTER(net->xps_maps[XPS_CPUS], NULL);
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
 		RCU_INIT_POINTER(net->xps_cpus_map, NULL);
 #else
 		RCU_INIT_POINTER(net->xps_maps, NULL);

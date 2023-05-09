@@ -321,11 +321,11 @@ dhd_dbg_msgtrace_msg_parser(void *event_data)
 	 */
 	while (*data != '\0' && (s = strstr(data, "\n")) != NULL) {
 		*s = '\0';
-		DHD_FWLOG(("[FWLOG] %s\n", data));
+		printf("[FWLOG] %s\n", data);
 		data = s+1;
 	}
 	if (*data)
-		DHD_FWLOG(("[FWLOG] %s", data));
+		printf("[FWLOG] %s", data);
 }
 #ifdef SHOW_LOGTRACE
 #define DATA_UNIT_FOR_LOG_CNT 4

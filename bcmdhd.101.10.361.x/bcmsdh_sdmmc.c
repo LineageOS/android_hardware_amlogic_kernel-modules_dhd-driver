@@ -82,7 +82,7 @@ static void IRQHandler(struct sdio_func *func);
 static void IRQHandlerF2(struct sdio_func *func);
 #endif /* !defined(OOB_INTR_ONLY) */
 static int sdioh_sdmmc_get_cisaddr(sdioh_info_t *sd, uint32 regaddr);
-#if defined(ENABLE_INSMOD_NO_FW_LOAD) && !defined(BUS_POWER_RESTORE)
+#if defined(ENABLE_INSMOD_NO_FW_LOAD)
 #if defined(MMC_SW_RESET) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
 extern int mmc_sw_reset(struct mmc_card *card);
@@ -95,6 +95,10 @@ extern int mmc_hw_reset(struct mmc_card *card);
 #else
 extern int mmc_hw_reset(struct mmc_host *host);
 #endif
+#elif defined(BUS_POWER_RESTORE) && \
+LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0)
+#undef MMC_SW_RESET
+#undef MMC_HW_RESET
 #else
 extern int sdio_reset_comm(struct mmc_card *card);
 #endif
@@ -1787,7 +1791,7 @@ sdioh_sdmmc_card_regwrite(sdioh_info_t *sd, int func, uint32 regaddr, int regsiz
 }
 #endif /* NOTUSED */
 
-#if defined(ENABLE_INSMOD_NO_FW_LOAD) && !defined(BUS_POWER_RESTORE)
+#if defined(ENABLE_INSMOD_NO_FW_LOAD)
 static int sdio_sw_reset(sdioh_info_t *sd)
 {
 	struct mmc_card *card = sd->func[0]->card;
@@ -1818,6 +1822,10 @@ static int sdio_sw_reset(sdioh_info_t *sd)
 	err = mmc_hw_reset(card->host);
 #endif
 	sdio_release_host(sd->func[0]);
+#elif defined(BUS_POWER_RESTORE) && \
+LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0)
+	printf("%s: call mmc_power_restore_host\n", __FUNCTION__);
+	mmc_power_restore_host(card->host);
 #else
 	/* sdio_reset_comm */
 	err = sdio_reset_comm(card);
@@ -1856,7 +1864,7 @@ sdioh_start(sdioh_info_t *sd, int stage)
 		   2.6.27. The implementation prior to that is buggy, and needs broadcom's
 		   patch for it
 		*/
-#if defined(ENABLE_INSMOD_NO_FW_LOAD) && !defined(BUS_POWER_RESTORE)
+#if defined(ENABLE_INSMOD_NO_FW_LOAD)
 		if ((ret = sdio_sw_reset(sd))) {
 			sd_err(("%s Failed, error = %d\n", __FUNCTION__, ret));
 			return ret;
@@ -1955,6 +1963,16 @@ sdioh_stop(sdioh_info_t *sd)
 	else
 		sd_err(("%s Failed\n", __FUNCTION__));
 #endif /* defined(OEM_ANDROID) */
+#if !defined(MMC_SW_RESET) && !defined(MMC_HW_RESET)
+#if defined(BUS_POWER_RESTORE) && \
+LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0)
+	if (sd->func[0]) {
+		struct mmc_card *card = sd->func[0]->card;
+		printf("%s: call mmc_power_save_host\n", __FUNCTION__);
+		mmc_power_save_host(card->host);
+	}
+#endif
+#endif
 #if !defined(OOB_INTR_ONLY)
 	sdio_claim_host_unlock_local(sd);
 #endif

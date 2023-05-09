@@ -580,7 +580,7 @@ s32 wl_inform_bss_cache(struct bcm_cfg80211 *cfg)
 		}
 	}
 
-	cnt = i;	
+	cnt = i;
 	node = cfg->g_bss_cache_ctrl.m_cache_head;
 	WL_SCAN(("cached AP count (%d)\n", wl_bss_cache_size(&cfg->g_bss_cache_ctrl)));
 	for (i=cnt; node && i<WL_AP_MAX; i++) {
@@ -4384,7 +4384,7 @@ wl_cfgscan_update_v3_schedscan_results(struct bcm_cfg80211 *cfg, struct net_devi
 			err = wl_cfgp2p_discover_enable_search(cfg, false);
 			if (unlikely(err)) {
 				wl_clr_drv_status(cfg, SCANNING, ndev);
-				return err;
+				goto out_err;
 			}
 			p2p_scan(cfg) = false;
 		}
@@ -5033,7 +5033,8 @@ wl_cfgscan_cancel_listen_on_channel(struct bcm_cfg80211 *cfg, bool notify_user)
 	}
 
 	/* abort scan listen */
-	_wl_cfgscan_cancel_scan(cfg);
+	/* change _wl_cfgscan_cancel_scan() to wl_cfgscan_scan_abort() to fix DPP connection issue on Android 12 */
+	wl_cfgscan_scan_abort(cfg);
 
 	if (notify_user) {
 		wl_cfgscan_notify_listen_complete(cfg);
