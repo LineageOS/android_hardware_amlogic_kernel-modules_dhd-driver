@@ -1452,7 +1452,7 @@ dhd_pktlog_dump_write(dhd_pub_t *dhdp, void *file, const void *user_buf, uint32 
 		bytes_user_data = snprintf(buf, sizeof(buf), "%s:%s:%02d\n",
 				DHD_PKTLOG_FATE_INFO_FORMAT,
 				(report_ptr->tx_fate ? "Failure" : "Succeed"),
-				(report_ptr->tx_fate & !(TX_PKT_FATE_DRV_WAIT_UPDATE)));
+				(report_ptr->tx_fate & ~(TX_PKT_FATE_DRV_WAIT_UPDATE)));
 		write_frame_len = frame_len + bytes_user_data;
 		frame_len = (uint32)min(frame_len, DHD_PKT_LOGGING_DBGRING_MAX_SIZE);
 		captured_frame_len = frame_len + bytes_user_data;
@@ -1554,13 +1554,17 @@ dhd_pktlog_dump_write_file(dhd_pub_t *dhdp)
 {
 	struct file *w_pcap_fp = NULL;
 	uint32 file_mode;
+#ifdef get_fs
 	mm_segment_t old_fs;
+#endif /* get_fs */
 	char pktlogdump_path[128];
 	int ret = BCME_OK;
 
 	dhd_pktlog_get_filename(dhdp, pktlogdump_path, 128);
+#ifdef get_fs
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
+#endif /* get_fs */
 	file_mode = O_CREAT | O_WRONLY;
 
 	w_pcap_fp = dhd_filp_open(pktlogdump_path, file_mode, 0664);
@@ -1587,9 +1591,9 @@ fail:
 	if (!IS_ERR(w_pcap_fp)) {
 		dhd_filp_close(w_pcap_fp, NULL);
 	}
-
+#ifdef get_fs
 	set_fs(old_fs);
-
+#endif /* get_fs */
 #ifdef DHD_DUMP_MNGR
 	if (ret >= 0) {
 		dhd_dump_file_manage_enqueue(dhdp, pktlogdump_path, DHD_PKTLOG_DUMP_TYPE);

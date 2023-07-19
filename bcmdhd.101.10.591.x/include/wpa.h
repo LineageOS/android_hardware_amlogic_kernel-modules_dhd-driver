@@ -270,6 +270,7 @@ typedef struct rsn_ie_info {
 	uint8 *rsnxe;				/* RSNXE IE length */
 	uint8 kdk_len;				/* EAPOL KDK */
 	uint8 pad[3];
+	uint32 rsnxe_cap;			/* RSNXE IE cap flag, refer to 802.11.h */
 } rsn_ie_info_t;
 #endif /* RSN_IE_INFO_STRUCT_RELOCATED */
 

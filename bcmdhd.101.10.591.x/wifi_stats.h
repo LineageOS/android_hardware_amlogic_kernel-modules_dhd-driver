@@ -370,7 +370,7 @@ typedef struct {
 					       */
 	wifi_wmm_ac_stat ac[WIFI_AC_MAX];     /* per ac data packet statistics */
 	uint32 num_peers;                        /* number of peers */
-#ifdef LINKSTAT_EXT_SUPPORT
+#if defined(LINKSTAT_EXT_SUPPORT) || (ANDROID_VERSION >= 12)
 	wifi_peer_info_v1 peer_info[1];        /* per peer statistics */
 #else
 	wifi_peer_info peer_info[1];           /* per peer statistics */
@@ -424,7 +424,7 @@ typedef struct {
 					       */
 	wifi_wmm_ac_stat ac[WIFI_AC_MAX];     /* per ac data packet statistics */
 	uint32 num_peers;                        /* number of peers */
-#ifdef LINKSTAT_EXT_SUPPORT
+#if defined(LINKSTAT_EXT_SUPPORT) || (ANDROID_VERSION >= 12)
 	wifi_peer_info_v1 peer_info[1];        /* per peer statistics */
 #else
 	wifi_peer_info peer_info[1];           /* per peer statistics */

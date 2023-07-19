@@ -23,6 +23,7 @@
 
 #include <typedefs.h>
 #include <bcmdefs.h>
+
 #ifdef BCMDRIVER
 #include <osl.h>
 #include <bcmutils.h>
@@ -1169,9 +1170,12 @@ dscp2up(uint8 *up_table, uint8 dscp)
 		user_priority = up_table[dscp];
 	}
 
-	/* 255 is unused value so return up from dscp */
-	if (user_priority == 255) {
-		user_priority = dscp >> (IPV4_TOS_PREC_SHIFT - IPV4_TOS_DSCP_SHIFT);
+	if (user_priority == 255) {	/* unknown user priority */
+
+		/* If the user_priority from the QoS Map table is unknown(i.e., 255), then
+		 * set the default user priority as PRIO_8021D_BE(0); Reference RFC 8325.
+		 */
+		user_priority = PRIO_8021D_BE; /* default priority */
 	}
 
 	return user_priority;
@@ -1708,12 +1712,11 @@ bcm_mwbmap_init(osl_t *osh, uint32 items_max)
 	/* Allocate runtime state of multiword bitmap */
 	/* Note: wd_count[] or wd_bitmap[] are not dynamically allocated */
 	size = sizeof(bcm_mwbmap_t) + (sizeof(uint32) * words);
-	mwbmap_p = (bcm_mwbmap_t *)MALLOC(osh, size);
+	mwbmap_p = (bcm_mwbmap_t *)MALLOCZ(osh, size);
 	if (mwbmap_p == (bcm_mwbmap_t *)NULL) {
 		ASSERT(0);
 		goto error1;
 	}
-	bzero(mwbmap_p, size);
 
 	/* Initialize runtime multiword bitmap state */
 	mwbmap_p->imaps = (uint16)words;
@@ -2120,7 +2123,7 @@ id16_map_init(osl_t *osh, uint16 total_ids, uint16 start_val16)
 	ASSERT((start_val16 == ID16_UNDEFINED) ||
 	       (start_val16 + total_ids) < ID16_INVALID);
 
-	id16_map = (id16_map_t *) MALLOC(osh, ID16_MAP_SZ(total_ids));
+	id16_map = (id16_map_t *) MALLOCZ(osh, ID16_MAP_SZ(total_ids));
 	if (id16_map == NULL) {
 		return NULL;
 	}
@@ -2147,7 +2150,7 @@ id16_map_init(osl_t *osh, uint16 total_ids, uint16 start_val16)
 
 #if defined(BCM_DBG) && defined(BCM_DBG_ID16)
 	if (id16_map->start != ID16_UNDEFINED) {
-		id16_map->dbg = MALLOC(osh, ID16_MAP_DBG_SZ(total_ids));
+		id16_map->dbg = MALLOCZ(osh, ID16_MAP_DBG_SZ(total_ids));
 
 		if (id16_map->dbg) {
 			id16_map_dbg_t *id16_map_dbg = (id16_map_dbg_t *)id16_map->dbg;
@@ -6132,7 +6135,7 @@ initvars_table(osl_t *osh, char *start, char *end, char **vars,
 
 	/* do it only when there is more than just the null string */
 	if (c > 1) {
-		char *vp = MALLOC(osh, c);
+		char *vp = MALLOCZ(osh, c);
 		ASSERT(vp != NULL);
 		if (!vp)
 			return BCME_NOMEM;

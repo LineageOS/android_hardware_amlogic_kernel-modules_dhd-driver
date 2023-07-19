@@ -488,12 +488,15 @@ typedef struct dot11_extcap_ie dot11_extcap_ie_t;
 /* Draft P802.11az/D2.5 - Table 9-321 Extended RSN Capabilities field */
 #define DOT11_EXT_RSN_CAP_SECURE_LTF		8u	/* Secure LTF support */
 #define DOT11_EXT_RSN_CAP_SECURE_RTT		9u	/* Secure RTT(EDMG measurement) support */
-#define DOT11_EXT_RSN_CAP_RANGE_PMF_REQUIRED	10u	/* Protection of Ranging frm required */
+/* Protection of Ranging management frame is required */
+#define DOT11_EXT_RSN_CAP_URNM_MFPR_X20		10u	/* except BW20 ranging */
+#define DOT11_EXT_RSN_CAP_RANGE_PMF_REQUIRED	DOT11_EXT_RSN_CAP_URNM_MFPR_X20 /* to be removed */
+#define DOT11_EXT_RSN_CAP_URNM_MFPR		15u	/* P802.11az/D4.1 */
 
 /* Last bit in Extended RSN Capabilities defined in P802.11
  * Please update DOT11_EXT_RSN_CAP_LAST_BIT_IDX to the last bit when P802.11 inteoduced new bit
  */
-#define DOT11_EXT_RSN_CAP_LAST_BIT_IDX	DOT11_EXT_RSN_CAP_RANGE_PMF_REQUIRED /* update this */
+#define DOT11_EXT_RSN_CAP_LAST_BIT_IDX	DOT11_EXT_RSN_CAP_URNM_MFPR /* update this */
 #define DOT11_EXT_RSN_CAP_NUM_BITS_MAX	(DOT11_EXT_RSN_CAP_LAST_BIT_IDX + 1) /* last bit idx + 1 */
 
 /* Please use DOT11_EXT_RSN_CAP_BYTE_LEN_MAX for any of RSNXE cap buffer size ONLY in ATTACH time.
@@ -1241,6 +1244,13 @@ BWL_PRE_PACKED_STRUCT struct dot11_management_notification {
 #define DOT11_SC_POOR_RSSI_CONDN	34	/* Association denied due to poor RSSI */
 #define	DOT11_SC_DECLINED		37	/* request declined */
 #define	DOT11_SC_INVALID_PARAMS		38	/* One or more params have invalid values */
+
+/* The allocation or TS has not been created because the request cannot be honored;
+ * however, a suggested TSPEC/DMG TSPEC is provided so that the initiating STA can attempt
+ * to set another allocation or TS with the suggested changes to the TSPEC/DMG TSPEC.
+ */
+#define DOT11_SC_REJECTED_WITH_SUGGESTED_CHANGES 39
+
 #define DOT11_SC_INVALID_GROUP_CIPHER	41	/* invalid pairwise cipher */
 #define DOT11_SC_INVALID_PAIRWISE_CIPHER 42	/* invalid pairwise cipher */
 #define	DOT11_SC_INVALID_AKMP		43	/* Association denied due to invalid AKMP */
@@ -1736,6 +1746,9 @@ enum dot11_tag_ids {
 
 /* Operating mode notification - VHT (11ac D3.0 - 8.4.2.29) */
 #define DOT11_EXT_CAP_OPER_MODE_NOTIF		62u
+/* Number of MSDU-per-AMSDU: 0:unlimited 1:32 2:16 3:8 */
+#define DOT11_EXT_CAP_MDSU_PER_AMSDU_LO		63u
+#define DOT11_EXT_CAP_MDSU_PER_AMSDU_HI		64u
 /* Fine timing measurement - D3.0 */
 #define DOT11_EXT_CAP_FTM_RESPONDER		70u
 #define DOT11_EXT_CAP_FTM_INITIATOR		71u /* tentative 11mcd3.0 */
@@ -2055,6 +2068,45 @@ typedef struct dot11_mscs_subelement dot11_mscs_subelement_t;
 #define DOT11_SCS_REQ_TYPE_REMOVE	1u
 #define DOT11_SCS_REQ_TYPE_CHANGE	2u
 
+/* 9.4.2.316 QoS Characteristics element in Draft P802.11be_D2.2
+ * Figure 9-1002as Control Info field in Draft P802.11be_D2.2
+ */
+#define DOT11_QOS_CHAR_DATA_RATE_LEN	3u
+#define DOT11_QOS_CHAR_DELAY_BOUND_LEN	3u
+BWL_PRE_PACKED_STRUCT struct dot11_qos_char_ie {
+	uint8  id;						/* DOT11_MNG_ID_EXT_ID (255) */
+	uint8  len;
+	uint8  id_ext;						/* EXT_MNG_QOS_CHAR_ID (133) */
+	uint32 ctrl_info;					/* bits 0..1   -> direction
+								 * bits 2..5   -> tid
+								 * bits 6..8   -> user priority
+								 * bits 9..24  -> params bitmap
+								 * bits 25..28 -> linkID
+								 * bits 29..31 -> resreved
+								 */
+	uint32 min_srv_interval;				/* Minimum Service Interval in
+								 * microseconds
+								 */
+	uint32 max_srv_interval;				/* Maximum Service Interval in
+								 * microseconds
+								 */
+	uint8 min_data_rate[DOT11_QOS_CHAR_DATA_RATE_LEN];	/* Minimum Data Rate in kilobits
+								 * per second
+								 */
+	uint8 delay_bound[DOT11_QOS_CHAR_DELAY_BOUND_LEN];	/* Delay Bound in microseconds */
+	uint8  data[];
+	/* optional Maxmimum MSDU Size */
+	/* optional Service Start Time */
+	/* optional Service Start Time LinkID */
+	/* optional Mean Data Rate */
+	/* optional Burst Size */
+	/* optional MSDU Lifetime */
+	/* optional MSDU Delivery Ratio */
+	/* optional MSDU Count Exponent */
+	/* optional Medium Time */
+} BWL_POST_PACKED_STRUCT;
+typedef struct dot11_qos_char_ie dot11_qos_char_ie_t;
+
 /** SCS Descriptor element */
 BWL_PRE_PACKED_STRUCT struct dot11_scs_descr_ie {
 	uint8  id;				/* DOT11_MNG_SCS_DESCR_ID (185) */
@@ -2065,6 +2117,7 @@ BWL_PRE_PACKED_STRUCT struct dot11_scs_descr_ie {
 	/* optional Intra-Access Category Priority element, dot11_intrac_ac_prio_ie_t */
 	/* zero or more tclas elements, dot11_tclas_ie_t */
 	/* optional tclas processing element, dot11_tclas_proc_ie_t */
+	/* zero or one dot11_qos_char_ie_t */
 	/* zero or more SCS sub-elements, dot11_scs_subelement_t */
 } BWL_POST_PACKED_STRUCT;
 typedef struct dot11_scs_descr_ie dot11_scs_descr_ie_t;
@@ -2089,6 +2142,7 @@ typedef struct dot11_scs_status_duple dot11_scs_status_duple_t;
 
 /** SCS Response frame, refer section 9.6.18.3 in 802.11-2020.
  * Currently, an approval(doc: 11-21/668r8) is pending in the IEEE802.11REVme.
+ * Figure 9-1176 SCS Response frame Action field format in Draft P802.11be_D2.2 spec.
  */
 BWL_PRE_PACKED_STRUCT struct dot11_scs_res {
 	uint8  category;	/* ACTION_RAV_STREAMING (19) */
@@ -2096,6 +2150,7 @@ BWL_PRE_PACKED_STRUCT struct dot11_scs_res {
 	uint8  dialog_token;	/* To identify the SCS request and response */
 	uint8  count;		/* Specifies the number of items in the scs_status_list */
 	dot11_scs_status_duple_t scs_status_list[];
+	/* optionally SCS descriptor list; dot11_scs_descr_ie_t scs_descr_list[] */
 } BWL_POST_PACKED_STRUCT;
 typedef struct dot11_scs_res dot11_scs_res_t;
 #define DOT11_SCS_RES_HDR_LEN		4u	/* Fixed length */
@@ -2229,32 +2284,36 @@ typedef struct vndr_ie vndr_ie_t;
 #define AMPDU_DELIMITER_LEN_MAX		63	/* max length of ampdu delimiter(enforced in HW) */
 
 /* RSN authenticated key managment suite */
-#define RSN_AKM_NONE			0	/* None (IBSS) */
-#define RSN_AKM_UNSPECIFIED		1	/* Over 802.1x */
-#define RSN_AKM_PSK			2	/* Pre-shared Key */
-#define RSN_AKM_FBT_1X			3	/* Fast Bss transition using 802.1X */
-#define RSN_AKM_FBT_PSK			4	/* Fast Bss transition using Pre-shared Key */
+#define RSN_AKM_NONE			0u	/* None (IBSS) */
+#define RSN_AKM_UNSPECIFIED		1u	/* Over 802.1x */
+#define RSN_AKM_PSK			2u	/* Pre-shared Key */
+#define RSN_AKM_FBT_1X			3u	/* Fast Bss transition using 802.1X */
+#define RSN_AKM_FBT_PSK			4u	/* Fast Bss transition using Pre-shared Key */
 /* RSN_AKM_MFP_1X and RSN_AKM_MFP_PSK are not used any more
  * Just kept here to avoid build issue in BISON/CARIBOU branch
  */
-#define RSN_AKM_MFP_1X			5	/* SHA256 key derivation, using 802.1X */
-#define RSN_AKM_MFP_PSK			6	/* SHA256 key derivation, using Pre-shared Key */
-#define RSN_AKM_SHA256_1X		5	/* SHA256 key derivation, using 802.1X */
-#define RSN_AKM_SHA256_PSK		6	/* SHA256 key derivation, using Pre-shared Key */
-#define RSN_AKM_TPK			7	/* TPK(TDLS Peer Key) handshake */
-#define RSN_AKM_SAE_PSK			8       /* AKM for SAE with 4-way handshake */
-#define RSN_AKM_SAE_FBT			9       /* AKM for SAE with FBT */
-#define RSN_AKM_SUITEB_SHA256_1X	11	/* Suite B SHA256 */
-#define RSN_AKM_SUITEB_SHA384_1X	12	/* Suite B-192 SHA384 */
-#define RSN_AKM_FBT_SHA384_1X		13	/* FBT SHA384 */
-#define RSN_AKM_FILS_SHA256		14	/* SHA256 key derivation, using FILS */
-#define RSN_AKM_FILS_SHA384		15	/* SHA384 key derivation, using FILS */
-#define RSN_AKM_FBT_SHA256_FILS		16
-#define RSN_AKM_FBT_SHA384_FILS		17
-#define RSN_AKM_OWE			18	/* RFC 8110  OWE */
-#define RSN_AKM_FBT_SHA384_PSK		19
-#define RSN_AKM_PSK_SHA384		20
+#define RSN_AKM_MFP_1X			5u	/* SHA256 key derivation, using 802.1X */
+#define RSN_AKM_MFP_PSK			6u	/* SHA256 key derivation, using Pre-shared Key */
+#define RSN_AKM_SHA256_1X		5u	/* SHA256 key derivation, using 802.1X */
+#define RSN_AKM_SHA256_PSK		6u	/* SHA256 key derivation, using Pre-shared Key */
+#define RSN_AKM_TPK			7u	/* TPK(TDLS Peer Key) handshake */
+#define RSN_AKM_SAE_PSK			8u      /* AKM for SAE with 4-way handshake */
+#define RSN_AKM_SAE_FBT			9u       /* AKM for SAE with FBT */
+#define RSN_AKM_SUITEB_SHA256_1X	11u	/* Suite B SHA256 */
+#define RSN_AKM_SUITEB_SHA384_1X	12u	/* Suite B-192 SHA384 */
+#define RSN_AKM_FBT_SHA384_1X		13u	/* FBT SHA384 */
+#define RSN_AKM_FILS_SHA256		14u	/* SHA256 key derivation, using FILS */
+#define RSN_AKM_FILS_SHA384		15u	/* SHA384 key derivation, using FILS */
+#define RSN_AKM_FBT_SHA256_FILS		16u
+#define RSN_AKM_FBT_SHA384_FILS		17u
+#define RSN_AKM_OWE			18u	/* RFC 8110  OWE */
+#define RSN_AKM_FBT_SHA384_PSK		19u
+#define RSN_AKM_PSK_SHA384		20u
 #define RSN_AKM_PASN			21u	/* Pre-Association Security Negotiation */
+#define RSN_AKM_FBT_SHA384_1X_UNRSTD	22u	/* Unrestricted FBT over 802.1X */
+#define RSN_AKM_SHA384_1X		23u	/* Over 802.1X SHA384 */
+#define RSN_AKM_SAE_EXT_PSK		24u     /* AKM for SAE (variable length PMK) */
+#define RSN_AKM_SAE_EXT_FBT		25u     /* AKM for SAE (variable length PMK) with FBT */
 /* OSEN authenticated key managment suite */
 #define OSEN_AKM_UNSPECIFIED	RSN_AKM_UNSPECIFIED	/* Over 802.1x */
 /* WFA DPP RSN authenticated key managment */

@@ -918,6 +918,11 @@ dbus_usb_update_chipinfo(usb_info_t *usbinfo, uint32 chip)
 			usbinfo->rdlram_base_addr = RDL_RAM_BASE_4381;
 			break;
 
+		case BCM4382_CHIP_ID:
+			usbinfo->rdlram_size = RDL_RAM_SIZE_4382;
+			usbinfo->rdlram_base_addr = RDL_RAM_BASE_4382;
+			break;
+
 		case POSTBOOT_ID:
 			break;
 

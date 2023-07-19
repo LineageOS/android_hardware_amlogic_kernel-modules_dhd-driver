@@ -185,8 +185,12 @@ BWL_PRE_PACKED_STRUCT struct	ether_addr {
 
 #define	ether_cmp(a, b)	eacmp(a, b)
 
+#ifdef BCMFUZZ
+/* memcpy_s to avoid alignment warnings for fuzzer */
+#define eacopy(s, d)	((void)memcpy_s((d), ETHER_ADDR_LEN, (s), ETHER_ADDR_LEN))
+#else
 /* copy an ethernet address - assumes the pointers can be referenced as shorts */
-#if defined(DONGLEBUILD) && defined(__ARM_ARCH_7A__) && !defined(BCMFUZZ)
+#if defined(DONGLEBUILD) && defined(__ARM_ARCH_7A__)
 #define eacopy(s, d) \
 do { \
 	(*(uint32 *)(d)) = (*(const uint32 *)(s)); \
@@ -200,6 +204,7 @@ do { \
 	((uint16 *)(d))[2] = ((const uint16 *)(s))[2]; \
 } while (0)
 #endif /* DONGLEBUILD && __ARM_ARCH_7A__ */
+#endif /* BCMFUZZ */
 
 #define	ether_copy(s, d) eacopy(s, d)
 

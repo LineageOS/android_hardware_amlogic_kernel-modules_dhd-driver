@@ -83,14 +83,6 @@ typedef uint32 ratespec_t;
 
 #define HIGHEST_SINGLE_STREAM_MCS	7 /* MCS values greater than this enable multiple streams */
 
-#ifndef OEM_ANDROID
-/* 'proprietary' string should not exist in open source(OEM_ANDROID) */
-/* given a proprietary MCS, get number of spatial streams */
-#define GET_PROPRIETARY_11N_MCS_NSS(mcs) (1 + ((mcs) - 85) / 8)
-
-#define GET_11N_MCS_NSS(mcs) ((mcs) < 32 ? (1 + ((mcs) / 8)) \
-				: ((mcs) == 32 ? 1 : GET_PROPRIETARY_11N_MCS_NSS(mcs)))
-#endif /* !OEM_ANDROID */
 #endif /* USE_LEGACY_RSPEC_DEFS */
 
 /* Legacy defines for the nrate iovar */
@@ -572,9 +564,9 @@ typedef uint32 ratespec_t;
 #define WSEC_TKIP_ENABLED(wsec)	((wsec) & TKIP_ENABLED)
 #define WSEC_AES_ENABLED(wsec)	((wsec) & AES_ENABLED)
 #else /* WLWSEC */
-#define WSEC_WEP_ENABLED(wsec) NULL
-#define WSEC_TKIP_ENABLED(wsec) NULL
-#define WSEC_AES_ENABLED(wsec) NULL
+#define WSEC_WEP_ENABLED(wsec)	(FALSE)
+#define WSEC_TKIP_ENABLED(wsec) (FALSE)
+#define WSEC_AES_ENABLED(wsec)	(FALSE)
 #endif /* WLWSEC */
 
 /* Macros to check if algorithm is enabled */
@@ -611,7 +603,7 @@ typedef uint32 ratespec_t;
 #endif /* BCMWAPI_WPI */
 #endif /* BCMCCX */
 #else /* WLWSEC */
-#define WSEC_ENABLED(wsec) 0
+#define WSEC_ENABLED(wsec)	(FALSE)
 #endif /* WLWSEC */
 
 #define WSEC_SES_OW_ENABLED(wsec)	((wsec) & SES_OW_ENABLED)
@@ -661,6 +653,7 @@ typedef uint32 ratespec_t;
 #define WPA3_AUTH_1X_SUITE_B_SHA384	0x400000 /* Suite B-192 SHA384 */
 #define WPA3_AUTH_PSK_SHA384		0x800000 /* PSK with SHA384 key derivation */
 #define WPA3_AUTH_SAE_AP_ONLY		0x1000000 /* SAE restriction to connect to pure SAE APs */
+#define WPA3_AUTH_SAE_EXT_PSK		0x2000000 /* SAE (variable length PMK) 4-way handshake */
 /* WPA2_AUTH_SHA256 not used anymore. Just kept here to avoid build issue in DINGO */
 #define WPA2_AUTH_SHA256		0x8000
 #define WPA_AUTH_PFN_ANY		0xffffffff	/* for PFN, match only ssid */
@@ -1307,21 +1300,6 @@ typedef uint32 ratespec_t;
 #define AP_ENV_SPARSE			2 /* "Home" or other sparse environment */
 #define AP_ENV_INDETERMINATE		3 /* AP environment hasn't been identified */
 
-#define TRIGGER_NOW				0
-#define TRIGGER_CRS				0x01
-#define TRIGGER_CRSDEASSERT			0x02
-#define TRIGGER_GOODFCS				0x04
-#define TRIGGER_BADFCS				0x08
-#define TRIGGER_BADPLCP				0x10
-#define TRIGGER_CRSGLITCH			0x20
-#define TRIGGER_ASYNC				0x40
-
-#define	WL_SAMPLEDATA_HEADER_TYPE	1
-#define WL_SAMPLEDATA_HEADER_SIZE	80	/* sample collect header size (bytes) */
-#define	WL_SAMPLEDATA_TYPE		2
-#define	WL_SAMPLEDATA_SEQ		0xff	/* sequence # */
-#define	WL_SAMPLEDATA_MORE_DATA		0x100	/* more data mask */
-
 /* WL_OTA START */
 #define WL_OTA_ARG_PARSE_BLK_SIZE	1200
 #define WL_OTA_TEST_MAX_NUM_RATE	30
@@ -1564,6 +1542,8 @@ typedef uint32 ratespec_t;
 #define WL_CHAN_BAND_6G_PSC        (1u << 11u)   /* 6GHz PSC channel */
 #define WL_CHAN_BAND_6G_LPI        (1u << 12u)   /* 6GHz LPI channel */
 #define WL_CHAN_BAND_6G_SP         (1u << 13u)   /* 6GHz SP channel */
+#define WL_CHAN_INDOOR_ONLY        (1u << 14u)   /* indoor only channel */
+#define WL_CHAN_P2P_PROHIBITED     (1u << 15u)   /* p2p restricted channel */
 
 #define WL_CHAN_OOS_SHIFT          24u           /* shift for OOS field */
 #define WL_CHAN_OOS_MASK           0xFF000000u   /* field specifying minutes remaining for this
@@ -1886,6 +1866,14 @@ typedef uint32 ratespec_t;
 
 #define WL_CHANIM_COUNT_ALL	0xff
 #define WL_CHANIM_COUNT_ONE	0x1
+
+/* flags used in scandb, indicates bss attributes of interest */
+#define WLC_SCANDB_CACHE_FLAG_NONE	(0u)		/* None */
+#define WLC_SCANDB_CACHE_FLAG_HT_CAP	(1u << 0u)	/* HT capable */
+#define WLC_SCANDB_CACHE_FLAG_VHT_CAP	(1u << 1u)	/* VHT capable */
+#define WLC_SCANDB_CACHE_FLAG_HE_CAP	(1u << 2u)	/* HE capable */
+#define WLC_SCANDB_CACHE_FLAG_EHT_CAP	(1u << 3u)	/* EHT capable */
+#define WLC_SCANDB_CACHE_FLAG_FTM_RESP	(1u << 4u)	/* FTM responder */
 
 /* Module id: to know which module has sent the stats */
 #define SC_CHANIM_ID_NULL	0u

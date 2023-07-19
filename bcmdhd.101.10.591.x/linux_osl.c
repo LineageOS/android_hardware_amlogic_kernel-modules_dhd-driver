@@ -43,10 +43,6 @@
 #include <asm-generic/pci-dma-compat.h>
 #endif
 
-#if defined(BCMASSERT_LOG) && !defined(OEM_ANDROID)
-#include <bcm_assert_log.h>
-#endif
-
 #include <linux/fs.h>
 
 #ifdef BCM_OBJECT_TRACE
@@ -1322,20 +1318,23 @@ osl_dma_alloc_consistent(osl_t *osh, uint size, uint16 align_bits, uint *alloced
 void
 osl_dma_free_consistent(osl_t *osh, void *va, uint size, dmaaddr_t pa)
 {
+	struct pci_dev *hwdev = NULL;
 #ifdef BCMDMA64OSL
 	dma_addr_t paddr;
 #endif /* BCMDMA64OSL */
 	ASSERT_NULL(osh);
 	ASSERT(osh->magic == OS_HANDLE_MAGIC);
+	UNUSED_PARAMETER(hwdev);
 
 #if (defined(__ARM_ARCH_7A__) && !defined(DHD_USE_COHERENT_MEM_FOR_RING))
 	kfree(va);
-#else
+#else /* (defined(__ARM_ARCH_7A__) && !defined(DHD_USE_COHERENT_MEM_FOR_RING)) */
+	hwdev = osh->pdev;
 #ifdef BCMDMA64OSL
 	PHYSADDRTOULONG(pa, paddr);
-	pci_free_consistent(osh->pdev, size, va, paddr);
-#else
-	pci_free_consistent(osh->pdev, size, va, (dma_addr_t)pa);
+	dma_free_coherent(&hwdev->dev, size, va, paddr);
+#else /* BCMDMA64OSL */
+	dma_free_coherent(&hwdev->dev, size, va, (dma_addr_t)pa);
 #endif /* BCMDMA64OSL */
 #endif /* __ARM_ARCH_7A__ && !DHD_USE_COHERENT_MEM_FOR_RING */
 }
@@ -1358,6 +1357,7 @@ dmaaddr_t
 BCMFASTPATH(osl_dma_map)(osl_t *osh, void *va, uint size, int direction, void *p,
 	hnddma_seg_map_t *dmah)
 {
+	struct pci_dev *hwdev = osh->pdev;
 	int dir;
 	dmaaddr_t ret_addr;
 	dma_addr_t map_addr;
@@ -1371,9 +1371,9 @@ BCMFASTPATH(osl_dma_map)(osl_t *osh, void *va, uint size, int direction, void *p
 	/* For Rx buffers, keep direction as bidirectional to handle packet fetch cases */
 	dir = (direction == DMA_RX)? DMA_RXTX: direction;
 
-	map_addr = pci_map_single(osh->pdev, va, size, dir);
+	map_addr = dma_map_single(&hwdev->dev, va, size, dir);
 
-	ret = pci_dma_mapping_error(osh->pdev, map_addr);
+	ret = dma_mapping_error(&hwdev->dev, map_addr);
 
 	if (ret) {
 		OSL_PRINT(("%s: Failed to map memory\n", __FUNCTION__));
@@ -1400,6 +1400,7 @@ BCMFASTPATH(osl_dma_unmap)(osl_t *osh, dmaaddr_t pa, uint size, int direction)
 #ifdef BCMDMA64OSL
 	dma_addr_t paddr;
 #endif /* BCMDMA64OSL */
+	struct pci_dev *hwdev = osh->pdev;
 
 	ASSERT_NULL(osh);
 	ASSERT(osh->magic == OS_HANDLE_MAGIC);
@@ -1415,9 +1416,9 @@ BCMFASTPATH(osl_dma_unmap)(osl_t *osh, dmaaddr_t pa, uint size, int direction)
 
 #ifdef BCMDMA64OSL
 	PHYSADDRTOULONG(pa, paddr);
-	pci_unmap_single(osh->pdev, paddr, size, dir);
+	dma_unmap_single(&hwdev->dev, paddr, size, dir);
 #else /* BCMDMA64OSL */
-	pci_unmap_single(osh->pdev, (uint32)pa, size, dir);
+	dma_unmap_single(&hwdev->dev, (uint32)pa, size, dir);
 #endif /* BCMDMA64OSL */
 
 	DMA_UNLOCK(osh);
@@ -1458,9 +1459,6 @@ osl_assert(const char *exp, const char *file, int line)
 #ifdef BCMASSERT_LOG
 	snprintf(tempbuf, 64, "\"%s\": file \"%s\", line %d\n",
 		exp, basename, line);
-#ifndef OEM_ANDROID
-	bcm_assert_log(tempbuf);
-#endif /* OEM_ANDROID */
 #endif /* BCMASSERT_LOG */
 
 #ifdef BCMDBG_ASSERT
@@ -1543,6 +1541,14 @@ osl_sysuptime_us(void)
 #endif
 	return usec;
 }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)
+uint64
+osl_sysuptime_ns(void)
+{
+	return ktime_get_real_ns();
+}
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0) */
 
 uint64
 osl_localtime_ns(void)
@@ -1921,7 +1927,7 @@ timer_cb_compat(struct timer_list *tl)
 /* Note: All timer api's are thread unsafe and should be protected with locks by caller */
 
 osl_timer_t *
-osl_timer_init(osl_t *osh, const char *name, void (*fn)(void *arg), void *arg)
+osl_timer_init(osl_t *osh, const char *name, void (*fn)(ulong arg), void *arg)
 {
 	osl_timer_t *t;
 	BCM_REFERENCE(fn);
@@ -2207,6 +2213,49 @@ osl_dma_lock_init(osl_t *osh)
 	osh->dma_lock_bh = FALSE;
 }
 #endif /* USE_DMA_LOCK */
+
+#if defined(NIC_REG_ACCESS_LEGACY) || defined(NIC_REG_ACCESS_LEGACY_DBG)
+osl_pcie_window_t osl_reg_access_pcie_window;
+/**
+ * Initialize osl_reg_access_pcie_window.
+ * @param[in]  osh                      OS handle.
+ * @param[in]  bp_access_lock           Lock for restricting backplane access.
+ * @param[in]  window_offset            Config space window base register offset.
+ * @param[in]  bar_addr                 ioremap address of this window.
+ */
+void
+osl_reg_access_pcie_window_init(osl_t *osh, void *bp_access_lock, unsigned long window_offset,
+		volatile void *bar_addr)
+{
+	osl_reg_access_pcie_window.bp_access_lock = bp_access_lock;
+	osl_reg_access_pcie_window.window_offset = window_offset;
+	osl_reg_access_pcie_window.bar_addr = bar_addr;
+	osl_reg_access_pcie_window.bp_addr = OSL_PCI_READ_CONFIG(osh,
+		osl_reg_access_pcie_window.window_offset, sizeof(uint32));
+}
+
+/**
+ * Check that the osl_reg_access_pcie_window is configured to access the reg_addr and return the
+ * window address. If the window is not properly configured, then it will be reconfigured.
+ * @param[in]  osh        OS handle.
+ * @param[in]  reg_addr   Address that the window should be able to access after this function call.
+ * @return                Address of the pcie bar window that is configured to access the provided
+ *                        address.
+ */
+volatile void *
+osl_update_pcie_win(osl_t *osh, volatile void *reg_addr)
+{
+	unsigned long r_addr = (unsigned long)reg_addr;
+	unsigned long base_addr = (r_addr & BAR0_WINDOW_ADDRESS_MASK);
+	if (base_addr != osl_reg_access_pcie_window.bp_addr) {
+		osl_reg_access_pcie_window.bp_addr = base_addr;
+		OSL_PCI_WRITE_CONFIG(osh, osl_reg_access_pcie_window.window_offset, sizeof(uint32),
+			osl_reg_access_pcie_window.bp_addr);
+	}
+	return (volatile void *)(((volatile uint8 *)osl_reg_access_pcie_window.bar_addr) +
+		(r_addr & BAR0_WINDOW_OFFSET_MASK));
+}
+#endif /* defined(NIC_REG_ACCESS_LEGACY) || defined(NIC_REG_ACCESS_LEGACY_DBG) */
 
 void
 osl_do_gettimeofday(struct osl_timespec *ts)

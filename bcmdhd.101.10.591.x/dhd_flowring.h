@@ -67,7 +67,7 @@
 	((uint16)flowid < ((pub)->htput_flow_ring_start + HTPUT_TOTAL_FLOW_RINGS)))
 
 #if defined(FLOW_RING_PREALLOC)
-#define MAX_FLOW_RINGS 42
+#define MAX_FLOW_RINGS 64
 #endif /* FLOW_RING_PREALLOC */
 
 #define DHD_FLOWRING_RX_BUFPOST_PKTSZ	2048

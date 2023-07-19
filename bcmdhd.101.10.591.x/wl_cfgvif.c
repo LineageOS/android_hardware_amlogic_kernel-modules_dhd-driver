@@ -69,9 +69,7 @@
 #include <frag.h>
 #endif /* WL_FILS */
 
-#ifdef OEM_ANDROID
 #include <wl_android.h>
-#endif
 
 #if defined(BCMDONGLEHOST)
 #include <dngl_stats.h>
@@ -512,7 +510,7 @@ wl_cfg80211_get_sec_iface(struct bcm_cfg80211 *cfg)
 		 * role to station type while bringing down the interface
 		 */
 		if (p2p_ndev->ieee80211_ptr->iftype == NL80211_IFTYPE_STATION) {
-			WL_DBG_MEM(("%s, Change to GC base role\n", __FUNCTION__));
+			WL_DBG_MEM(("%s, Change to GC base role\n", p2p_ndev->name));
 			return WL_IF_TYPE_P2P_GC;
 		}
 
@@ -566,6 +564,16 @@ wl_cfg80211_data_if_mgmt(struct bcm_cfg80211 *cfg,
 		 */
 		return BCME_OK;
 	}
+#else
+#ifdef BCMDONGLEHOST
+	if (DHD_OPMODE_SUPPORTED(cfg->pub, DHD_FLAG_RSDB_MODE)) {
+		if (sec_wl_if_type == WL_IF_TYPE_AP &&
+			(new_wl_iftype == WL_IF_TYPE_AP || new_wl_iftype == WL_IF_TYPE_STA)) {
+			/* RSDB chip can allow dual apsta */
+			return BCME_OK;
+		}
+	}
+#endif /* BCMDONGLEHOST */
 #endif /* WL_DUAL_APSTA */
 
 	/* Handle secondary data link case */
@@ -652,7 +660,8 @@ wl_cfg80211_disc_if_mgmt(struct bcm_cfg80211 *cfg,
 				* as for AP and associated ifaces, both are same
 				*/
 			}
-			/* falls through */
+				/* fall through */
+				fallthrough;
 			case WL_IF_POLICY_DEFAULT: {
 				 if (sec_wl_if_type == WL_IF_TYPE_AP) {
 					WL_INFORM_MEM(("AP is active, cant support new iface\n"));
@@ -883,7 +892,7 @@ wl_cfg80211_handle_if_role_conflict(struct bcm_cfg80211 *cfg,
 #endif /* WL_IFACE_MGMT */
 
 s32
-wl_release_vif_macaddr(struct bcm_cfg80211 *cfg, u8 *mac_addr, u16 wl_iftype)
+wl_release_vif_macaddr(struct bcm_cfg80211 *cfg, const u8 *mac_addr, u16 wl_iftype)
 {
 	struct net_device *ndev =  bcmcfg_to_prmry_ndev(cfg);
 	u16 org_toggle_bytes;
@@ -912,7 +921,7 @@ wl_release_vif_macaddr(struct bcm_cfg80211 *cfg, u8 *mac_addr, u16 wl_iftype)
 
 	/* Fetch last two bytes of mac address */
 	org_toggle_bytes = ntoh16(*((u16 *)&ndev->dev_addr[4]));
-	cur_toggle_bytes = ntoh16(*((u16 *)&mac_addr[4]));
+	cur_toggle_bytes = ntoh16(*((const u16 *)&mac_addr[4]));
 
 	toggled_bit = (org_toggle_bytes ^ cur_toggle_bytes);
 	WL_DBG(("org_toggle_bytes:%04X cur_toggle_bytes:%04X\n",
@@ -1318,9 +1327,6 @@ wl_cfg80211_change_virtual_iface(struct wiphy *wiphy, struct net_device *ndev,
 		{
 			if (!wl_get_drv_status(cfg, AP_CREATED, ndev) &&
 					wl_get_drv_status(cfg, READY, ndev)) {
-#if defined(BCMDONGLEHOST) && !defined(OEM_ANDROID)
-				dhd->op_mode = DHD_FLAG_HOSTAP_MODE;
-#endif /* BCMDONGLEHOST */
 				err = wl_cfg80211_set_ap_role(cfg, ndev);
 				if (unlikely(err)) {
 					WL_ERR(("set ap role failed!\n"));
@@ -1369,9 +1375,9 @@ wl_cfg80211_change_virtual_iface(struct wiphy *wiphy, struct net_device *ndev,
 	if (is_p2p_group_iface(ndev->ieee80211_ptr) && (type == NL80211_IFTYPE_STATION)) {
 		/* For role downgrade cases, we keep interface role as GC */
 		netinfo->iftype = WL_IF_TYPE_P2P_GC;
-		WL_DBG_MEM(("[%s] Set  base role to GC, current role"
+		WL_DBG_MEM(("[%s] Set base role to GC, current role"
 			"ndev->ieee80211_ptr->iftype = %d\n",
-			__FUNCTION__, ndev->ieee80211_ptr->iftype));
+			ndev->name, ndev->ieee80211_ptr->iftype));
 	} else {
 		netinfo->iftype = wl_iftype;
 	}
@@ -1596,6 +1602,33 @@ wl_get_nl80211_band(u32 wl_band)
 	return err;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0))
+#ifdef SUPPORT_2G_VHT
+static struct ieee80211_channel *
+wl_cfg80211_get_ieee80211_chan(struct net_device *dev,
+	struct cfg80211_ap_settings *info)
+{
+	struct ieee80211_channel * ptr = NULL;
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
+	if (info) {
+		ptr = info->chandef.chan;
+	}
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0))
+	if (info) {
+		ptr = info->channel;
+	}
+#else /* (LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0)) */
+	if ((dev) && (dev->ieee80211_ptr)) {
+		ptr = dev->ieee80211_ptr->channel;
+	}
+#endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0)) */
+
+	return ptr;
+}
+#endif /* SUPPORT_2G_VHT */
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0) */
+
 bool
 wl_is_sta_connected(struct bcm_cfg80211 *cfg)
 {
@@ -1629,8 +1662,12 @@ wl_is_sta_connected(struct bcm_cfg80211 *cfg)
 s32
 wl_cfg80211_set_channel(struct wiphy *wiphy, struct net_device *dev,
 	struct ieee80211_channel *chan,
-	enum nl80211_channel_type channel_type,
-	enum nl80211_chan_width width)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0))
+	enum nl80211_channel_type channel_type
+#else
+	enum nl80211_chan_width width
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0) */
+)
 {
 	chanspec_t chspec = INVCHANSPEC;
 	chanspec_t cur_chspec = INVCHANSPEC;
@@ -1647,6 +1684,39 @@ wl_cfg80211_set_channel(struct wiphy *wiphy, struct net_device *dev,
 	BCM_REFERENCE(dhd);
 
 	dev = ndev_to_wlc_ndev(dev, cfg);
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0))
+	switch (channel_type) {
+		case NL80211_CHAN_HT40MINUS:
+			/* secondary channel is below the control channel */
+			band_width = WL_CHANSPEC_BW_40;
+			break;
+		case NL80211_CHAN_HT40PLUS:
+			/* secondary channel is above the control channel */
+			band_width = WL_CHANSPEC_BW_40;
+			break;
+		default:
+			band_width = WL_CHANSPEC_BW_20;
+	}
+#else
+	switch (width)
+	{
+		case NL80211_CHAN_WIDTH_160:
+			band_width = WL_CHANSPEC_BW_160;
+			break;
+		case NL80211_CHAN_WIDTH_80P80:
+		case NL80211_CHAN_WIDTH_80:
+			band_width = WL_CHANSPEC_BW_80;
+			break;
+		case NL80211_CHAN_WIDTH_40:
+			band_width = WL_CHANSPEC_BW_40;
+			break;
+		default:
+			band_width = WL_CHANSPEC_BW_20;
+			break;
+	}
+#endif
+
 #ifdef WL_EXT_IAPSTA
 	if (dev->ieee80211_ptr->iftype == NL80211_IFTYPE_AP ||
 			dev->ieee80211_ptr->iftype == NL80211_IFTYPE_P2P_GO) {
@@ -1667,26 +1737,9 @@ wl_cfg80211_set_channel(struct wiphy *wiphy, struct net_device *dev,
 #endif
 	chspec = wl_freq_to_chanspec(center_freq);
 
-	WL_MSG(dev->name, "netdev_ifidx(%d) chan_type(%d) target channel(%s-%d %sMHz)\n",
-		dev->ifindex, channel_type, CHSPEC2BANDSTR(chspec),
-		CHSPEC_CHANNEL(chspec), wf_chspec_to_bw_str(chspec));
-
-	switch (width)
-	{
-		case NL80211_CHAN_WIDTH_160:
-			band_width = WL_CHANSPEC_BW_160;
-			break;
-		case NL80211_CHAN_WIDTH_80P80:
-		case NL80211_CHAN_WIDTH_80:
-			band_width = WL_CHANSPEC_BW_80;
-			break;
-		case NL80211_CHAN_WIDTH_40:
-			band_width = WL_CHANSPEC_BW_40;
-			break;
-		default:
-			band_width = WL_CHANSPEC_BW_20;
-			break;
-	}
+	WL_MSG(dev->name, "netdev_ifidx(%d) target channel(%s-%d %sMHz)\n",
+		dev->ifindex, CHSPEC2BANDSTR(chspec),
+		CHSPEC_CHANNEL(chspec), WLCWIDTH2STR(band_width));
 
 #ifdef WL_DUAL_STA
 	/* In case of Dual STA if both STAs are connected, do not allow softAP bringup */
@@ -1807,7 +1860,12 @@ wl_cfg80211_set_channel(struct wiphy *wiphy, struct net_device *dev,
 		WL_ERR(("capability force band_width=0x%X to be 0x%X\n", band_width, bw));
 		band_width = bw;
 	}
-#ifndef HOSTAPD_BW_SUPPORT
+#ifdef HOSTAPD_BW_SUPPORT
+	WL_MSG(dev->name, "hostapd bw(%sMHz) <= chip bw(%sMHz)\n",
+		wf_chspec_to_bw_str(band_width), wf_chspec_to_bw_str(bw));
+#else
+	WL_MSG(dev->name, "hostapd bw(%sMHz) => chip bw(%sMHz)\n",
+		wf_chspec_to_bw_str(band_width), wf_chspec_to_bw_str(bw));
 	band_width = bw;
 #endif
 
@@ -3261,11 +3319,9 @@ wl_cfg80211_ap_timeout_work(struct work_struct *work)
 	}
 #endif /* DHD_DEBUG && DHD_FW_COREDUMP */
 
-#if defined(OEM_ANDROID)
 	WL_ERR(("Notify hang event to upper layer \n"));
 	dhdp->hang_reason = HANG_REASON_IFACE_ADD_FAILURE;
 	net_os_send_hang_message(bcmcfg_to_prmry_ndev(cfg));
-#endif /* OEM_ANDROID */
 #endif /* BCMDONGLEHOST */
 }
 
@@ -3291,7 +3347,9 @@ wl_cfg80211_bcn_bringup_ap(
 	uint32 wme_apsd = 0;
 #endif /* SOFTAP_UAPSD_OFF */
 	s32 err = BCME_OK;
+#ifdef BCM4343X_WAR
 	dhd_pub_t *dhd = (dhd_pub_t *)(cfg->pub);
+#endif
 	char sec[64];
 	s32 is_rsdb_supported = BCME_ERROR;
 	u8 buf[WLC_IOCTL_SMLEN] = {0};
@@ -3395,7 +3453,7 @@ wl_cfg80211_bcn_bringup_ap(
 #endif /* DISABLE_11H_SOFTAP */
 
 #ifdef WL_DISABLE_HE_SOFTAP
-		err = wl_cfg80211_set_he_mode(dev, cfg, bssidx, WL_HE_FEATURES_HE_AP, FALSE);
+		err = wl_cfg80211_change_he_features(dev, cfg, bssidx, WL_HE_FEATURES_HE_AP, FALSE);
 		if (err < 0) {
 			WL_ERR(("failed to set he features, error=%d\n", err));
 		}
@@ -3443,6 +3501,7 @@ wl_cfg80211_bcn_bringup_ap(
 			WL_ERR(("Could not get wsec %d\n", err));
 			goto exit;
 		}
+#ifdef BCM4343X_WAR
 		if (dhd->conf->chip == BCM43430_CHIP_ID && bssidx > 0 &&
 				(wsec & (TKIP_ENABLED|AES_ENABLED))) {
 			struct net_device *primary_ndev = bcmcfg_to_prmry_ndev(cfg);
@@ -3463,6 +3522,7 @@ wl_cfg80211_bcn_bringup_ap(
 				wldev_ioctl_set(primary_ndev, WLC_DISASSOC, &scbval, sizeof(scb_val_t));
 			}
 		}
+#endif
 		if ((wsec == WEP_ENABLED) && cfg->wep_key.len) {
 			WL_DBG(("Applying buffered WEP KEY \n"));
 			err = wldev_iovar_setbuf_bsscfg(dev, "wsec_key", &cfg->wep_key,
@@ -4037,7 +4097,7 @@ wl_cfg80211_start_ap(
 	if (!dev->ieee80211_ptr->u.ap.preset_chandef.chan)
 #else
 	if (!dev->ieee80211_ptr->preset_chandef.chan)
-#endif
+#endif /* LINUX_VER >= 5.19.2 || CFG80211_BKPORT_MLO */
 	{
 		WL_ERR(("chan is NULL\n"));
 		err = -EINVAL;
@@ -4048,8 +4108,8 @@ wl_cfg80211_start_ap(
 			dev->ieee80211_ptr->u.ap.preset_chandef.chan,
 #else
 			dev->ieee80211_ptr->preset_chandef.chan,
-#endif /* CFG80211_BKPORT_MLO */
-			NL80211_CHAN_HT20, info->chandef.width)) < 0) {
+#endif /* LINUX_VER >= 5.19.2 || CFG80211_BKPORT_MLO */
+			info->chandef.width) < 0)) {
 		WL_ERR(("Set channel failed \n"));
 		goto fail;
 	}
@@ -4152,7 +4212,7 @@ fail:
 		wl_cfg80211_stop_ap(wiphy, dev, 0);
 #else
 		wl_cfg80211_stop_ap(wiphy, dev);
-#endif /* CFG80211_BKPORT_MLO */
+#endif /* LINUX_VER >= 5.19.2 || defined(CFG80211_BKPORT_MLO) */
 		if (dev_role == NL80211_IFTYPE_AP) {
 #ifdef WL_EXT_IAPSTA
 		if (!wl_ext_iapsta_iftype_enabled(dev, WL_IF_TYPE_AP)) {
@@ -4202,8 +4262,8 @@ wl_cfg80211_stop_ap(
 	struct net_device *dev
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 2) || defined(CFG80211_BKPORT_MLO)
 	, unsigned int link_id
-#endif /* CFG80211_BKPORT_MLO */
-	)
+#endif /* LINUX_VER >= 5.19.2 || CFG80211_BKPORT_MLO */
+)
 {
 	int err = 0;
 	u32 dev_role = 0;
@@ -4332,12 +4392,12 @@ wl_cfg80211_stop_ap(
 			}
 		}
 
-#if defined(WL_DISABLE_HE_SOFTAP) || defined(WL_6G_BAND)
-		if (wl_cfg80211_set_he_mode(dev, cfg, bssidx, WL_HE_FEATURES_HE_AP,
+#ifdef WL_DISABLE_HE_SOFTAP
+		if (wl_cfg80211_change_he_features(dev, cfg, bssidx, WL_HE_FEATURES_HE_AP,
 			TRUE) != BCME_OK) {
 			WL_ERR(("failed to set he features\n"));
 		}
-#endif /* defined(WL_DISABLE_HE_SOFTAP) || defined(WL_6G_BAND) */
+#endif /* WL_DISABLE_HE_SOFTAP */
 
 		wl_cfg80211_clear_per_bss_ies(cfg, dev->ieee80211_ptr);
 #ifdef SUPPORT_AP_RADIO_PWRSAVE
@@ -4356,7 +4416,7 @@ wl_cfg80211_stop_ap(
 		/* Do we need to do something here */
 		WL_DBG(("Stopping P2P GO \n"));
 
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 		DHD_OS_WAKE_LOCK_CTRL_TIMEOUT_ENABLE((dhd_pub_t *)(cfg->pub),
 			DHD_EVENT_TIMEOUT_MS*3);
 		DHD_OS_WAKE_LOCK_TIMEOUT((dhd_pub_t *)(cfg->pub));
@@ -5474,7 +5534,7 @@ wl_cfg80211_dfs_ap_move(struct net_device *ndev, char *data, char *command, int 
 }
 
 #ifdef WL_CFG80211_ACL
-static int
+int
 wl_cfg80211_set_mac_acl(struct wiphy *wiphy, struct net_device *cfgdev,
 	const struct cfg80211_acl_data *acl)
 {
@@ -5635,6 +5695,7 @@ wl_cfg80211_set_monitor_channel(struct wiphy *wiphy, struct cfg80211_chan_def *c
 }
 #endif /* WL_CFG80211_MONITOR */
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0))
 int wl_chspec_chandef(chanspec_t chanspec,
 	struct cfg80211_chan_def *chandef, struct wiphy *wiphy)
 {
@@ -5745,7 +5806,6 @@ int wl_chspec_chandef(chanspec_t chanspec,
 	return 0;
 }
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0))
 void
 wl_cfg80211_ch_switch_notify(struct net_device *dev, uint16 chanspec, struct wiphy *wiphy)
 {
@@ -5772,11 +5832,13 @@ wl_cfg80211_ch_switch_notify(struct net_device *dev, uint16 chanspec, struct wip
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION (3, 8, 0))
 	freq = chandef.chan ? chandef.chan->center_freq : chandef.center_freq1;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 2) || defined(CFG80211_BKPORT_MLO)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
+	cfg80211_ch_switch_notify(dev, &chandef, 0, 0);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 2) || defined(CFG80211_BKPORT_MLO)
 	cfg80211_ch_switch_notify(dev, &chandef, 0);
 #else
 	cfg80211_ch_switch_notify(dev, &chandef);
-#endif /* CFG80211_BKPORT_MLO */
+#endif /* LINUX_VER >= 5.19.2 || defined(CFG80211_BKPORT_MLO) */
 #elif (LINUX_VERSION_CODE >= KERNEL_VERSION (3, 5, 0) && (LINUX_VERSION_CODE <= (3, 7, 0)))
 	freq = chandef.freq;
 	cfg80211_ch_switch_notify(dev, freq, chandef.chan_type);
@@ -6487,7 +6549,7 @@ wl_he_pack_uint_cb(void *ctx, uint16 id, uint16 len, uint8 *buf)
 	}
 }
 
-int wl_cfg80211_set_he_mode(struct net_device *dev, struct bcm_cfg80211 *cfg,
+int wl_cfg80211_change_he_features(struct net_device *dev, struct bcm_cfg80211 *cfg,
 		s32 bssidx, u32 he_flag, bool set)
 {
 	bcm_xtlv_t read_he_xtlv;
@@ -6532,6 +6594,35 @@ int wl_cfg80211_set_he_mode(struct net_device *dev, struct bcm_cfg80211 *cfg,
 		WL_ERR(("failed to set he features, error=%d\n", err));
 	}
 	WL_INFORM(("Set HE[%d] done\n", set));
+
+	return err;
+}
+
+int wl_cfg80211_set_he_features(struct net_device *dev, struct bcm_cfg80211 *cfg,
+		s32 bssidx, u32 interface_type, uint features)
+{
+	uint8 se_he_xtlv[32];
+	int se_he_xtlv_len = sizeof(se_he_xtlv);
+	he_xtlv_v32 v32;
+	s32 err = 0;
+
+	v32.id = WL_HE_CMD_FEATURES;
+	v32.len = sizeof(s32);
+	v32.val = features;
+
+	err = bcm_pack_xtlv_buf((void *)&v32, se_he_xtlv, sizeof(se_he_xtlv),
+			BCM_XTLV_OPTION_ALIGN32, wl_he_get_uint_cb, wl_he_pack_uint_cb,
+			&se_he_xtlv_len);
+	if (err != BCME_OK) {
+		WL_ERR(("failed to pack he settvl=%d\n", err));
+	}
+
+	err = wldev_iovar_setbuf_bsscfg(dev, "he", &se_he_xtlv, sizeof(se_he_xtlv),
+			cfg->ioctl_buf, WLC_IOCTL_SMLEN, bssidx, &cfg->ioctl_buf_sync);
+	if (err < 0) {
+		WL_ERR(("failed to set he features, error=%d\n", err));
+	}
+	WL_INFORM(("Set he features[%d] done\n", features));
 
 	return err;
 }
@@ -6674,7 +6765,7 @@ wl_set_ap_suspend_error_handler(struct net_device *ndev, bool suspend)
 #endif /* DHD_FW_COREDUMP */
 #endif /* BCMDONGLEHOST */
 
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 		WL_ERR(("Notify hang event to upper layer \n"));
 		dhdp->hang_reason = suspend ?
 			HANG_REASON_BSS_DOWN_FAILURE : HANG_REASON_BSS_UP_FAILURE;
