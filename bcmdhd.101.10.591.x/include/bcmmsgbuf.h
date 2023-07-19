@@ -27,7 +27,29 @@
 #define	_bcmmsgbuf_h_
 
 #include <ethernet.h>
+
+#ifndef BCMWIFI_DISSECTOR_BUILD
+/*
+ * This header file i.e bcmmsgbuf.h is needed for bcmwifi dissecotor
+ * to prase host to dongle msgbuf traffic.
+ *
+ * BCMWIFI_DISSECTOR_BUILD is defined only while building bcmwifi dissecotor(BWD).
+ * wlioctl.h and the bunch of files being invoked by wlioctl.h are not needed for
+ * BWD build as of now. When need be wlioctl.h can be invoked unconditionally.
+ *
+ */
 #include <wlioctl.h>
+#endif /* !BCMWIFI_DISSECTOR_BUILD */
+
+#ifdef BCMWIFI_DISSECTOR_BUILD
+/*
+ * This header file needs someof the definitons from osl_decl.h.
+ * Hence include the same for BCMWIFI_DISSECTOR_BUILD.
+ */
+#include <osl_decl.h>
+#define DECLSPEC_ALIGN(x)	__attribute__ ((aligned(x)))
+#endif /* BCMWIFI_DISSECTOR_BUILD */
+
 #include <bcmpcie.h>
 
 #define MSGBUF_MAX_MSG_SIZE   ETHER_MAX_LEN

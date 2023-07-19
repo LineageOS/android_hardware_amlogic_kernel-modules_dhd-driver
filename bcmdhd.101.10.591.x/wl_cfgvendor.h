@@ -236,6 +236,7 @@ enum andr_vendor_subcmd {
 	ANDR_TWT_SUBCMD_INFO_FRAME,
 	ANDR_TWT_SUBCMD_GET_STATS,
 	ANDR_TWT_SUBCMD_CLR_STATS,
+	ANDR_TWT_SUBCMD_GET_RESPONSE,
 	RTT_SUBCMD_SET_CONFIG = ANDROID_NL80211_SUBCMD_RTT_RANGE_START,
 	RTT_SUBCMD_CANCEL_CONFIG,
 	RTT_SUBCMD_GETCAPABILITY,
@@ -504,7 +505,9 @@ enum debug_attributes {
 	DEBUG_ATTRIBUTE_LOG_MIN_DATA_SIZE,
 	DEBUG_ATTRIBUTE_FW_DUMP_LEN,
 	DEBUG_ATTRIBUTE_FW_DUMP_DATA,
+#if (ANDROID_VERSION >= 11)
 	DEBUG_ATTRIBUTE_FW_ERR_CODE,
+#endif
 	DEBUG_ATTRIBUTE_RING_DATA,
 	DEBUG_ATTRIBUTE_RING_STATUS,
 	DEBUG_ATTRIBUTE_RING_NUM,
@@ -1055,6 +1058,10 @@ typedef enum {
 	ANDR_TWT_ATTR_AVG_PKT_SIZE_TX	= 27,
 	ANDR_TWT_ATTR_AVG_PKT_NUM_RX	= 28,
 	ANDR_TWT_ATTR_AVG_PKT_SIZE_RX	= 29,
+	ANDR_TWT_ATTRIBUTE_SETUP_CMD	= 30,
+	ANDR_TWT_ATTRIBUTE_FLOW_FLAGS	= 31,
+	ANDR_TWT_ATTRIBUTE_FLOW_ID	= 32,
+	ANDR_TWT_ATTRIBUTE_CHANNEL	= 33,
 	ANDR_TWT_ATTR_MAX
 } andr_twt_attribute;
 
@@ -1191,7 +1198,7 @@ extern int wl_cfgvendor_send_supp_advlog(const char *fmt, ...);
 	compat_ ## normal_structure compat_ ## iface;	\
 	int compat_task_state = is_compat_task();			\
 	normal_structure value;
-#endif
+#endif /* LINUX_VER >= 4.6 */
 
 #define COMPAT_BZERO_IFACE(normal_structure, value)	\
 	do { \

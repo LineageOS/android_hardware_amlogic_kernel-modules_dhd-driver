@@ -685,15 +685,15 @@ uint etd_get_reg_dump_config_len(void);
 extern bool _etd_enab;
 
 #if defined(ROM_ENAB_RUNTIME_CHECK)
-	#define ETD_ENAB(pub)		(_etd_enab)
+	#define ETD_ENAB(pub)	(_etd_enab)
 #elif defined(ETD_DISABLED)
-	#define ETD_ENAB(pub)		(0)
+	#define ETD_ENAB(pub)	(FALSE)
 #else
-	#define ETD_ENAB(pub)		(1)
+	#define ETD_ENAB(pub)	(TRUE)
 #endif
 
 #else
-#define ETD_ENAB(pub)		(0)
+#define ETD_ENAB(pub)		(FALSE)
 #endif /* WLETD */
 
 #endif /* !LANGUAGE_ASSEMBLY */

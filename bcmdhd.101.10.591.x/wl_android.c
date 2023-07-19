@@ -237,9 +237,6 @@
 #define BUFSZ 8
 #define BUFSZN	BUFSZ + 1
 
-#define _S(x) #x
-#define S(x) _S(x)
-
 #define  MAXBANDS    2  /**< Maximum #of bands */
 #define BAND_2G_INDEX      1
 #define BAND_5G_INDEX      0
@@ -1121,6 +1118,7 @@ int wl_android_get_chanspec(struct net_device *dev, char *command, int total_len
 	channel = chanspec & WL_CHANSPEC_CHAN_MASK;
 	band = chanspec & WL_CHANSPEC_BAND_MASK;
 	bw = chanspec & WL_CHANSPEC_BW_MASK;
+	UNUSED_PARAMETER(band);
 
 	DHD_INFO(("wl_android_get_80211_mode: channel:%d band:%d bandwidth:%d\n",
 		channel, band, bw));
@@ -1357,6 +1355,7 @@ wl_android_set_disable_dtim_in_suspend(struct net_device *dev, char *command)
 	if (cfg->soft_suspend) {
 		wl_cfg80211_set_suspend_bcn_li_dtim(cfg, dev, TRUE);
 	}
+
 	WL_INFORM_MEM(("wl_android_set_disable_dtim_in_suspend: "
 			"use Disable bcn_li_dtim in suspend %s\n",
 			(dtim_flag ? "Enable" : "Disable")));
@@ -2277,7 +2276,7 @@ int wl_android_wifi_on(struct net_device *dev)
 #endif /* BCMSDIO */
 			ret = dhd_dev_init_ioctl(dev);
 			if (ret < 0) {
-				goto retry_bus;
+				goto retry_power;
 			}
 #endif /* BCMSDIO || BCMDBUS */
 			if (ret == 0) {
@@ -2287,18 +2286,15 @@ int wl_android_wifi_on(struct net_device *dev)
 #endif /* WBRC */
 				break;
 			}
-#if defined(BCMSDIO) || defined(BCMDBUS)
-retry_bus:
-#ifdef BCMSDIO
-			dhd_net_bus_suspend(dev);
-#endif /* BCMSDIO */
-#endif /* BCMSDIO || BCMDBUS */
 retry_power:
 			DHD_ERROR(("%s: failed to power up wifi chip, retry again (%d left) **\n",
 				__FUNCTION__, retry));
 			/* Set big hammer flag */
 			dhdp->do_chip_bighammer = TRUE;
 			dhd_net_bus_devreset(dev, TRUE);
+#ifdef BCMSDIO
+			dhd_net_bus_suspend(dev);
+#endif /* BCMSDIO */
 			dhd_net_wifi_platform_set_power(dev, FALSE, WIFI_TURNOFF_DELAY);
 
 		} while (retry-- > 0);
@@ -3678,6 +3674,14 @@ wl_android_set_auto_channel(struct net_device *dev, const char* cmd_str,
 		goto done2;
 	}
 
+	chosen = wl_ext_autochannel(dev, ACS_DRV_BIT, band);
+	channel = wf_chspec_ctlchan(chosen);
+	if (channel) {
+		acs_band = CHSPEC_BAND(channel);
+		goto done2;
+	} else
+		goto done;
+
 	/* If AP is started on wlan0 iface,
 	 * do not issue any iovar to fw and choose default ACS channel for softap
 	 */
@@ -3687,14 +3691,6 @@ wl_android_set_auto_channel(struct net_device *dev, const char* cmd_str,
 			goto done;
 		}
 	}
-
-	chosen = wl_ext_autochannel(dev, ACS_DRV_BIT, band);
-	channel = wf_chspec_ctlchan(chosen);
-	if (channel) {
-		acs_band = CHSPEC_BAND(channel);
-		goto done2;
-	} else
-		goto done;
 
 	ret = wldev_ioctl_get(dev, WLC_GET_SPECT_MANAGMENT, &spect, sizeof(spect));
 	if (ret) {
@@ -4284,6 +4280,8 @@ wl_android_set_miracast(struct net_device *dev, char *command)
 		/* Source mode shares most configurations with sink mode.
 		 * Fall through here to avoid code duplication
 		 */
+		fallthrough;
+
 	case MIRACAST_MODE_SINK:
 		/* disable internal roaming */
 		config.iovar = "roam_off";
@@ -7117,7 +7115,7 @@ wl_android_set_softap_ax_mode(struct net_device *dev, const char* cmd_str)
 	}
 
 	WL_INFORM(("HAPD_SET_AX_MODE = %d\n", enable));
-	err = wl_cfg80211_set_he_mode(dev, cfg, bssidx, WL_HE_FEATURES_HE_AP, (bool)enable);
+	err = wl_cfg80211_change_he_features(dev, cfg, bssidx, WL_HE_FEATURES_HE_AP, (bool)enable);
 	if (err) {
 		WL_ERR(("failed to set softap ax mode(%d)\n", enable));
 
@@ -8135,8 +8133,10 @@ wl_handle_private_cmd(struct net_device *net, char *command, u32 cmd_len)
 	}
 	else if (strnicmp(command, CMD_BTCOEXMODE, strlen(CMD_BTCOEXMODE)) == 0) {
 #ifdef WL_CFG80211
+#ifdef OEM_ANDROID
 		void *dhdp = wl_cfg80211_get_dhdp(net);
 		bytes_written = wl_cfg80211_set_btcoex_dhcp(net, dhdp, command);
+#endif // OEM_ANDROID
 #else
 #ifdef PKT_FILTER_SUPPORT
 		uint mode = *(command + strlen(CMD_BTCOEXMODE) + 1) - '0';
@@ -8835,9 +8835,8 @@ int wl_android_init(void)
 	int ret = 0;
 
 #ifdef ENABLE_INSMOD_NO_POWER_OFF
-		dhd_download_fw_on_driverload = TRUE;
-#elif defined(ENABLE_INSMOD_NO_FW_LOAD) || defined(BUS_POWER_RESTORE)
-
+	dhd_download_fw_on_driverload = TRUE;
+#elif defined(ENABLE_INSMOD_NO_FW_LOAD)
 	dhd_download_fw_on_driverload = FALSE;
 #endif /* ENABLE_INSMOD_NO_FW_LOAD */
 	if (!iface_name[0]) {
@@ -9179,6 +9178,7 @@ wl_cfg80211_register_static_if(struct bcm_cfg80211 *cfg, u16 iftype, char *ifnam
 		return NULL;
 	}
 	primary_ndev = bcmcfg_to_prmry_ndev(cfg);
+	UNUSED_PARAMETER(primary_ndev);
 
 	ifidx += static_ifidx;
 #ifdef DHD_USE_RANDMAC
@@ -9188,11 +9188,12 @@ wl_cfg80211_register_static_if(struct bcm_cfg80211 *cfg, u16 iftype, char *ifnam
 #if defined(CUSTOM_MULTI_MAC)
 	if (!wifi_platform_get_mac_addr(dhd->info->adapter, hw_ether, static_ifidx+1)) {
 		(void)memcpy_s(mac_addr, ETH_ALEN, hw_ether, ETH_ALEN);
+		DEV_ADDR_GET(hw_ether, mac_addr);
 	} else
 #endif
 	{
 		/* Use primary mac with locally admin bit set */
-		(void)memcpy_s(mac_addr, ETH_ALEN, primary_ndev->dev_addr, ETH_ALEN);
+		DEV_ADDR_GET(primary_ndev, mac_addr);
 		mac_addr[0] |= 0x02;
 #ifdef WL_EXT_IAPSTA
 		wl_ext_iapsta_get_vif_macaddr(dhd, static_ifidx+1, mac_addr);
@@ -9336,7 +9337,7 @@ wl_cfg80211_post_static_ifcreate(struct bcm_cfg80211 *cfg,
 		wdev = new_ndev->ieee80211_ptr;
 		ASSERT(wdev);
 		wdev->iftype = iface_type;
-		dev_addr_set(new_ndev, addr);
+		DEV_ADDR_SET(new_ndev, addr);
 	}
 
 	cfg->static_ndev_state[static_ifidx] = NDEV_STATE_FW_IF_CREATED;
@@ -9894,7 +9895,9 @@ int wl_cfg80211_wbtext_weight_config(struct net_device *ndev, char *data,
 	bwcfg->type = 0;
 	bwcfg->weight = 0;
 
-	argc = sscanf(data, "%"S(BUFSZ)"s %"S(BUFSZ)"s %"S(BUFSZ)"s", rssi, band, weight);
+	argc = sscanf(data,
+		"%"SIZE_CONST_STRING(BUFSZ)"s %"SIZE_CONST_STRING(BUFSZ)"s "
+		"%"SIZE_CONST_STRING(BUFSZ)"s", rssi, band, weight);
 
 	if (!strcasecmp(rssi, "rssi"))
 		bwcfg->type = WNM_BSS_SELECT_TYPE_RSSI;
@@ -9982,7 +9985,7 @@ int wl_cfg80211_wbtext_table_config(struct net_device *ndev, char *data,
 	btcfg->type = 0;
 	btcfg->count = 0;
 
-	sscanf(data, "%"S(BUFSZ)"s %"S(BUFSZ)"s", rssi, band);
+	sscanf(data, "%"SIZE_CONST_STRING(BUFSZ)"s %"SIZE_CONST_STRING(BUFSZ)"s", rssi, band);
 
 	if (!strcasecmp(rssi, "rssi")) {
 		btcfg->type = WNM_BSS_SELECT_TYPE_RSSI;
@@ -10081,7 +10084,8 @@ wl_cfg80211_wbtext_delta_config(struct net_device *ndev, char *data, char *comma
 		goto exit;
 	}
 
-	argc = sscanf(data, "%"S(BUFSZ)"s %"S(BUFSZ)"s", band, delta);
+	argc = sscanf(data, "%"SIZE_CONST_STRING(BUFSZ)"s %"SIZE_CONST_STRING(BUFSZ)"s",
+		band, delta);
 	if (BCME_BADBAND == wl_android_bandstr_to_fwband(band, &band_val)) {
 		WL_ERR(("%s: Missing band\n", __func__));
 		goto exit;

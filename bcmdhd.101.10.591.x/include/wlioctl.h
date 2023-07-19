@@ -121,6 +121,7 @@ typedef struct remote_ioctl {
 #define BCM_IOV_XTLV_VERSION_0	0
 
 #define MAX_NUM_D11CORES 2
+#define PHY_SAMP_TXTONE_MAX_NUM 2u
 
 /**DFS Forced param */
 typedef struct wl_dfs_forced_params {
@@ -4572,6 +4573,7 @@ enum wl_cnt_xtlv_id {
 	WL_CNT_XTLV_GE88_UCODE_RX_V3 = 0x1008,		/* corerev >= 88 ucode macstats V3 - rx */
 	WL_CNT_XTLV_GE88_UCODE_TX_U32_V2 = 0x1009,	/* corerev >= 88 ucode macstats V2 - tx */
 	WL_CNT_XTLV_GE88_UCODE_RX_U32_V2 = 0x100a,	/* corerev >= 88 ucode macstats V2 - rx */
+	WL_CNT_XTLV_DYN_BW_STATS_V1 = 0x100b,	/* corerev >= 88 DynBW stats */
 };
 
 /* tlv IDs uniquely identifies periodic state component */
@@ -4743,90 +4745,6 @@ enum {
 	IOV_TDMTX_LAST
 };
 
-/* iovar structure for beacon simulator */
-typedef struct wl_bcnsim_ioc {
-	uint16   id;       /* ID of the sub-command */
-	uint16   len;      /* total length of all data[] */
-	uint8    data[];   /* var len payload  */
-} wl_bcnsim_ioc_t;
-
-/* iovar subcmd ids */
-enum {
-	IOV_BCNSIM_ENB = 1,
-	IOV_BCNSIM_ERRMAX = 2,
-	IOV_BCNSIM_ERRDSTRB = 3,
-	IOV_BCNSIM_DRIFT = 4,
-	IOV_BCNSIM_RNDLYMAX = 5,
-	IOV_BCNSIM_RNDDLY_DSTRB = 6,
-	IOV_BCNSIM_CONSDLY = 7,
-	IOV_BCNSIM_OMT_PROB = 8,
-	IOV_BCNSIM_OMT_MIN_N = 9,
-	IOV_BCNSIM_OMT_MAX_N = 10,
-	IOV_BCNSIM_OMT_DSTRB = 11,
-	IOV_BCNSIM_TSF_JUMP = 12,
-	IOV_BCNSIM_PATTERN = 13,
-	IOV_BCNSIM_STATUS = 14,
-	IOV_BCNSIM_AUTH = 15,
-	IOV_BCNSIM_RNDDLY_PROB = 16,
-	IOV_BCNSIM_LAST
-};
-
-/* tlv id for beacon simulator */
-enum wl_bcnsim_xtlv_id {
-	WL_BCNSIM_XTLV_ENABLE  = 0x1,
-	WL_BCNSIM_XTLV_ERRMAX  = 0x2,
-	WL_BCNSIM_XTLV_ERRDSTRB = 0x3,
-	WL_BCNSIM_XTLV_DRIFT = 0x4,
-	WL_BCNSIM_XTLV_RNDLYMAX = 0x5,
-	WL_BCNSIM_XTLV_RNDDLY_DSTRB = 0x6,
-	WL_BCNSIM_XTLV_CONSDLY = 0x7,
-	WL_BCNSIM_XTLV_OMT_PROB = 0x8,
-	WL_BCNSIM_XTLV_OMT_MIN_N = 0x9,
-	WL_BCNSIM_XTLV_OMT_MAX_N = 0xa,
-	WL_BCNSIM_XTLV_OMT_DSTRB = 0xb,
-	WL_BCNSIM_XTLV_TSF_JUMP = 0xc,
-	WL_BCNSIM_XTLV_PATTERN = 0xd,
-	WL_BCNSIM_XTLV_STATUS = 0xe,
-	WL_BCNSIM_XTLV_AUTH = 0xf,
-	WL_BCNSIM_XTLV_RNDDLY_PROB = 0x10
-};
-
-/* structure to store different pattern params */
-typedef struct wlc_bcnsim_bcn_diff_v1 {
-	uint16	version;
-	uint16	dtim_cnt;
-	uint32	tx_delta;
-	uint32	ts_delta;
-} wlc_bcnsim_bcn_diff_v1_t;
-
-/* structure to store/pass pattern */
-typedef struct wlc_bcnsim_pattern_info_v1 {
-	uint16	version;
-	uint16	pattern_count;
-	uint16	current_pos;
-	uint16	PAD;
-	wlc_bcnsim_bcn_diff_v1_t bcnsim_bcn_diff[];
-} wlc_bcnsim_pattern_info_v1_t;
-
-/* struct to store bcn sim status */
-typedef struct bcnsim_status_v1 {
-	uint16	ver;
-	uint16	length;	/* length of this structure */
-	uint32	rnd_delay_max; /* random delay */
-	int32	const_delay; /* cons delay */
-	int32	tsf_jump; /* change tsf */
-	int16	drift; /* add drift  */
-	uint16	error_max; /* max error */
-	uint8	error_dstrb; /* error dstrb */
-	uint8	rnd_delay_dstrb; /* rnd delay distr */
-	uint8	rnd_delay_prob; /* random delay prob */
-	uint8	omit_prob; /* control omit prob */
-	uint8	omit_min_n; /* min omit */
-	uint8	omit_max_n; /* max omit */
-	uint8	omit_dstrb; /* omit dstrb % */
-	uint8	PAD;
-} bcnsim_status_v1_t;
-
 /* SFLASH iovar sub commands */
 #define WL_SFLASH_IOV_VERSION_V1 1u
 
@@ -4864,6 +4782,8 @@ enum wl_sflash_subcmd_id {
 #define WL_CNT_SECVLN_STRUCT_SZ ((uint32)sizeof(wl_secvln_cnt_t))
 
 #define WL_CNT_HE_OMI_STRUCT_SZ ((uint32)sizeof(wl_he_omi_cnt_wlc_v1_t))
+#define WL_CNT_DYN_BW_STRUCT_SZ ((uint32)sizeof(wlc_dyn_bw_cnt_v1_t))
+
 #define INVALID_CNT_VAL (uint32)(-1)
 
 #define WL_XTLV_CNTBUF_MAX_SIZE ((uint32)(OFFSETOF(wl_cnt_info_t, data)) +	\
@@ -5234,6 +5154,7 @@ typedef struct wl_he_cnt_wlc_v2 {
 
 /* he counters Version 3 */
 #define WL_RU_TYPE_MAX			6
+#define WL_EHT_RU_TYPE_MAX	(16u)
 #define HE_COUNTERS_V3		(3)
 
 typedef struct wl_he_cnt_wlc_v3 {
@@ -5412,6 +5333,7 @@ typedef struct wl_he_tx_cnt_ge88_v1 {
 	uint32 txheru[WL_RU_TYPE_MAX];	/**< # Tx HE TBPPDU frames */
 	uint32 txheru_2x996T;		/**< # Tx packets in 2x996 tone RU */
 	uint32 txheru_4x996T;		/**< # Tx packets in 4x996 tone RU */
+	uint32 txehtru[WL_EHT_RU_TYPE_MAX];
 } wl_he_tx_cnt_ge88_v1_t;
 
 /* Rev GE88 HE Rx counters (SW based) */
@@ -5422,6 +5344,7 @@ typedef struct wl_he_rx_cnt_ge88_v1 {
 	uint32 rxheru_2x996T;		/**< # Rx packets in 2x996 tone RU */
 	uint32 rxheru_4x996T;		/**< # Rx packets in 4x996 tone RU */
 	uint32 he_rxtrig_ru_4x996T;	/**< Rx'd trigger frame with STA RU index 320mhz */
+	uint32 rxehtru[WL_EHT_RU_TYPE_MAX];
 } wl_he_rx_cnt_ge88_v1_t;
 
 /* Version6 - HE Counters */
@@ -5456,6 +5379,25 @@ typedef struct wl_he_omi_cnt_wlc_v1 {
 	uint32 he_omitx_dlmursdrec;	/* count for Resound recommendation change req */
 	uint32 he_omitx_dlmursdrec_ack;	/* count for Resound recommendation req txed successfully */
 } wl_he_omi_cnt_wlc_v1_t;
+
+typedef struct wlc_dyn_bw_cnt_v1 {
+	uint32 dyn_bw_tx_rts20_cnt;
+	uint32 dyn_bw_tx_rts40_cnt;
+	uint32 dyn_bw_tx_rts80_cnt;
+	uint32 dyn_bw_tx_rts160_cnt;
+	uint32 dyn_bw_rx_rts20_cnt;
+	uint32 dyn_bw_rx_rts40_cnt;
+	uint32 dyn_bw_rx_rts80_cnt;
+	uint32 dyn_bw_rx_rts160_cnt;
+	uint32 dyn_bw_tx_cts20_cnt;
+	uint32 dyn_bw_tx_cts40_cnt;
+	uint32 dyn_bw_tx_cts80_cnt;
+	uint32 dyn_bw_tx_cts160_cnt;
+	uint32 dyn_bw_rx_cts20_cnt;
+	uint32 dyn_bw_rx_cts40_cnt;
+	uint32 dyn_bw_rx_cts80_cnt;
+	uint32 dyn_bw_rx_cts160_cnt;
+} wlc_dyn_bw_cnt_v1_t;
 
 /* mesh pkt counters Version 1 */
 #define MESH_PKT_COUNTERS_V1		(1)
@@ -11116,6 +11058,76 @@ typedef BWL_PRE_PACKED_STRUCT struct wlc_ipfo_route_tbl {
 /* Version of wlc_btc_stats_t structure.
  * Increment whenever a change is made to wlc_btc_stats_t
  */
+#define BTCX_STATS_VER_10 10
+typedef struct wlc_btc_stats_v10 {
+	uint16 version;			/* version number of struct */
+	uint16 valid;			/* Size of this struct */
+	uint32 stats_update_timestamp;	/* tStamp when data is updated. */
+	uint32 btc_status;		/* btc status log */
+	uint32 bt_gcishm_active_task_bm; /* Active task bitmap of BT shared thru gci shm */
+	uint32 bt_gcishm_bt_tasks; /* BT Tasks info shared in GCI Shm */
+	uint32 bt_req_type_map;		/* BT Antenna Req types since last stats sample */
+	uint32 bt_req_cnt;		/* #BT antenna requests since last stats sampl */
+	uint32 bt_gnt_cnt;		/* #BT antenna grants since last stats sample */
+	uint32 bt_gnt_dur;		/* usec BT owns antenna since last stats sample */
+	uint16 bt_abort_cnt;		/* #Times WL was preempted due to BT since WL up */
+	uint16 bt_latency_cnt;		/* #Time ucode high latency detected since WL up */
+	uint16 bt_pm_protect_cnt;	/* PM protection count requested by Coex */
+	uint16 bt_succ_pm_protect_cnt;	/* successful PM protection */
+	uint16 bt_succ_cts_cnt;		/* successful CTS2A protection */
+	uint16 bt_wlan_tx_preempt_cnt;	/* WLAN TX Preemption */
+	uint16 bt_wlan_rx_preempt_cnt;	/* WLAN RX Preemption */
+	uint16 bt_ap_tx_after_pm_cnt;	/* AP TX even after PM protection */
+	uint16 bt_peraud_cumu_gnt_cnt;	/* Grant cnt for periodic audio */
+	uint16 bt_peraud_cumu_deny_cnt;	/* Deny cnt for periodic audio */
+	uint16 bt_a2dp_cumu_gnt_cnt;	/* Grant cnt for A2DP */
+	uint16 bt_a2dp_cumu_deny_cnt;	/* Deny cnt for A2DP */
+	uint16 bt_sniff_cumu_gnt_cnt;	/* Grant cnt for Sniff */
+	uint16 bt_sniff_cumu_deny_cnt;	/* Deny cnt for Sniff */
+	uint16 bt_frameburst_ack_cncl_cnt;	/* Count of Ack Cancel for Frame Burst */
+	uint16 bt_le_scan_tx_intr_cnt;	/* LE Scan Tx Interrupt Count */
+	uint16 bt_le_scan_intr_cnt;	/* LE Scan INterrupt Count */
+	uint16 bt_a2dp_grant_ext_intr;	/* A2DP Grant Extension Count */
+	uint16 bt_a2dp_uhp_intr_cnt;	/* A2DP UHP Interrupt Count */
+	uint16 bt_pred_out_of_sync_cnt;	/* Predictor Out Of Sync Count */
+	uint16 bt_isoc_intr_cnt;	/* ISOC Interrupt count */
+	uint16 bt_ampdu_collision_cnt;	/* BTCX ampdu collision count */
+	uint16 bt_back_collision_cnt;	/* BTCX BACK collision count */
+	uint16 bt_dcsn_map;		/* Accumulated decision bitmap once Ant grant */
+	uint16 bt_dcsn_cnt;		/* Accumulated decision bitmap counters once Ant grant */
+	uint16 bt_a2dp_hiwat_cnt;	/* Ant grant by a2dp high watermark */
+	uint16 bt_datadelay_cnt;	/* Ant grant by acl/a2dp datadelay */
+	uint16 bt_crtpri_cnt;		/* Ant grant by critical BT task */
+	uint16 bt_pri_cnt;		/* Ant grant by high BT task */
+	uint16 a2dpbuf1cnt;		/* Ant request with a2dp buffercnt 1 */
+	uint16 a2dpbuf2cnt;		/* Ant request with a2dp buffercnt 2 */
+	uint16 a2dpbuf3cnt;		/* Ant request with a2dp buffercnt 3 */
+	uint16 a2dpbuf4cnt;		/* Ant request with a2dp buffercnt 4 */
+	uint16 a2dpbuf5cnt;		/* Ant request with a2dp buffercnt 5 */
+	uint16 a2dpbuf6cnt;		/* Ant request with a2dp buffercnt 6 */
+	uint16 a2dpbuf7cnt;		/* Ant request with a2dp buffercnt 7 */
+	uint16 a2dpbuf8cnt;		/* Ant request with a2dp buffercnt 8 */
+	uint16 antgrant_lt10ms;		/* Ant grant duration cnt 0~10ms */
+	uint16 antgrant_lt30ms;		/* Ant grant duration cnt 10~30ms */
+	uint16 antgrant_lt60ms;		/* Ant grant duration cnt 30~60ms */
+	uint16 antgrant_ge60ms;		/* Ant grant duration cnt 60~ms */
+	uint16 wldurn_ge0ms;		/* WL duration count between 0-5ms */
+	uint16 wldurn_ge5ms;		/* WL duration count between 5-12ms */
+	uint16 wldurn_ge12ms;		/* WL duration count between 12-21ms */
+	uint16 wldurn_ge21ms;		/* WL duration count between 21-30ms */
+	uint16 wldurn_ge30ms;		/* WL duration count between 30-65ms */
+	uint16 wldurn_ge65ms;		/* WL Duration greater than 65ms */
+	uint16 nan_idle_cnt;		/* Nan Idle Slot Count */
+	uint16 nan_pre_dw_cnt;		/* Nan Pre Dw Slot Count */
+	uint16 nan_pre_data_cnt;	/* Nan Pre Data Slot Count */
+	uint16 nan_post_dw_cnt;		/* Nan Post Dw Slot Count */
+	uint16 nan_dw_cnt;		/* Nan Dw Slot Count */
+	uint16 nan_data_p1_cnt;		/* Nan P1 Data Slot Count */
+	uint16 nan_data_p2_cnt;		/* Nan P2 Data Slot Count */
+	uint16 nan_pri_deny_cnt;	/* Nan Priority Slot Denial Count */
+	uint16 PAD;			/* Padding */
+} wlc_btc_stats_v10_t;
+
 #define BTCX_STATS_VER_9 9
 typedef struct wlc_btc_stats_v9 {
 	uint16 version; /* version number of struct */
@@ -11441,6 +11453,8 @@ typedef struct wlc_btc_stats_v2 {
 
 #define TXCAL_MAX_PA_MODE		4	/* signed for assigning minus for undefined */
 
+#define ACPHY_OBSS_SUBBAND_CNT		8u	/* Max sub band counts i.e., 160Mhz = 8 * 20MHZ */
+
 typedef struct phy_ecounter_v1 {
 	chanspec_t	chanspec;
 	uint8		slice;
@@ -11479,6 +11493,24 @@ typedef struct phy_ecounter_log_core_v3 {
 	uint8	PAD1[2];
 } phy_ecounter_log_core_v3_t;
 
+typedef struct phy_ecounter_log_core_v4 {
+	uint16	bad_txbaseidx_cnt;	/* cntr for tx_baseidx=127 in healthcheck */
+	uint16	curr_tssival;		/* TxPwrCtrlInit_path[01].TSSIVal */
+	uint16	pwridx_init;		/* TxPwrCtrlInit_path[01].pwrIndex_init_path[01] */
+	uint16	auxphystats;		/* Indicates the PHY stats for aux slice */
+	uint16	phystatsgaininfo;	/* Indicates the gain stats */
+	uint16	flexgaininfo_A;		/* Indicates the gain settings */
+	uint8	crsmin_pwr_idx;		/* Index to the crsminpower threshold array */
+	uint8	baseindxval;		/* TPC Base index */
+	int8	crsmin_pwr;		/* Noise level for applied desense */
+	int8	noise_level_inst;	/* Instantaneous noise cal pwr */
+	int8	tgt_pwr;		/* Programmed Target power */
+	int8	estpwradj;		/* Current Est Power Adjust value */
+	int8	ed_threshold;		/* Energy detection threshold */
+	uint8	PAD1;
+	int8	obss_pwrest[ACPHY_OBSS_SUBBAND_CNT];	/* OBSS signal power per sub-band in dBm */
+} phy_ecounter_log_core_v4_t;
+
 /* For trunk ONLY */
 typedef struct phy_ecounter_log_core_v255 {
 	uint16	bad_txbaseidx_cnt;	/* cntr for tx_baseidx=127 in healthcheck */
@@ -11495,6 +11527,7 @@ typedef struct phy_ecounter_log_core_v255 {
 	int8	estpwradj;		/* Current Est Power Adjust value */
 	int8	ed_threshold;	/* Energy detection threshold */
 	uint8	PAD1;
+	int8	obss_pwrest[ACPHY_OBSS_SUBBAND_CNT];	/* OBSS signal power per sub-band in dBm */
 } phy_ecounter_log_core_v255_t;
 
 /* Do not remove phy_ecounter_v1_t parameters */
@@ -11583,8 +11616,6 @@ typedef struct phy_ecounter_v3 {
 	uint32		cca_stats_ed_duration;	/* ccastats: ed_duration */
 	phy_ecounter_log_core_v1_t phy_ecounter_core[2];
 } phy_ecounter_v3_t;
-
-#define ACPHY_OBSS_SUBBAND_CNT		8u	/* Max sub band counts i.e., 160Mhz = 8 * 20MHZ */
 
 /* Do not remove phy_ecounter_v1_t parameters */
 typedef struct phy_ecounter_v4 {
@@ -11691,21 +11722,19 @@ typedef struct phy_ecounter_v4 {
 	phy_ecounter_log_core_v3_t phy_ecounter_core[2];
 } phy_ecounter_v4_t;
 
-/* For trunk ONLY */
-/* Do not remove phy_ecounter_v1_t parameters */
-typedef struct phy_ecounter_v255 {
+typedef struct phy_ecounter_v5 {
 	chanspec_t	chanspec;
-	uint16		phy_wdg;	/* Count of times watchdog happened. */
-	uint16		noise_req;	/* Count of phy noise sample requests. */
-	uint16		noise_crsbit;	/* Count of CRS high during noisecal request. */
-	uint16		noise_apply;	/* Count of applying noisecal result to crsmin. */
-	uint16		cal_counter;	/* Count of performing single and multi phase cal. */
-	uint8		slice;		/* Slice # 0 - MAIN, 1 - AUX, 2 - SCAN */
+	uint16		phy_wdg;		/* Count of times watchdog happened */
+	uint16		noise_req;		/* Count of phy noise sample requests */
+	uint16		noise_crsbit;	/* Count of CRS high during noisecal request */
+	uint16		noise_apply;	/* Count of applying noisecal result to crsmin */
+	uint16		cal_counter;	/* Count of performing single and multi phase cal */
+	uint8		slice;			/* Slice # 0 - MAIN, 1 - AUX, 2 - SCAN */
 	uint8		rxchain;		/* Status of active RX chains */
 	uint8		txchain;		/* Status of active TX chains */
 	uint8		gbd_bphy_sleep_counter;	/* Sleep count for bphy GBD */
 	uint8		gbd_ofdm_sleep_counter;	/* Sleep count for ofdm GBD */
-	uint8		curr_home_channel;	/* Current home channel */
+	uint8		btc_mode;		/* btc mode */
 	uint8		gbd_ofdm_desense;	/* Glitch based desense level for ofdm reception */
 	uint8		gbd_bphy_desense;	/* Glitch based desense level for bphy reception */
 	int8		chiptemp;		/* Chip temperature */
@@ -11713,10 +11742,10 @@ typedef struct phy_ecounter_v255 {
 	int8		weakest_rssi;		/* Weakest link RSSI */
 	int8		ltecx_mode;		/* LTE coex desense mode */
 	int32		btcx_mode;		/* BT coex desense mode */
-	int8		debug_01;		/* multipurpose debug counter */
 	uint8		chan_switch_cnt;	/* Count to track channel change */
 	uint8		phycal_disable;		/* Status of phy calibration */
-	uint8		scca_txstall_precondition;	/* SmartCCA TX stall precondition */
+	int8		rxsense_noise_idx;	/* rxsense det thresh desense idx */
+	int8		rxsense_offset;		/* rxsense min power desense idx */
 	uint16		featureflag;		/* Currently active feature flags */
 	uint16		deaf_count;		/* Count for RX stay in carrier search state */
 	uint16		noise_mmt_overdue;	/* Noise measurement overdue status */
@@ -11783,17 +11812,123 @@ typedef struct phy_ecounter_v255 {
 	uint8		obss_need_updt;		/* BW update needed flag */
 	uint8		obss_mit_status;	/* obss mitigation status */
 	uint8		obss_last_rec_bw;	/* last recommended bw to wlc-Sent to SW */
-	uint8		btc_mode;		/* btc mode */
 	uint8		asym_intf_ant_noise_idx;		/* current noise storage index */
 	uint8		asym_intf_pending_host_req_type;	/* usb plugin request */
 	uint8		asym_intf_ncal_crs_stat_idx;		/* crs status storage index %d */
-	int8		rxsense_noise_idx;			/* rxsense det thresh desense idx */
-	int8		rxsense_offset;				/* rxsense min power desense idx */
 	int8		asym_intf_tx_smartcca_cm;		/* smartCCA tx coremask %d */
 	int8		asym_intf_rx_noise_mit_cm;		/* smartCCA rx coremask %d */
 	int8		asym_intf_avg_noise[2];			/* average noise %d */
 	int8		asym_intf_latest_noise[2];		/* current noise %d */
 	uint8		obss_curr_det[ACPHY_OBSS_SUBBAND_CNT];	/* obss curr detection */
+	uint8		debug_01;		/* padding */
+	uint8		debug_02;		/* padding */
+	uint8		debug_03;		/* padding */
+	phy_ecounter_log_core_v4_t phy_ecounter_core[2];
+} phy_ecounter_v5_t;
+
+/* For trunk ONLY */
+/* Do not remove phy_ecounter_v1_t parameters */
+typedef struct phy_ecounter_v255 {
+	chanspec_t	chanspec;
+	uint16		phy_wdg;		/* Count of times watchdog happened. */
+	uint16		noise_req;		/* Count of phy noise sample requests. */
+	uint16		noise_crsbit;	/* Count of CRS high during noisecal request. */
+	uint16		noise_apply;	/* Count of applying noisecal result to crsmin. */
+	uint16		cal_counter;	/* Count of performing single and multi phase cal. */
+	uint8		slice;			/* Slice # 0 - MAIN, 1 - AUX, 2 - SCAN */
+	uint8		rxchain;		/* Status of active RX chains */
+	uint8		txchain;		/* Status of active TX chains */
+	uint8		gbd_bphy_sleep_counter;	/* Sleep count for bphy GBD */
+	uint8		gbd_ofdm_sleep_counter;	/* Sleep count for ofdm GBD */
+	uint8		btc_mode;		/* btc mode */
+	uint8		gbd_ofdm_desense;	/* Glitch based desense level for ofdm reception */
+	uint8		gbd_bphy_desense;	/* Glitch based desense level for bphy reception */
+	int8		chiptemp;		/* Chip temperature */
+	int8		femtemp;		/* Fem temperature */
+	int8		weakest_rssi;		/* Weakest link RSSI */
+	int8		ltecx_mode;		/* LTE coex desense mode */
+	int32		btcx_mode;		/* BT coex desense mode */
+	uint8		chan_switch_cnt;	/* Count to track channel change */
+	uint8		phycal_disable;		/* Status of phy calibration */
+	int8		rxsense_noise_idx;	/* rxsense det thresh desense idx */
+	int8		rxsense_offset;		/* rxsense min power desense idx */
+	uint16		featureflag;		/* Currently active feature flags */
+	uint16		deaf_count;		/* Count for RX stay in carrier search state */
+	uint16		noise_mmt_overdue;	/* Noise measurement overdue status */
+	uint16		crsmin_pwr_apply_cnt;	/* Count for desense updates */
+	uint16		ed_crs_status;		/* Status of ED and CRS during noise cal */
+	uint16		preempt_status1;	/* status of preemption */
+	uint16		preempt_status2;	/* status of preemption */
+	uint16		preempt_status3;	/* status of preemption */
+	uint16		preempt_status4;	/* status of preemption */
+	uint16		counter_noise_iqest_to;	/* count of IQ_Est time out */
+	uint32		cca_stats_total_glitch;	/* ccastats: count of total glitches */
+	uint32		cca_stats_bphy_glitch;	/* ccastats: count of bphy glitches */
+	uint32		cca_stats_total_badplcp; /* ccastats: count of total badplcp */
+	uint32		cca_stats_bphy_badplcp;	/* ccastats: count of bphy badplcp */
+	uint32		cca_stats_mbsstime;	/* ccastats: monitor duration in msec */
+	uint32		cca_stats_ed_duration;	/* ccastats: ed_duration */
+	uint32		measurehold;		/* PHY hold activities */
+	uint32		rxsense_disable_req_ch;	/* channel disable requests */
+	uint32		ocl_disable_reqs;	/* OCL disable bitmap */
+	uint32		interference_mode;	/* interference mitigation mode */
+	uint32		power_mode;		/* power mode */
+	uint32		obss_last_read_time;	/* last stats read time */
+	int32		asym_intf_ed_thresh;	/* smartcca ed threshold %d */
+	uint16		obss_mit_bw;		/* selected mitigation BW */
+	uint16		obss_stats_cnt;		/* stats count */
+	uint16		dynbw_init_reducebw_cnt;	/* BW reduction cnt of initiator */
+	uint16		dynbw_resp_reducebw_cnt;	/* BW reduction cnt of responder */
+	uint16		dynbw_rxdata_reducebw_cnt;	/* rx data cnt with reduced BW */
+	uint16		obss_mmt_skip_cnt;	/* mmt skipped due to powersave */
+	uint16		obss_mmt_no_result_cnt;	/* mmt with no result */
+	uint16		obss_mmt_intr_err_cnt;	/* obss reg mismatch between ucode and fw */
+	uint16		gci_lst_inv_ctr;	/* last gci invalid */
+	uint16		gci_lst_rst_ctr;	/* last gci restore 0x%04x */
+	uint16		gci_lst_sem_ctr;	/* last gci seq number 0x%04x */
+	uint16		gci_lst_rb_st;		/* last gci status */
+	uint16		gci_dbg01;		/* gci dbg1 readback */
+	uint16		gci_dbg02;		/* gci dbg2 readback */
+	uint16		gci_dbg03;		/* gci dbg3 readback */
+	uint16		gci_dbg04;		/* gci dbg4 readback */
+	uint16		gci_dbg05;		/* gci dbg5 readback */
+	uint16		gci_lst_st_msk;		/* gci last status mask */
+	uint16		gci_inv_tx;		/* invalid gci during tx */
+	uint16		gci_inv_rx;		/* invalid gci during rx */
+	uint16		gci_rst_tx;		/* gci restore during tx */
+	uint16		gci_rst_rx;		/* gci restore during rx */
+	uint16		gci_sem_ctr;		/* gci seq number ctr */
+	uint16		gci_invstate;		/* gci status 0x%04x */
+	uint16		gci_ctl2;		/* gci ctrl 2 */
+	uint16		gci_chan;		/* channel during gci read 0x%04x */
+	uint16		gci_cm;			/* channel during gci read */
+	uint16		gci_sc;			/* gci read during scan */
+	uint16		gci_rst_sc;		/* gci restore during scan */
+	uint16		gci_prdc_rx;		/* periodic gci hc */
+	uint16		gci_wk_rx;		/* gci hc during wake */
+	uint16		gci_rmac_rx;		/* gci hc during mac read */
+	uint16		gci_tx_rx;		/* gci hc during tx/rx */
+	uint16		asym_intf_stats;	/* smartCCA status 0x%04x */
+	uint16		asym_intf_ncal_crs_stat;	/* noise cal and crs status %d */
+	int16		ed_crsEn;		/* ed enable 0x%04x */
+	int16		nvcfg0;			/* noise update to hw 0x%04x */
+	uint8		cal_suppressed_cntr_ed;	/* cnt including ss, mp cals, MSB is cur state */
+	uint8		sc_dccal_incc_cnt;	/* scan dccal counter */
+	uint8		sc_noisecal_incc_cnt;	/* scan noise cal counter */
+	uint8		obss_need_updt;		/* BW update needed flag */
+	uint8		obss_mit_status;	/* obss mitigation status */
+	uint8		obss_last_rec_bw;	/* last recommended bw to wlc-Sent to SW */
+	uint8		asym_intf_ant_noise_idx;		/* current noise storage index */
+	uint8		asym_intf_pending_host_req_type;	/* usb plugin request */
+	uint8		asym_intf_ncal_crs_stat_idx;		/* crs status storage index %d */
+	int8		asym_intf_tx_smartcca_cm;		/* smartCCA tx coremask %d */
+	int8		asym_intf_rx_noise_mit_cm;		/* smartCCA rx coremask %d */
+	int8		asym_intf_avg_noise[2];			/* average noise %d */
+	int8		asym_intf_latest_noise[2];		/* current noise %d */
+	uint8		obss_curr_det[ACPHY_OBSS_SUBBAND_CNT];	/* obss curr detection */
+	uint8		debug_01;		/* padding */
+	uint8		debug_02;		/* padding */
+	uint8		debug_03;		/* padding */
 	phy_ecounter_log_core_v255_t phy_ecounter_core[2];
 } phy_ecounter_v255_t;
 
@@ -12154,6 +12289,15 @@ typedef struct phy_ecounter_stats_v4 {
 	uint8			PAD[3];
 	phy_ecounter_v4_t	phy_counter[];
 } phy_ecounter_stats_v4_t;
+
+#define PHY_ECOUNTERS_STATS_VER5	5u
+typedef struct phy_ecounter_stats_v5 {
+	uint16			version;
+	uint16			length;
+	uint8			num_channel;	/* Number of active channels. */
+	uint8			PAD[3];
+	phy_ecounter_v5_t	phy_counter[];
+} phy_ecounter_stats_v5_t;
 
 /* For trunk ONLY */
 #define PHY_ECOUNTERS_STATS_VER255	255u
@@ -12863,9 +13007,10 @@ enum {
 	SPATIAL_MODE_MAX_IDX
 };
 
-#define WLC_TXCORE_MAX		4	/**< max number of txcore supports */
-#define WLC_TXCORE_MAX_OLD	2	/**< backward compatibilty for TXCAL */
-#define WLC_SUBBAND_MAX		4	/**< max number of sub-band supports */
+#define WLC_TXCORE_MAX			4	/**< max number of txcore supports */
+#define WLC_TXCORE_MAX_OLD		2	/**< backward compatibilty for TXCAL */
+#define WLC_TXCORE_MAX_GAINSWEEP_MEAS	2	/* 2 cores max for macos */
+#define WLC_SUBBAND_MAX			4	/**< max number of sub-band supports */
 typedef struct {
 	uint8	band2g[WLC_TXCORE_MAX];
 	uint8	band5g[WLC_SUBBAND_MAX][WLC_TXCORE_MAX];
@@ -12883,11 +13028,14 @@ typedef struct {
 #define TXCAL_IOVAR_VERSION_1		0x1u
 #define TXCAL_IOVAR_VERSION_2		0x2u
 #define TXCAL_IOVAR_VERSION_3		0x3u
+#define TXCAL_IOVAR_VERSION_4		0x4u  /* TXCAL_GAINSWEEP_MEAS_VER_V2 */
+#define TXCAL_IOVAR_VERSION_5		0x5u  /* TXCAL_GAINSWEEP_MEAS_VER_V2 no pa_modes */
 
 #define TXCAL_GAINSWEEP_VER		(TXCAL_GAINSWEEP_VERSION_V2)
 #define TXCAL_GAINSWEEP_VERSION_V2	2
 
 #define TXCAL_GAINSWEEP_MEAS_VER	0x1u
+#define TXCAL_GAINSWEEP_MEAS_VER_V2	0x2u
 
 /* Below macro will no longer be used.
  * Please specifiy the current supporting version in the 'txcal_ver' iovar.
@@ -13028,30 +13176,6 @@ typedef struct wl_olpc_anchor {
 	uint8		PAD[2];		/* explicit padding */
 } wl_olpc_anchor_t;
 
-typedef struct wl_rfem_temp_vdet_temp {
-	uint8	vdet_fem_t1;
-	int8	rfem_temp_t1;
-	uint8	vdet_fem_t2;
-	int8	rfem_temp_t2;
-} wl_rfem_temp_vdet_temp_t;
-
-typedef struct wl_rfem_temp_vin_tssi {
-	uint16	vin_chip_v1;
-	int16	tssi_chip_v1;
-	uint16	vin_chip_v2;
-	int16	tssi_chip_v2;
-} wl_rfem_temp_vin_tssi_t;
-
-typedef struct wl_txcal_tempsense {
-	uint16 version;
-	uint8 valid_cnt;
-	uint8 core;
-	int16 ref_temperature;
-	int16 meas_temperature;
-	wl_rfem_temp_vdet_temp_t vdet_temp;
-	wl_rfem_temp_vin_tssi_t vin_tssi;
-} wl_txcal_tempsense_t;
-
 /** IOVAR "mempool" parameter. Used to retrieve a list of memory pool statistics. */
 typedef struct wl_mempool_stats {
 	int32 num;		/**< Number of memory pools */
@@ -13089,6 +13213,22 @@ typedef struct lpc_params {
 	uint8		pwrup_fast_step; /**< Step size for fast step up */
 	uint8		pwrdn_slow_step; /**< Step size for slow step down */
 } lpc_params_t;
+
+#define WL_LPC_EPABYPASS_PARAMS_VER	1u
+typedef struct wl_lpc_epabypass_ioc_v1 {
+	uint16 version; /* structure version */
+	uint16 len;     /* structure length */
+	uint16 id;      /* ID of the sub-command */
+	uint8  data;
+	uint8  PAD;
+} wl_lpc_epabypass_ioc_t;
+
+/* EPABYPASS sub command IDs */
+enum {
+	IOV_LPC_EPABYPASS_CMD_ENABLE  = 0u,	/* enable/disable */
+	IOV_LPC_EPABYPASS_CMD_FORCED  = 1u,	/* forced epabypass */
+	IOV_LPC_EPABYPASS_CMD_MAXPWR  = 2u	/* maxpwr */
+};
 
 /* tx pkt delay statistics */
 #define	SCB_RETRY_SHORT_DEF	7	/**< Default Short retry Limit */
@@ -14517,6 +14657,8 @@ typedef enum wl_nan_tlv {
 	 * NAN pairing and bootstrapping in SDF Follow-ups and SDF Publish.
 	 */
 	WL_NAN_XTLV_CFG_NPBA_INFO	= NAN_CMD(WL_NAN_CMD_CFG_COMP_ID, 0x11),
+	/* multicast data slot bitmap config */
+	WL_NAN_XTLV_CFG_MCAST_AVAIL_BMP	= NAN_CMD(WL_NAN_CMD_CFG_COMP_ID, 0x12),
 
 	WL_NAN_XTLV_SD_SVC_INFO		= NAN_CMD(WL_NAN_CMD_SD_COMP_ID, 0x01),
 	WL_NAN_XTLV_SD_FOLLOWUP		= NAN_CMD(WL_NAN_CMD_SD_COMP_ID, 0x02),
@@ -14677,7 +14819,8 @@ enum wl_nan_sub_cmd_xtlv_id {
 	WL_NAN_CMD_CFG_REKEY = NAN_CMD(WL_NAN_CMD_CFG_COMP_ID, 0x1F), /* REKEY */
 	WL_NAN_CMD_CFG_INSTANT_CHAN = NAN_CMD(WL_NAN_CMD_CFG_COMP_ID, 0x20),
 	WL_NAN_CMD_CFG_TSF = NAN_CMD(WL_NAN_CMD_CFG_COMP_ID, 0x21),
-	WL_NAN_CMD_CFG_MAX = WL_NAN_CMD_CFG_TSF,
+	WL_NAN_CMD_CFG_MCAST_AVAIL = NAN_CMD(WL_NAN_CMD_CFG_COMP_ID, 0x22),
+	WL_NAN_CMD_CFG_MAX = WL_NAN_CMD_CFG_MCAST_AVAIL,
 
 	/* Add new commands before and update */
 
@@ -14828,6 +14971,7 @@ typedef enum wl_nan_stats_tlv {
 	WL_NAN_XTLV_GEN_PEER_REKEY_STATS	= NAN_CMD(WL_NAN_CMD_GENERIC_COMP_ID, 0x0C),
 	WL_NAN_XTLV_GEN_PEER_GTK_STATS		= NAN_CMD(WL_NAN_CMD_GENERIC_COMP_ID, 0x0D),
 	WL_NAN_XTLV_GEN_PEER_PAIRING_STATS	= NAN_CMD(WL_NAN_CMD_GENERIC_COMP_ID, 0x0E),
+	WL_NAN_XTLV_GEN_PEER_KA_OOB_AF_STAT	= NAN_CMD(WL_NAN_CMD_GENERIC_COMP_ID, 0x0F),
 
 	WL_NAN_XTLV_DAM_STATS			= NAN_CMD(WL_NAN_CMD_DAM_COMP_ID, 0x01),
 	WL_NAN_XTLV_DAM_AVAIL_STATS		= NAN_CMD(WL_NAN_CMD_DAM_COMP_ID, 0x02),
@@ -15128,6 +15272,14 @@ typedef struct wl_nan_peer_stats_sched {
 	uint16 num_slot;
 	wl_nan_stats_sched_slot_t slot[];
 } wl_nan_peer_stats_sched_t;
+
+/* WL_NAN_XTLV_GEN_PEER_KA_OOB_AF_STAT */
+typedef struct nan_peer_oob_af_stat {
+	uint32 tx_ok;
+	uint32 rx_ok;
+	uint32 tx_fail;
+	uint32 rx_timeout;
+} nan_peer_oob_af_stat_t;
 
 /* WL_NAN_XTLV_RANGE_STATS  */
 typedef struct wl_nan_range_stats {
@@ -16829,7 +16981,9 @@ enum wl_nan_fw_cap_flag1 {
 	WL_NAN_FW_CAP_FLAG1_REKEY		= 0x01000000,
 	WL_NAN_FW_CAP_FLAG1_S3			= 0x02000000,
 	WL_NAN_FW_CAP_FLAG1_PAIRING		= 0x04000000,
-	WL_NAN_FW_CAP_FLAG1_6G			= 0x08000000
+	WL_NAN_FW_CAP_FLAG1_6G			= 0x08000000,
+	WL_NAN_FW_CAP_FLAG1_MCAST_AVAIL_BMP	= 0x10000000,
+	WL_NAN_FW_CAP_FLAG1_WOW_OFFLOAD		= 0x20000000
 };
 
 /* WL_NAN_XTLV_GEN_FW_CAP */
@@ -17129,6 +17283,27 @@ typedef struct wl_nan_ndl_sched_info {
 	uint16	  period;
 	wl_nan_ndl_slot_info_t	  slot[];
 } wl_nan_ndl_sched_info_t;
+
+/*
+ * NAN multicast data slot bitmap config
+ * WL_NAN_XTLV_CFG_MCAST_AVAIL_BMP
+ */
+typedef struct wl_nan_mcast_avail_bmp_s {
+	uint8 mapid;
+	uint8 bitmap_len;
+	uint8 PAD[2];
+	uint8 bitmap[BCM_FLEX_ARRAY];
+} wl_nan_mcast_avail_bmp_t;
+#define WL_NAN_MCAST_AVAIL_BMP_LEN_FIXED  (OFFSETOF(wl_nan_mcast_avail_bmp_t, bitmap))
+#define WL_NAN_MCAST_AVAIL_BMP_LEN_MAX    (WL_NAN_MCAST_AVAIL_BMP_LEN_FIXED + 8u) /* 1024/16TU */
+
+typedef struct wl_nan_mcast_avail_s {
+	struct ether_addr ndi;
+	uint8 PAD[2];
+	wl_nan_mcast_avail_bmp_t bmp[];
+} wl_nan_mcast_avail_t;
+#define WL_NAN_MCAST_AVAIL_LEN_FIXED	(OFFSETOF(wl_nan_mcast_avail_t, bmp))
+#define WL_NAN_MCAST_AVAIL_LEN_MAX	(WL_NAN_MCAST_AVAIL_LEN_FIXED + 64u) /* arbitrary */
 
 /* ********************* end of NAN section ******************************** */
 /* endif WL_NAN */
@@ -18629,7 +18804,29 @@ typedef enum wl_gpaio_option {
 	GPAIO_RX_TIA_FINAL_CM_V2,
 	GPAIO_PA5G_GM_BIAS_V,
 	GPAIO_PA5G_GM_DRAIN_V,
-	GPAIO_PA5G_CAS_BIAS_V
+	GPAIO_PA5G_CAS_BIAS_V,
+	GPAIO_PMU_LOGENLDO1,
+	GPAIO_PMU_RX5G_RF_LDO,
+	GPAIO_PMU_LPF_LDO,
+	GPAIO_VCO_LDO_TX,
+	GPAIO_VCO_LDO_RX,
+	GPAIO_RX_PD_LDO,
+	GPAIO_RX_MMD_LDO,
+	GPAIO_DTX_DIG_LDO,
+	GPAIO_DTX_RF_LDO,
+	GPAIO_RX_LDO_LOGIC,
+	GPAIO_RX_LDO_BB,
+	GPAIO_PMU_PLL_VCO_LDO,
+	GPAIO_PMU_PLL_RO_LDO,
+	GPAIO_PMU_BTVCO_LDO,
+	GPAIO_PMU_BTPLL_LDO,
+	GPAIO_PMU_PLLMMD_LDO,
+	GPAIO_PMU_BBLDO,
+	GPAIO_PMU_IF_LDO,
+	GPAIO_AFEDIV_LDO_OUT,
+	GPAIO_WBADC_REF_LDO_OUT,
+	GPAIO_DTX_RF_LDO_BYPASS,
+	RETRIGGER_MINIPMUCAL
 } wl_gpaio_option_t;
 
 /** IO Var Operations - the Value of iov_op In wlc_ap_doiovar */
@@ -19755,6 +19952,21 @@ typedef enum {
 	WL_PROXD_TLV_ID_RI_RR			= 36,	/* RI_RR */
 	WL_PROXD_TLV_ID_TUNE			= 37,	/* wl_proxd_pararms_tof_tune_t */
 	WL_PROXD_TLV_ID_CUR_ETHER_ADDR		= 38,	/* Source Address used for Tx */
+	WL_PROXD_TLV_ID_RESERVED_ID39		= 39,	/* ftm component only */
+	WL_PROXD_TLV_ID_RESERVED_ID40		= 40,	/* ftm component only */
+	WL_PROXD_TLV_ID_RESERVED_ID41		= 41,	/* ftm component only */
+	WL_PROXD_TLV_ID_RESERVED_ID42		= 42,	/* ftm component only */
+	WL_PROXD_TLV_ID_RESERVED_ID43		= 43,	/* ftm component only */
+	WL_PROXD_TLV_ID_RESERVED_ID44		= 44,	/* ftm component only */
+	WL_PROXD_TLV_ID_RESERVED_ID45		= 45,	/* ftm component only */
+	WL_PROXD_TLV_ID_RESERVED_ID46		= 46,	/* ftm component only */
+	WL_PROXD_TLV_ID_RESERVED_ID47		= 47,	/* ftm component only */
+	WL_PROXD_TLV_ID_RESERVED_ID48		= 48,	/* ftm component only */
+	WL_PROXD_TLV_ID_RESERVED_ID49		= 49,	/* ftm component only */
+	WL_PROXD_TLV_ID_RESERVED_ID50		= 50,	/* ftm component only */
+	WL_PROXD_TLV_ID_RESERVED_ID51		= 51,	/* ftm component only */
+	WL_PROXD_TLV_ID_RESERVED_ID52		= 52,	/* ftm component only */
+	WL_PROXD_TLV_ID_RESERVED_ID53		= 53,	/* ftm component only */
 
 	/* output - 512 + x */
 	WL_PROXD_TLV_ID_STATUS			= 512,
@@ -19771,6 +19983,7 @@ typedef enum {
 	WL_PROXD_TLV_ID_RESERVED_ID523		= 523,	/* ftm component only */
 	WL_PROXD_TLV_ID_RESERVED_ID524		= 524,	/* ftm component only */
 	WL_PROXD_TLV_ID_RESERVED_ID525		= 525,	/* ftm component only */
+	WL_PROXD_TLV_ID_RESERVED_ID526		= 526,	/* ftm component only */
 
 	/* debug tlvs can be added starting 1024 */
 	WL_PROXD_TLV_ID_DEBUG_MASK		= 1024,
@@ -21064,6 +21277,7 @@ enum {
 #define DYNSAR_CNT_VERSION_V1	1u
 #define DYNSAR_CNT_VERSION_V2	2u
 #define DYNSAR_CNT_VERSION_V3	3u
+#define DYNSAR_CNT_VERSION_V4	4u
 #define DYNSAR_STS_OBS_WIN	20u
 #define DYNSAR_MAX_ANT		WL_STA_ANT_MAX
 #define DYNSAR_MAX_AGG_IDX (DYNSAR_MAX_ANT << 1u) /* max antenna aggregation index */
@@ -21118,6 +21332,15 @@ typedef struct wlc_dynsar_sts_mon_ctr_v2_st {
 	uint16 pad;
 } wlc_dynsar_sts_mon_ctr_v2_t;
 
+/* DSA v2 support */
+typedef struct wlc_dynsar_sts_mon_ctr_v3 {
+	uint32 tx_dur;          /* in usec */
+	uint16 util;            /* 10 x Tmon utilization */
+	uint16 util_hist;       /* 10 x Twin utilization */
+	uint16 util_pred;       /* 10 x Twin utilization forecast after budget num sec */
+	uint16 pad;
+} wlc_dynsar_sts_mon_ctr_v3_t;
+
 typedef struct wlc_dynsar_sts_obs_win {
 	uint8 opt;
 	uint8 valid;
@@ -21144,6 +21367,17 @@ typedef struct dynsar_agg_stat {
 			*/
 } dynsar_agg_stat_t;
 
+/* Common header for the detailed stats IOVAR */
+typedef struct dynsar_cnt_head {
+	uint16 ver;
+	uint16 len;     /* length of this structure */
+	uint8  num_ant; /* num_antennas */
+	uint8  win;     /* number of valid entries in the observe window */
+	uint8  slice;
+	uint8  PAD;
+	uint64 sync_ts; /* time of first mon period collection after last sync */
+} dynsar_cnt_head_t;
+
 /* structure holding dynsar per slice counters that interface to iovar */
 typedef struct dynsar_cnt_v1 {
 	uint16 ver;
@@ -21166,9 +21400,22 @@ typedef struct dynsar_cnt_v2 {
 	uint8  slice;
 	uint8  PAD;
 	uint64 sync_ts; /* time of first mon period collection after last sync */
-	wlc_dynsar_sts_obs_win_t obs[DYNSAR_STS_OBS_WIN];
+	wlc_dynsar_sts_obs_win_t    obs[DYNSAR_STS_OBS_WIN];
 	wlc_dynsar_sts_mon_ctr_v2_t mon_ctr[DYNSAR_STS_OBS_WIN][DYNSAR_MAX_ANT];
 } dynsar_cnt_v2_t;
+
+/* structure holding dynsar per slice counters that interface to iovar */
+typedef struct dynsar_cnt_v3 {
+	uint16 ver;
+	uint16 len;     /* length of this structure */
+	uint8  num_ant; /* num_antennas */
+	uint8  win;     /* number of valid entries in the observe window */
+	uint8  slice;
+	uint8  PAD;
+	uint64 sync_ts; /* time of first mon period collection after last sync */
+	wlc_dynsar_sts_obs_win_t    obs[DYNSAR_STS_OBS_WIN];
+	wlc_dynsar_sts_mon_ctr_v3_t mon_ctr[DYNSAR_STS_OBS_WIN][DYNSAR_MAX_ANT];
+} dynsar_cnt_v3_t;
 
 typedef struct dynsar_shared_ant_stats {
 	uint32 tx_dur;		/* tx duration */
@@ -21181,6 +21428,13 @@ typedef struct dynsar_unshared_ant_stats {
 	uint32 energy;	/* mw * ms */
 	uint32 tx_dur;	/* tx duration */
 } dynsar_unshared_ant_stats_t;
+
+typedef struct dynsar_ant_stats {
+	uint32 tx_dur;		/* tx duration     */
+	uint16 sar_util;	/* sar utilization */
+	uint8  valid;		/* valid record    */
+	uint8  PAD;		/* pad */
+} dynsar_ant_stats_t;
 
 typedef struct dynsar_sum_v1 {
 	uint16 ver;
@@ -21213,17 +21467,22 @@ typedef struct dynsar_sum_v2 {
 	uint32 dur;      /* duration in us */
 	uint64 ts;       /* time stamp of report in us */
 	uint64 sync_ts;  /* time of first mon period collection after last sync */
-	uint8  num_ant; /* max number of antennas between 2 slices */
+	uint8  num_ant;  /* max number of antennas between 2 slices */
 	uint8  opt;
 	uint8  sync;
-	uint8  max_mac; /* number of slices */
-	uint8  num_agg; /* number of aggregated antennas */
-	uint8  offset_shared; /* offset from beginning of structure to shared antenna data */
-	uint8  offset_unshared; /* offset from beginning of structure to unshared antenna data */
+	uint8  max_mac;  /* number of slices */
+	uint8  num_agg;  /* number of aggregated antennas */
+	uint8  offset_shared;   /* offset from beginning of structure to physical antenna data */
+	uint8  offset_unshared; /* offset from beginning of structure to aggregated antenna data */
 	uint8  PAD;
 	/* Variable length data sections follow as per above offsets:
+	* DYNSAR_CNT_VERSION_V2:
 	* dynsar_unshared_ant_stats_t [max_mac][num_ant]
 	* dynsar_shared_ant_stats_t [num_agg]
+	*
+	* DYNSAR_CNT_VERSION_V4:
+	* dynsar_ant_stats_t [max_mac][num_ant] // Per Physical antenna
+	* dynsar_ant_stats_t [num_agg]		// Per Aggregated antenna
 	*/
 } dynsar_sum_v2_t;
 
@@ -21385,6 +21644,7 @@ typedef struct wl_dynsar_ioc {
 		uint8 cnt;
 		dynsar_cnt_v1_t det;
 		dynsar_cnt_v2_t detv2;
+		dynsar_cnt_v3_t detv3;
 		dynsar_agg_stat_t agg_stat;
 		dynsar_sum_v1_t sum;
 		dynsar_sum_v2_t sumv2;
@@ -23359,6 +23619,7 @@ typedef struct wl_utrace_capture_args_v2 {
 #define WLC_REGVAL_DUMP_PHYREG 0
 #define WLC_REGVAL_DUMP_RADREG 1
 #define WLC_REGVAL_DUMP_RFEMREG 2
+#define WLC_REGVAL_DUMP_SRCBREG 3
 
 #define PHYREGVAL_CAPTURE_BUFFER_LEN 2048
 
@@ -23406,6 +23667,7 @@ enum {
 	WL_HC_RX_XTLV_ID_VAL_STALL_FORCE       = 5,     /* stall test trigger */
 	WL_HC_RX_XTLV_ID_VAL_STALL_UC_DECRYPT_FAIL = 6,  /* trigger uc decrypt failures */
 	WL_HC_RX_XTLV_ID_VAL_STALL_BCMC_DECRYPT_FAIL = 7, /* trigger bcmc decrypt failures */
+	WL_HC_RX_XTLV_ID_VAL_STALL_NOUDATA_TO_RXRTS = 8, /* No data to RX CTS TX CTS */
 };
 
 /* Health Check: Datapath SCAN IDs */
@@ -23446,6 +23708,7 @@ typedef enum wl_hc_dd_type {
 
 	WL_HC_DD_SBSS		=10,	/* Slotted bss health check */
 	WL_HC_DD_NAN		=11,	/* NAN health check */
+	WL_HC_DD_CHSW		=12,	/* Channel Switch health check */
 	WL_HC_DD_MAX
 } wl_hc_dd_type_t;
 
@@ -23459,6 +23722,8 @@ typedef enum bcm_rx_hc_stall_reason {
 	BCM_RX_HC_BCMC_REPLAY		= 5,	/* BCMC replay */
 	BCM_RX_HC_AMPDU_DUP		= 6,	/* AMPDU DUP */
 	BCM_RX_HC_BCMC_KEYIDMATCH_FAIL	= 7,	/* BCMC decrypt fail due to key index mismatch */
+	/* Stall because no unicast data frames for RX RTS TX CTS transaction */
+	BCM_RX_HC_NOUDATA_RXRTS_TXCTS = 8,
 	BCM_RX_HC_MAX
 } bcm_rx_hc_stall_reason_t;
 
@@ -23545,6 +23810,23 @@ enum {
 	WL_HE_MUEDCA_SHM	= 1,
 	WL_HE_MUEDCA_LAST
 };
+
+typedef enum _opmode_cap_t {
+	OMC_NONE = 0,	/* no requirements for STA to associate to BSS */
+	OMC_ERP = 1,	/* STA must advertise ERP (11g) capabilities
+					 * to be allowed to associate to 2G band BSS.
+					 */
+	OMC_HT = 2,		/* STA must advertise HT (11n) capabilities to
+					 * be allowed to associate to the BSS.
+					 */
+	OMC_VHT = 3,	/* Devices must advertise VHT (11ac) capabilities
+					 * to be allowed to associate to the BSS.
+					 */
+	OMC_HE = 4,		/* Devices must advertise HE (11ax) capabilities
+					 * to be allowed to associate to the BSS.
+					 */
+	OMC_MAX
+} opmode_cap_t;
 
 #ifdef WL11AX
 
@@ -24118,6 +24400,7 @@ enum {
 	WL_EHT_CMD_NUMLTF	= 4u,	/* configure EHT Number of LTFs */
 	WL_EHT_CMD_NONHT_PUNC_PATT	= 5u,	/* configure nonHT puncture pattern */
 	WL_EHT_CMD_PUNC_PAT	= 6u,	/* configure per BSS puncture pattern */
+	WL_EHT_CMD_TESTBED_MODE	= 7u,	/* EHT Testbed STA Configuration */
 
 	/* Add new sub command IDs here... */
 
@@ -24127,19 +24410,22 @@ enum {
 
 /* MLO sub command IDs */
 enum {
-	WL_MLO_CMD_ENAB		= 0u,	/* enable/disable MLO feature as a whole */
-	WL_MLO_CMD_CONFIG	= 1u,	/* configure MLO feature - bsscfg specific */
-	WL_MLO_CMD_STATUS	= 2u,	/* status on MLO feature - interface specific */
-	WL_MLO_CMD_EMLSR_CTRL	= 3u,	/* emlsr control - interface specific */
-	WL_MLO_CMD_TID_MAP	= 4u,	/* configure TID-To-Link Mapping */
-	WL_MLO_CMD_CAP		= 5u,	/* capability of MLO feature as a whole */
+	WL_MLO_CMD_ENAB			= 0u,	/* enable/disable MLO feature as a whole */
+	WL_MLO_CMD_CONFIG		= 1u,	/* configure MLO feature - bsscfg specific */
+	WL_MLO_CMD_STATUS		= 2u,	/* status on MLO feature - interface specific */
+	WL_MLO_CMD_EMLSR_CTRL		= 3u,	/* emlsr control - interface specific */
+	WL_MLO_CMD_TID_MAP		= 4u,	/* configure TID-To-Link Mapping */
+	WL_MLO_CMD_CAP			= 5u,	/* capability of MLO feature as a whole */
+	WL_MLO_CMD_ACT_LINK_BMAP	= 6u,	/* Set active link for MLO TX and RX */
+	WL_MLO_CMD_MULTILINK_ACTIVE	= 7u,	/* Set use of multi links in MLO mode */
+	WL_MLO_CMD_LINK_PS_BMAP		= 8u,	/* Modify PS state of a particular link in MLO. */
 	/* Add new sub command IDs here... */
 
 	/* debug/test related sub-commands, mogrify? */
-	WL_MLO_CMD_MLD_PRB	= 0x1000u,	/* send a mld probe request frame */
-	WL_MLO_CMD_TID_MAP_NEG	= 0x1001u,	/* start a TID-to-Link Mapping negotiation */
-	WL_MLO_CMD_MLD_AP_OP	= 0x1002u,	/* add/remove MLD AP(s) to/from MLD */
-	WL_MLO_CMD_MLOSIM	= 0x2000u,	/* to set mlo simulation option */
+	WL_MLO_CMD_MLD_PRB		= 0x1000u,	/* send a mld probe request frame */
+	WL_MLO_CMD_TID_MAP_NEG		= 0x1001u,	/* start a TID2Link Mapping negotiation */
+	WL_MLO_CMD_MLD_AP_OP		= 0x1002u,	/* add/remove MLD AP(s) to/from MLD */
+	WL_MLO_CMD_MLOSIM		= 0x2000u,	/* to set mlo simulation option */
 };
 
 /* MLO config Flags definition */
@@ -24147,6 +24433,7 @@ enum {
 #define WL_MLO_USE_FW_GEN_MLDADDR	(1u << 1u) /* fw generates the mld address */
 #define WL_MLO_UPDATE_CHANNELS		(1u << 2u) /* channels are present in the config req */
 #define WL_MLO_LINK_INTERFACES		(1u << 3u) /* link existing interfaces as mlo links */
+#define WL_MLO_MLSR_MODE_ENAB		(1u << 4u) /* Enable MLSR mode */
 
 typedef struct wl_mlo_link_config_v1 {
 	struct ether_addr link_addr;	/* Link specific address */
@@ -24359,19 +24646,74 @@ typedef struct wl_mlo_tid_map_v2 {
 	wl_mlo_link_tid_map_v1_t link_tid_map[];	/* TID map per link */
 } wl_mlo_tid_map_v2_t;
 
+#define WL_MLO_TID_MAP_VER_3	(3u)
+
+typedef struct wl_mlo_tid_map_v3 {
+	uint16	version;
+	uint16	length;
+	uint16	control;
+	/* Control bitmap definition:
+	 * bit 0: default mapping (0/1)
+	 * - when set wl_mlo_link_tid_map_v1_t is not incliuded
+	 * bits 1-2: direction (0-DL, 1-UL, 2-BOTH)
+	 * bits 3-5: number of links (0-7)
+	 * bit 6: negotiate(d) TID-to-link mapping
+	 * bit 7: advertise(d) TID-to-link mapping
+	 * - when set wl_mlo_tid_map_adv_v1_t is included after the control field
+	 * bit 8:
+	 * set - negotiate preferred mapping if indicated by the AP
+	 * get - negotiated mapping is AP's preferred
+	 * bit 9: configure TID-to-link mapping (0/1)
+	 * - when set wl_mlo_tid_map_cfg_v1_t is included after the control field
+	 */
+	uint8	status;	/* status of the TID-to-link mapping (wl_mlo_tid_map_sts) */
+	uint8	pad[1];
+	/* optional params based on the control flags */
+	uint8	params[];
+	/* wl_mlo_tid_map_adv_v1_t	Advertised TID-to-link mapping params */
+	/* wl_mlo_tid_map_cfg_v1_t	TID-to-link mapping config */
+	/* wl_mlo_link_tid_map_v1_t	TID map per link[] */
+} wl_mlo_tid_map_v3_t;
+
+/* TID-to-link mapping status */
+enum wl_mlo_tid_map_sts {
+	WL_MLO_TID_MAP_STS_IDLE	= 0,
+	WL_MLO_TID_MAP_STS_EST	= 1,
+	WL_MLO_TID_MAP_STS_FAIL	= 2,
+	WL_MLO_TID_MAP_STS_PREF	= 3,
+	WL_MLO_TID_MAP_STS_DENY	= 4
+};
+
 /* MLO tid_map control definitions */
-#define WL_MLO_TID_MAP_DIR_MASK		(0x03u)
-#define WL_MLO_TID_MAP_LINK_NUM_MASK	(0x0Cu)
-#define WL_MLO_TID_MAP_NEG_MASK		(0x10u)
-#define WL_MLO_TID_MAP_LINK_NUM_SHIFT	(2u)
-#define WL_MLO_TID_MAP_NEG_SHIFT	(4u)
+#define WL_MLO_TID_MAP_DEF_MASK			(0x1u)
+#define WL_MLO_TID_MAP_DEF_SHIFT		(0u)
+#define WL_MLO_TID_MAP_DIR_MASK			(0x06u)
+#define WL_MLO_TID_MAP_DIR_SHIFT		(1u)
+#define WL_MLO_TID_MAP_LINK_NUM_MASK		(0x38u)
+#define WL_MLO_TID_MAP_LINK_NUM_SHIFT		(3u)
+#define WL_MLO_TID_MAP_NEG_MASK			(0x40u)
+#define WL_MLO_TID_MAP_NEG_SHIFT		(6u)
+#define WL_MLO_TID_MAP_ADV_MASK			(0x80u)
+#define WL_MLO_TID_MAP_ADV_SHIFT		(7u)
+#define WL_MLO_TID_MAP_NEG_PREF_MASK		(0x100u)
+#define WL_MLO_TID_MAP_NEG_PREF_SHIFT		(8u)
+#define WL_MLO_TID_MAP_CFG_MASK			(0x200u)
+#define WL_MLO_TID_MAP_CFG_SHIFT		(9u)
+
+#define WL_MLO_TID_MAP_DEF_GET(tidmap) \
+	((tidmap)->control & WL_MLO_TID_MAP_DEF_MASK)
+
+#define WL_MLO_TID_MAP_DEF_SET(tidmap, val) \
+	((tidmap)->control = ((tidmap)->control & ~WL_MLO_TID_MAP_DEF_MASK) | \
+		((val) << WL_MLO_TID_MAP_DEF_SHIFT))
 
 #define WL_MLO_TID_MAP_DIR_GET(tidmap) \
-	((tidmap)->control & WL_MLO_TID_MAP_DIR_MASK)
+	(((tidmap)->control & WL_MLO_TID_MAP_DIR_MASK) >> \
+		WL_MLO_TID_MAP_DIR_SHIFT)
 
 #define WL_MLO_TID_MAP_DIR_SET(tidmap, val) \
 	((tidmap)->control = ((tidmap)->control & ~WL_MLO_TID_MAP_DIR_MASK) | \
-		(val))
+		((val) << WL_MLO_TID_MAP_DIR_SHIFT))
 
 #define WL_MLO_TID_MAP_LINK_NUM_GET(tidmap) \
 	(((tidmap)->control & WL_MLO_TID_MAP_LINK_NUM_MASK) >> \
@@ -24379,7 +24721,7 @@ typedef struct wl_mlo_tid_map_v2 {
 
 #define WL_MLO_TID_MAP_LINK_NUM_SET(tidmap, val) \
 	((tidmap)->control = ((tidmap)->control & ~WL_MLO_TID_MAP_LINK_NUM_MASK) | \
-		(val << WL_MLO_TID_MAP_LINK_NUM_SHIFT))
+		((val) << WL_MLO_TID_MAP_LINK_NUM_SHIFT))
 
 #define WL_MLO_TID_MAP_NEG_GET(tidmap) \
 	(((tidmap)->control & WL_MLO_TID_MAP_NEG_MASK) >> \
@@ -24387,17 +24729,83 @@ typedef struct wl_mlo_tid_map_v2 {
 
 #define WL_MLO_TID_MAP_NEG_SET(tidmap, val) \
 	((tidmap)->control = ((tidmap)->control & ~WL_MLO_TID_MAP_NEG_MASK) | \
-		(val << WL_MLO_TID_MAP_NEG_SHIFT))
+		((val) << WL_MLO_TID_MAP_NEG_SHIFT))
+
+#define WL_MLO_TID_MAP_ADV_GET(tidmap) \
+	(((tidmap)->control & WL_MLO_TID_MAP_ADV_MASK) >> \
+		WL_MLO_TID_MAP_ADV_SHIFT)
+
+#define WL_MLO_TID_MAP_ADV_SET(tidmap, val) \
+	((tidmap)->control = ((tidmap)->control & ~WL_MLO_TID_MAP_ADV_MASK) | \
+		((val) << WL_MLO_TID_MAP_ADV_SHIFT))
+
+#define WL_MLO_TID_MAP_NEG_PREF_GET(tidmap) \
+	(((tidmap)->control & WL_MLO_TID_MAP_NEG_PREF_MASK) >> \
+		WL_MLO_TID_MAP_NEG_PREF_SHIFT)
+
+#define WL_MLO_TID_MAP_NEG_PREF_SET(tidmap, val) \
+	((tidmap)->control = ((tidmap)->control & ~WL_MLO_TID_MAP_NEG_PREF_MASK) | \
+		((val) << WL_MLO_TID_MAP_NEG_PREF_SHIFT))
+
+#define WL_MLO_TID_MAP_CFG_GET(tidmap) \
+	(((tidmap)->control & WL_MLO_TID_MAP_CFG_MASK) >> \
+		WL_MLO_TID_MAP_CFG_SHIFT)
+
+#define WL_MLO_TID_MAP_CFG_SET(tidmap, val) \
+	((tidmap)->control = ((tidmap)->control & ~WL_MLO_TID_MAP_CFG_MASK) | \
+		((val) << WL_MLO_TID_MAP_CFG_SHIFT))
+
+/* TID-to-link mapping configuration */
+typedef struct wl_mlo_tid_map_cfg_v1 {
+	uint32	flags;	/* configuration flags */
+} wl_mlo_tid_map_cfg_v1_t;
+
+/* TID-To-Link Mapping Negotiation Supported */
+#define WL_MLO_TID_MAP_CFG_NEG_SUPPORT_MASK		(0x03u)
+
+#define WL_MLO_TID_MAP_CFG_NEG_SUPPORT_GET(tidmapcfg) \
+	((tidmapcfg)->flags & WL_MLO_TID_MAP_CFG_NEG_SUPPORT_MASK)
+
+#define WL_MLO_TID_MAP_CFG_NEG_SUPPORT_SET(tidmapcfg, val) \
+	((tidmapcfg)->flags = ((tidmapcfg)->flags & ~WL_MLO_TID_MAP_CFG_NEG_SUPPORT_MASK) | \
+		(val))
+
+typedef struct wl_mlo_tid_map_adv_v1 {
+	uint16	bcn_cnt;	/* num of beacons until TID-to-link mapping establishment  */
+	uint8	pad[2];
+	uint32	duration;	/* duration in ms the established mapping will be effective */
+} wl_mlo_tid_map_adv_v1_t;
+
+#define WL_MLO_TID_MAP_SIZE_V3(tidmap) \
+	(OFFSETOF(wl_mlo_tid_map_v3_t, params) + \
+	(WL_MLO_TID_MAP_ADV_GET(tidmap) ? sizeof(wl_mlo_tid_map_adv_v1_t) : 0u) + \
+	(WL_MLO_TID_MAP_CFG_GET(tidmap) ? sizeof(wl_mlo_tid_map_cfg_v1_t) : 0u) + \
+	(sizeof(wl_mlo_link_tid_map_v1_t) * WL_MLO_TID_MAP_LINK_NUM_GET(tidmap)))
+
+#define WL_MLO_TID_MAP_ADV_OFFSET_V3(tidmap) \
+	(OFFSETOF(wl_mlo_tid_map_v3_t, params))
+
+#define WL_MLO_TID_MAP_CFG_OFFSET_V3(tidmap) \
+	(OFFSETOF(wl_mlo_tid_map_v3_t, params) + \
+	(WL_MLO_TID_MAP_ADV_GET(tidmap) ? sizeof(wl_mlo_tid_map_adv_v1_t) : 0u))
+
+#define WL_MLO_LINK_TID_MAP_OFFSET_V3(tidmap) \
+	(OFFSETOF(wl_mlo_tid_map_v3_t, params) + \
+	(WL_MLO_TID_MAP_ADV_GET(tidmap) ? sizeof(wl_mlo_tid_map_adv_v1_t) : 0u) + \
+	(WL_MLO_TID_MAP_CFG_GET(tidmap) ? sizeof(wl_mlo_tid_map_cfg_v1_t) : 0u))
 
 /* MLO emlsr ctrl shift definition */
-#define WL_MLO_EMLSR_CTRL_FLAGS_MURTS_EN_SHIFT	(0u)
-#define WL_MLO_EMLSR_CTRL_FLAGS_SWITCH_EN_SHIFT	(1u)
-#define WL_MLO_EMLSR_CTRL_FLAGS_GPIO_CFG_SHIFT	(2u)
+#define WL_MLO_EMLSR_CTRL_FLAGS_MURTS_EN_SHIFT		(0u)
+#define WL_MLO_EMLSR_CTRL_FLAGS_SWITCH_EN_SHIFT		(1u)
+#define WL_MLO_EMLSR_CTRL_FLAGS_GPIO_CFG_SHIFT		(2u)
+#define WL_MLO_EMLSR_CTRL_FLAGS_LINK_PRIO_CFG_SHIFT	(3u)
 
 /* MLO emlsr ctrl Flags definition */
 #define WL_MLO_EMLSR_CTRL_FLAGS_MURTS_EN	(1u << WL_MLO_EMLSR_CTRL_FLAGS_MURTS_EN_SHIFT)
 #define WL_MLO_EMLSR_CTRL_FLAGS_SWITCH_EN	(1u << WL_MLO_EMLSR_CTRL_FLAGS_SWITCH_EN_SHIFT)
 #define WL_MLO_EMLSR_CTRL_FLAGS_GPIO_CFG	(1u << WL_MLO_EMLSR_CTRL_FLAGS_GPIO_CFG_SHIFT)
+#define WL_MLO_EMLSR_CTRL_FLAGS_LINK_PRIO_EN\
+	(1u << WL_MLO_EMLSR_CTRL_FLAGS_LINK_PRIO_CFG_SHIFT)
 
 /* setting values in params: note: reusing some of the flags */
 #define WL_MLO_EMLSR_CTRL_SET_MURTS_EN(val, en)			\
@@ -24417,7 +24825,8 @@ typedef struct wl_mlo_emlsr_ctrl_v1 {
 	uint32	flags;		/* Flags to enable/disable */
 	uint32	params;		/* params corresponding to flags */
 	uint16	murts_ctrl;	/* murts_ctrl value if murts_en is 1 */
-	uint16	PAD;
+	bool	link_prio_en;	/* EMLSR link priority feature enable if 1 */
+	uint8	PAD;
 	uint32	gpio_cfg;	/* GPIO pin numbers used in EMLSR emulation */
 } wl_mlo_emlsr_ctrl_v1_t;
 
@@ -24847,16 +25256,54 @@ enum wl_esp_xtlv_id {
 enum wl_bcn_prot_cmd_ids {
 	WL_BCN_PROT_CMD_VERSION  = 0u,
 	WL_BCN_PROT_CMD_ENABLE   = 1u,
-	WL_BCN_PROT_CMD_COUNTERS = 2u
+	WL_BCN_PROT_CMD_COUNTERS = 2u,
+	WL_BCN_PROT_CMD_STATUS	 = 3u,
+	WL_BCN_PROT_CMD_CONFIG	 = 4u
 };
 
-typedef struct wlc_bcn_prot_counters {
+/* Optional XTLVs included in wlc_roam_start_event_t */
+enum wl_roam_start_xtlv_id {
+	/* XTLV for beacon protection counters if beacon protection
+	 * is active and roam started due to beacon loss
+	 */
+	WL_ROAM_START_XTLV_BCNPROT_STATS  = 0x1u
+};
+
+/* WL_ROAM_START_XTLV_BCNPROT_STATS */
+#define BCN_PROT_COUNTERS_VERSION_0		(0u)
+typedef struct wlc_bcn_prot_counters_v0 {
 	uint32 no_en_bit;	/* counts beacons without bcn prot enable bit at ext cap */
 	uint32 no_mme_ie;	/* counts beacons without mme ie */
 	uint32 mic_fails;	/* counts beacons failed mic check */
 	uint32 replay_fails;	/* counts beacons failed replay check */
-} wlc_bcn_prot_counters_t;
-#define BCN_PROT_COUNTERS_SIZE	sizeof(wlc_bcn_prot_counters_t)
+} wlc_bcn_prot_counters_v0_t;
+
+#define BCN_PROT_COUNTERS_VERSION_1		(1u)
+typedef struct wlc_bcn_prot_counters_v1 {
+	uint16 version;		/* version of this structure */
+	uint16 length;		/* length (bytes) of this structure */
+	uint32 no_en_bit;	/* counts beacons without bcn prot enable bit at ext cap */
+	uint32 no_mme_ie;	/* counts beacons without mme ie */
+	uint32 mic_fails;	/* counts beacons that failed mic check */
+	uint32 replay_fails;	/* counts beacons that failed replay check */
+	uint32 errors_since_good_bcn; /* counts failures since last good beacon */
+} wlc_bcn_prot_counters_v1_t;
+
+#ifndef BCN_PROT_COUNTERS_TEMP_VERSION_ENABLED
+#define BCN_PROT_COUNTERS_VERSION	(BCN_PROT_COUNTERS_VERSION_0)
+typedef wlc_bcn_prot_counters_v0_t wlc_bcn_prot_counters_t;
+#define BCN_PROT_COUNTERS_SIZE	sizeof(wlc_bcn_prot_counters_v0_t)
+#endif /* BCN_PROT_COUNTERS_TEMP_VERSION_ENABLED */
+
+/* Enable bitmap */
+#define WL_BCN_PROT_ENABLE_FEATURE	0x1u
+#define WL_BCN_PROT_ENABLE_AP		0x2u
+
+#define WL_BCN_PROT_STATUS_ACTIVE	1u
+
+#define WL_BCN_PROT_CONFIG_ALLOW_PROT_ONLY	0x00000001u	/* Allow join/roam to only Beacon
+								* protection capable AP
+								*/
 
 /* otpread command */
 #define WL_OTPREAD_VER 1
@@ -26437,6 +26884,28 @@ typedef struct wl_nan_disc_frame_status_v1_s {
 	uint16	token;		      /* seq num to keep track of pkts sent by host */
 } wl_nan_disc_frame_status_v1_t;
 
+/* keepalive oob ops */
+typedef enum {
+	NAN_KA_OOB_OPS_ADD,
+	NAN_KA_OOB_OPS_DEL,
+	NAN_KA_OOB_OPS_GET,
+	NAN_KA_OOB_OPS_MAX
+} nan_ka_oob_ops_t;
+
+/* NAN KEEPALIVE(KA) oob flags */
+typedef enum {
+	NAN_KA_OOB_FLAG_LEGACY,
+	NAN_KA_OOB_FLAG_PER_PEER_TX,
+	NAN_KA_OOB_FLAG_PER_PEER_RX,
+	NAN_KA_OOB_FLAG_MAX
+} nan_ka_oob_flag_t;
+
+/* NAN KEEPALIVE(KA) oob param */
+typedef struct wl_nan_ka_oob_af_param {
+	uint8 ops;			/* add/del/get */
+	uint8 flags;			/* per peer tx/ rx keepalive oob or legacy oob */
+} wl_nan_ka_oob_af_param_t;
+
 typedef struct wl_nan_oob_af {
 	uint64 bitmap;			/* 16 TU slots in 1024 TU window */
 	struct ether_addr sa;		/* Optional SA. Default set to NMI */
@@ -26445,11 +26914,20 @@ typedef struct wl_nan_oob_af {
 	bool   secured;			/* Optional. Default set to 0 (Open) */
 	uint8  map_id;			/* Host selected map id. Default 0 */
 	uint16 timeout;			/* OOB AF session timeout in milliseconds */
-	uint16 PAD[3];			/* Structure padding. Can be used in future */
+	wl_nan_ka_oob_af_param_t koap;	/* Keep alive oob af additional param */
+	uint16 PAD[2];			/* Structure padding. Can be used in future */
 	uint16 token;			/* host generated. Used by FW in TX status event */
 	uint16 payload_len;
 	uint8  payload[];		/* AF hdr + NAN attrbutes in TLV format */
 } wl_nan_oob_af_t;
+
+typedef struct wl_nan_oob_rx_match_payload {
+	uint16 offset;		/* the offset from the start of data field
+				 * in nan_attr_type_t which is the part of RX pkt
+				 */
+	uint16 match_length;	/* Length to be used for match */
+	uint8 payload[];	/* Payload to be used for match */
+} wl_nan_oob_rx_match_payload_t;
 
 /*
  * BT log definitions
@@ -26772,7 +27250,19 @@ enum wl_sae_status {
 	/* SAE Crypto private data magic number mismatch */
 	WL_SAE_E_CRYPTO_PRIV_MAGIC_MISMATCH	= -3091,
 	/* Max retry exhausted */
-	WL_SAE_E_MAX_RETRY_LIMIT_REACHED	= -3092
+	WL_SAE_E_MAX_RETRY_LIMIT_REACHED	= -3092,
+	/* peer sent password ID mismatch to local */
+	WL_SAE_E_AUTH_PEER_PWDID_MISMATCH	= -3093,
+	/* user not configured password */
+	WL_SAE_E_AUTH_PASSWORD_NOT_CONFIGURED	= -3094,
+	/* user not configured password ID */
+	WL_SAE_E_AUTH_PWDID_NOT_CONFIGURED	= -3095,
+	/* Anti-clogging token mismatch */
+	WL_SAE_E_AUTH_ANTI_CLOG_MISMATCH	= -3096,
+	/* SAE PWE method mismatch */
+	WL_SAE_E_AUTH_PWE_MISMATCH		= -3097,
+	/* SAE-PK validation failed */
+	WL_SAE_E_AUTH_PK_VALIDATION		= -3098
 };
 
 /* PMK manager block. Event codes from -5120 to -6143 */
@@ -28180,7 +28670,8 @@ typedef enum wl_rffe_cmd_type {
 	WL_RFFE_CMD_ELNABYP_MODE	= 1,
 	WL_RFFE_CMD_REG			= 2,
 	WL_RFFE_CMD_ELNA_VDD_MODE	= 3,
-	WL_RFFE_CMD_DRV_STRENGTH	= 4,
+	WL_RFFE_CMD_DRV_STRENGTH        = 4,
+	WL_RFFE_CMD_RX_MODE             = 5,
 	WL_RFFE_CMD_LAST
 } wl_rffe_cmd_type_t;
 
@@ -28409,6 +28900,7 @@ typedef struct wlc_rc1cx_status_v2 {
 /* OBSS HW specific Macros */
 #define WLC_OBSS_HW_CMD_VERSION_1	1u
 #define WLC_OBSS_HW_CMD_VERSION_2	2u
+#define WLC_OBSS_HW_CMD_VERSION_3	3u
 
 /* OBSS HW config sub command identification flag */
 #define OBSS_HW_CFG_SUB_CMD_ENABLE		(1u << 0u)
@@ -28477,9 +28969,14 @@ typedef struct wlc_obss_hw_test_v1 {
 	uint8 mitigation_mode;		/* mitigation enabling/disabling options */
 } wlc_obss_hw_test_v1_t;
 
+#define OBSS_HW_CFG_FEATURE_DISABLED						0u
+#define OBSS_HW_CFG_STATS_AND_MITIGATION_ENABLED				1u
+#define OBSS_HW_CFG_STATS_ONLY_ENABLED						2u
+#define OBSS_HW_CFG_INVALID							255u
+
 typedef struct wlc_obss_hw_cfg_v2 {
 	uint16 sub_cmd_flags;		/* Flag bits to Identify configuring sub command */
-	uint8 is_enable;		/* Feature is enabled or not */
+	uint8 is_enable;		/* Feature  and mode enable flag */
 	uint8 sw_cache_interval;	/* SW cache interval to cache OBSS stats in sec */
 	uint16 phy_sensing_duration;	/* PHY OBSS sensing duration in msec */
 } wlc_obss_hw_cfg_v2_t;
@@ -28501,6 +28998,52 @@ typedef struct wlc_obss_hw_test_v2 {
 	uint8 test_mode;		/* To stop/start respective test mode */
 	uint8 mitigation_mode;		/* mitigation enabling/disabling options */
 } wlc_obss_hw_test_v2_t;
+
+typedef wlc_obss_hw_test_v2_t wlc_obss_hw_test_v3_t;
+typedef wlc_obss_hw_cfg_v2_t wlc_obss_hw_cfg_v3_t;
+
+/* obss_pwrest is normally a negative value in dBm,
+ * when it is not negative, the following enum is
+ * used to indicate exceptional cases as listed below.
+ * The below structures and onwards will follow this format
+ * - wlc_obss_hw_stats_v3_t.obss_pwrest[][]
+ * - phy_ecounter_v5.phy_ecounter_log_core_v4_t.obss_pwrest[]
+ * - phy_periodic_obss_stats_v4.obss_pwrest[]
+ */
+typedef enum obss_pwr_dbm_status {
+	OBSS_PWRSTS_UNDEFINED		= 0,	/* Undefined */
+	OBSS_PWRSTS_PRIM_SB		= 1,	/* Primary sub-band */
+	OBSS_PWRSTS_SATURATED		= 2,	/* Measurement Saturated */
+	OBSS_PWRSTS_NO_VALID_CNT	= 3,	/* No valid measure count */
+	OBSS_PWRSTS_MAX
+} obss_pwr_dbm_status_t;
+
+typedef struct wlc_obss_hw_stats_v3 {
+	uint16	avg_obss_stats[WL_OBSS_ANT_MAX][ACPHY_OBSS_SUBBAND_CNT][ACPHY_OBSS_STATS_BIN_CNT];
+						/* average bin counts collected per bin across
+						 * multiple sensing durations
+						 */
+	uint16	obss_det_stats[ACPHY_OBSS_SUBBAND_CNT];
+						/* OBSS detection count for each sub-band */
+	uint16	stats_cnt;			/* stats count */
+	uint8	obss_mit_status;		/* OBSS mitigation status */
+	uint8	mit_bw;				/* mitigation BW that got selected */
+	uint32	lifetime_expiry_cnt;		/* count of lifetime expired pkts */
+	uint32	medium_access_delay;		/* sum of medium access delay */
+	uint32	pkt_cnt;			/* number of pkts for which Tx status stats are
+						 * logged
+						 */
+	uint32	rts_pkts_cnt;			/* number of packets sent with RTS */
+	int8	obss_pwrest[WL_OBSS_ANT_MAX][ACPHY_OBSS_SUBBAND_CNT];
+						/* estimated OBSS signal power in dBm,
+						 * please refer to obss_pwr_dbm_status_t
+						 * for exceptional cases
+						 */
+	int8	soi_rssi;			/* rssi of SOI */
+	uint8	deferred_enable_config;		/* Feature enable config if deferred */
+	uint8	obss_last_rec_bw;		/* Last stats block recommended BW */
+	uint8	current_enable_config;		/* Current active feature enable config */
+} wlc_obss_hw_stats_v3_t;
 
 #define STA_PM_SC_OFLD_CFG_VER_V1                1u
 #define STA_PM_SC_OFLD_ENAB_FLAG                 (1u << 0u)
@@ -29100,6 +29643,7 @@ typedef struct wl_aml_header_v1 {
 /* Flags for aml header */
 #define WL_AML_F_DIRECTION 0x0001	/* This flag indicates this is Tx mgmt, otherwise Rx */
 #define WL_AML_F_ACKED     0x0002	/* This flag indicates the frame is acked */
+#define WL_AML_F_EAPOL     0x0004	/* This flag indicates the frame is wpa supplicant */
 
 /* Version for IOVAR 'aml' */
 #define WL_AML_IOV_MAJOR_VER_1 1u
@@ -29540,6 +30084,7 @@ enum wl_tpc_subcmd_ids {
 	WL_TPC_SUBCMD_VMID = 1u,		/* VMID */
 	WL_TPC_SUBCMD_VER_CHECK = 2u,		/* VER CHECK */
 	WL_TPC_SUBCMD_PACAL = 3u,		/* VER CHECK */
+	WL_TPC_SUBCMD_TXPWRINDEX = 4u	/* PHY TX BASEINDEX */
 };
 
 typedef struct wl_tpc_avvmid_info_v1 {
@@ -29583,6 +30128,7 @@ typedef struct wl_tpc_cmd_v2 {
 #define WL_TPC_CMD_IOV_VER_2		2u
 #define WL_TPC_AVVMID_IOV_VER_1		1u
 #define WL_TPC_PACAL_IOV_VER_1		1u
+#define WL_TPC_TXPWRINDEX_IOV_VER_1	1u
 
 /* PTM */
 #define WL_PTM_IOV_MAJOR_VER_1		1u
@@ -30036,6 +30582,9 @@ enum wlc_capext_feature_bitpos {
 	WLC_CAPEXT_FEATURE_BITPOS_OBSS_HW		= 120,
 	WLC_CAPEXT_FEATURE_BITPOS_DYN_BW		= 121,
 	WLC_CAPEXT_FEATURE_BITPOS_OCT			= 122,
+	WLC_CAPEXT_FEATURE_BITPOS_MBO_MIN		= 123,
+	WLC_CAPEXT_FEATURE_BITPOS_OCV			= 124,
+	WLC_CAPEXT_FEATURE_BITPOS_OCV_AP		= 125,
 
 	WLC_CAPEXT_FEATURE_BITPOS_MAX
 };
@@ -30311,6 +30860,9 @@ typedef struct wl_c2c_status {
 #define	WL_C2C_CTRL_ENAB		0x0002u
 #define WL_C2C_CTRL_ALLOWED_MASK	(WL_C2C_CTRL_C2C_SCAN | WL_C2C_CTRL_ENAB)
 
+#define WL_C2C_CTRL_IS_C2C_SCAN(_ctrl)	(((_ctrl) & WL_C2C_CTRL_C2C_SCAN) != 0)
+#define WL_C2C_CTRL_IS_ENAB(_ctrl)	(((_ctrl) & WL_C2C_CTRL_ENAB) != 0)
+
 typedef uint32 wl_c2c_ctrl_t;		/* c2c control bit masks */
 
 /* WL_C2C_CMD_AP_CACHE */
@@ -30504,13 +31056,102 @@ typedef struct wl_phy_ed_mled_v1 {
 	int8 edthresh_sec_val;		/* ed threshold - secondary */
 } wl_phy_ed_mled_v1_t;
 
+#define WL_PHY_ED_MLED_VERSION_2	2u
+
+typedef struct wl_phy_ed_mled_v2 {
+	chanspec_t chanspec;		/* chanspec */
+	uint8 mled_profile;		/* mled profile */
+	uint8 eu_edcrs;			/* EU or other */
+	int8 edthresh_val;		/* ed threshold - primary */
+	int8 edthresh_sec_val;		/* ed threshold - secondary */
+} wl_phy_ed_mled_v2_t;
+
 typedef struct wl_phy_ed_v1 {
 	uint16  subcmd_version;		/* Version of the sub-command */
 	uint16  length;			/* Length of the particular struct being used in union */
 	union {
 		wl_phy_ed_mled_v1_t mled_v1;	/* mled profile data */
+		wl_phy_ed_mled_v2_t mled_v2;	/* mled profile data */
 	} u;
 } wl_phy_ed_v1_t;
+
+/* subcommand ids for phy_noise */
+enum wl_phy_noise_cmd_type {
+	WL_PHY_NOISE_CMD_LONG = 0u,	/* get noise profile */
+	WL_PHY_NOISE_CMD_LAST
+};
+
+#define WL_PHY_NOISE_LONG_VERSION_1	1u
+
+typedef struct wl_phy_noise_long_v1 {
+	uint8 long_accum;		/* long accum */
+	uint8   PAD[3];
+} wl_phy_noise_long_v1_t;
+
+typedef struct wl_phy_noise_v1 {
+	uint16  subcmd_version;		/* Version of the sub-command */
+	uint16  length;			/* Length of the particular struct being used in union */
+	union {
+		wl_phy_noise_long_v1_t long_v1;
+	} u;
+} wl_phy_noise_v1_t;
+
+#ifndef CHSPEC2WLC_BAND
+#ifdef WL_BAND6G
+#define CHSPEC2WLC_BAND(chspec) (CHSPEC_IS2G(chspec) ? WLC_BAND_2G : \
+				 CHSPEC_IS5G(chspec) ? WLC_BAND_5G : WLC_BAND_6G)
+#else
+#define CHSPEC2WLC_BAND(chspec) (CHSPEC_IS2G(chspec) ? WLC_BAND_2G : WLC_BAND_5G)
+#endif
+#endif /* CHSPEC2WLC_BAND */
+
+#define BUS_TX_RELEASE_LOG_VERSION_1	(1u)
+typedef struct _bus_tx_release_log_entry_v1 {
+	uint32	ts;		/* timestamp */
+	uint32  flowid;		/* flowing id */
+	uint32  pkts_cnt;	/* # of tx pkts released to wl layer */
+	uint32  times;		/* same flowid repeats how many times */
+} bus_tx_release_log_entry_v1_t;
+
+#define BUS_TX_RELEASE_LOG_FLAG_TRUNCATED	(0x1u)
+struct bus_tx_release_log_v1 {
+	uint16				version;	/**< version field */
+	uint16				flags;		/**< flags */
+	uint16				idx;		/**< current index inside log */
+	uint16				count;		/**< total log count */
+	bus_tx_release_log_entry_v1_t	log[];		/**< count # of tx release log entries */
+};
+
+/* Scancache command IDs */
+enum wl_scan_sub_cmd {
+	WL_SCAN_CACHE_EXT_CMD_CLEAR = 0u,
+	WL_SCAN_CACHE_EXT_CMD_GET = 1u,
+	WL_SCAN_CMD_LAST
+};
+
+#define SCAN_CACHE_VERSION_1	(1u)
+typedef struct wlc_scan_cache_data_v1 {
+	wlc_ssid_t		SSID;		/* SSID of cached result */
+	struct ether_addr	BSSID;		/* BSSID of cached result */
+	bool			valid;		/* is cache entry valid */
+	uint8			PAD[1];
+	chanspec_t		chanspec;	/* chanspec of cached result */
+	int16			RSSI;		/* RSSI of cached result */
+	uint32			timestamp;	/* time when scancache is updated */
+	uint32			capability;	/* capability of cached entry */
+	uint32			flags;		/* Flags to indicate HT/VHT/HE/EHT etc */
+	uint32			age_ms;		/* Time difference of scan cache update
+						 * and scan cache query
+						 */
+} wlc_scan_cache_data_v1_t;
+
+typedef struct wlc_scan_cache_v1 {
+	uint16				version;
+	uint16				len;
+	wlc_scan_cache_data_v1_t	scan_data[];
+} wlc_scan_cache_v1_t;
+
+#define SCAN_CACHE_FIXED_SIZE	(OFFSETOF(wlc_scan_cache_v1_t, scan_data))
 
 typedef struct wl_ext_auth_evt {
 	wlc_ssid_t ssid;
@@ -30518,4 +31159,26 @@ typedef struct wl_ext_auth_evt {
 	unsigned int key_mgmt_suite;
 	int status;
 } wl_ext_auth_evt_t;
+
+/* SAR related parameter and structure */
+#define MAX_5G_SUBBAND       4
+#define SAR_PARAM_V1_VSDB    1
+#define SAR_PARAM_V2_RSDB    2
+
+typedef struct _sarctrl_single_set {
+	uint32 sarctrl_2g;
+	uint32 sarctrl_2g_2;
+	uint32 sarctrl_5gs[MAX_5G_SUBBAND];
+	uint32 sarctrl_5gs_2[MAX_5G_SUBBAND];
+} sarctrl_single_set;
+#define CONST_SARCTRL_SINGLE_SET_QTY    (sizeof(sarctrl_single_set)/sizeof(uint32))
+
+typedef struct _sarctrl_set {
+	uint32              ver;
+
+	sarctrl_single_set  basic;
+	sarctrl_single_set  rsdb;
+} sarctrl_set;
+#define CONST_SARCTRL_SET_QTY    (sizeof(sarctrl_set)/sizeof(uint32) - 1)
+
 #endif /* _wlioctl_h_ */

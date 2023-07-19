@@ -651,14 +651,6 @@ dhd_sync_with_dongle(dhd_pub_t *dhd)
 
 	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
 
-#ifndef OEM_ANDROID
-	/* Get the device MAC address */
-	strcpy(buf, "cur_etheraddr");
-	ret = dhd_wl_ioctl_cmd(dhd, WLC_GET_VAR, buf, sizeof(buf), FALSE, 0);
-	if (ret < 0)
-		goto done;
-	memcpy(dhd->mac.octet, buf, ETHER_ADDR_LEN);
-#endif /* OEM_ANDROID */
 #ifdef DHD_FW_COREDUMP
 	/* Check the memdump capability */
 	dhd_get_memdump_info(dhd);

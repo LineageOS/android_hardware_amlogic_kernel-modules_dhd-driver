@@ -311,6 +311,10 @@ pktpool_init(osl_t *osh,
 	int i, err = BCME_OK;
 	int pktplen;
 	uint8 pktp_id;
+#ifdef BCMPKTPOOL
+	uint lbufsz;
+	uint32 flags;
+#endif
 
 	ASSERT(pktp != NULL);
 	ASSERT(osh != NULL);
@@ -328,6 +332,19 @@ pktpool_init(osl_t *osh,
 	pktp->istx = istx ? TRUE : FALSE;
 	pktp->max_pkt_bytes = (uint16)max_pkt_bytes;
 	pktp->type = type;
+
+#ifdef BCMPKTPOOL
+	flags = 0;
+	lbufsz = 0;
+	set_lbuf_params(type, &flags, &lbufsz);
+	/* Size of tx/rx metadata */
+	pktp->metasz = lb_get_metasz(type);
+	/* Offset of tx/rx metadata from lbuf start */
+	pktp->metaoff = lbufsz - pktp->metasz;
+#else
+	pktp->metasz = 0u;
+	pktp->metaoff = 0u;
+#endif /* BCMPKTPOOL */
 
 #ifdef POOL_HEAP_RECONFIG
 	pktp->poolheap_flag = heap_pool_flag;

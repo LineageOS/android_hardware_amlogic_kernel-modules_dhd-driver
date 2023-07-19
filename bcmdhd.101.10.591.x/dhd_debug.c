@@ -61,7 +61,7 @@ void wl_cfgvendor_custom_advlog_roam_log(void *plog, uint32 armcycle);
 
 #define container_of(ptr, type, member) \
 		(type *)((char *)(ptr) - offsetof(type, member))
-#endif
+#endif /* NDIS */
 
 uint8 control_logtrace = CUSTOM_CONTROL_LOGTRACE;
 
@@ -445,11 +445,11 @@ dhd_dbg_msgtrace_msg_parser(void *event_data)
 	 */
 	while (*data != '\0' && (s = strstr(data, "\n")) != NULL) {
 		*s = '\0';
-		DHD_FWLOG(("[FWLOG] %s\n", data));
+		printf("[FWLOG] %s\n", data);
 		data = s+1;
 	}
 	if (*data)
-		DHD_FWLOG(("[FWLOG] %s", data));
+		printf("[FWLOG] %s", data);
 }
 #ifdef SHOW_LOGTRACE
 #define DATA_UNIT_FOR_LOG_CNT 4
@@ -829,13 +829,6 @@ dhd_dbg_verboselog_printf(dhd_pub_t *dhdp, prcd_event_log_hdr_t *plog_hdr,
 		else {
 			bcm_binit(&b, fmtstr_loc_buf, FMTSTR_SIZE);
 			/* XXX: The 'hdr->count - 1' is dongle time */
-#ifndef OEM_ANDROID
-			bcm_bprintf(&b, "%06d.%03d EL: %d 0x%x",
-				(uint32)(log_ptr[plog_hdr->count - 1] / EL_MSEC_PER_SEC),
-				(uint32)(log_ptr[plog_hdr->count - 1] % EL_MSEC_PER_SEC),
-				plog_hdr->tag,
-				plog_hdr->fmt_num_raw);
-#else
 			bcm_bprintf(&b, "%06d.%03d EL:%s:%u:%u %d %d 0x%x",
 				(uint32)(log_ptr[plog_hdr->count - 1] / EL_MSEC_PER_SEC),
 				(uint32)(log_ptr[plog_hdr->count - 1] % EL_MSEC_PER_SEC),
@@ -843,7 +836,6 @@ dhd_dbg_verboselog_printf(dhd_pub_t *dhdp, prcd_event_log_hdr_t *plog_hdr,
 				plog_hdr->tag,
 				plog_hdr->count,
 				plog_hdr->fmt_num_raw);
-#endif /* !OEM_ANDROID */
 			for (count = 0; count < (plog_hdr->count - 1); count++) {
 				bcm_bprintf(&b, " %x", log_ptr[count]);
 			}
@@ -2273,13 +2265,15 @@ dhd_dbg_monitor_get_tx_pkts(dhd_pub_t *dhdp, void __user *user_buf,
 		uint16 req_count, uint16 *resp_count)
 {
 	dhd_dbg_tx_report_t *tx_report;
-	dhd_dbg_tx_info_t *tx_pkt;
+	dhd_dbg_tx_info_t *tx_pkt, *ori_tx_pkt;
 	wifi_tx_report_t *ptr;
 	compat_wifi_tx_report_t *cptr;
 	dhd_dbg_pkt_mon_state_t tx_pkt_state;
 	dhd_dbg_pkt_mon_state_t tx_status_state;
 	uint16 pkt_count, count;
 	unsigned long flags;
+	dhd_dbg_tx_info_t *tmp_tx_pkt = NULL;
+	uint32 alloc_len, i, ret;
 
 	BCM_REFERENCE(ptr);
 	BCM_REFERENCE(cptr);
@@ -2304,8 +2298,31 @@ dhd_dbg_monitor_get_tx_pkts(dhd_pub_t *dhdp, void __user *user_buf,
 
 	count = 0;
 	tx_report = dhdp->dbg->pkt_mon.tx_report;
-	tx_pkt = tx_report->tx_pkts;
+	ori_tx_pkt = tx_report->tx_pkts;
 	pkt_count = MIN(req_count, tx_report->status_pos);
+
+	alloc_len = (sizeof(*tmp_tx_pkt) * pkt_count);
+	tmp_tx_pkt = (dhd_dbg_tx_info_t *)MALLOCZ(dhdp->osh, alloc_len);
+	if (unlikely(!tmp_tx_pkt)) {
+		DHD_PKT_MON_UNLOCK(dhdp->dbg->pkt_mon_lock, flags);
+		DHD_ERROR(("%s: failed to allocate tmp_tx_pkt", __FUNCTION__));
+		return -ENOMEM;
+	}
+	if ((ret = memcpy_s(tmp_tx_pkt, alloc_len, ori_tx_pkt, alloc_len))) {
+		DHD_PKT_MON_UNLOCK(dhdp->dbg->pkt_mon_lock, flags);
+		DHD_ERROR(("%s: failed to copy tmp_tx_pkt ret:%d", __FUNCTION__, ret));
+		return -EINVAL;
+	}
+	for (i = 0; i < pkt_count; i++) {
+		tmp_tx_pkt[i].info.pkt = skb_copy((struct sk_buff*)ori_tx_pkt[i].info.pkt,
+			GFP_ATOMIC);
+		if (!tmp_tx_pkt[i].info.pkt) {
+			DHD_PKT_MON_UNLOCK(dhdp->dbg->pkt_mon_lock, flags);
+			DHD_ERROR(("%s: failed to copy skb", __FUNCTION__));
+			return -ENOMEM;
+		}
+	}
+	tx_pkt = tmp_tx_pkt;
 	DHD_PKT_MON_UNLOCK(dhdp->dbg->pkt_mon_lock, flags);
 
 #ifdef CONFIG_COMPAT
@@ -2313,7 +2330,7 @@ dhd_dbg_monitor_get_tx_pkts(dhd_pub_t *dhdp, void __user *user_buf,
 	if (in_compat_syscall())
 #else
 	if (is_compat_task())
-#endif
+#endif /* LINUX_VER >= 4.6 */
 	{
 		cptr = (compat_wifi_tx_report_t *)user_buf;
 		while ((count < pkt_count) && tx_pkt && cptr) {
@@ -2373,6 +2390,11 @@ dhd_dbg_monitor_get_tx_pkts(dhd_pub_t *dhdp, void __user *user_buf,
 			"status_pos=%u\n", __FUNCTION__, pkt_count));
 	}
 
+	for (i = 0; i < pkt_count; i++) {
+		PKTFREE(dhdp->osh, tmp_tx_pkt[i].info.pkt, TRUE);
+	}
+	MFREE(dhdp->osh, tmp_tx_pkt, alloc_len);
+
 	return BCME_OK;
 }
 
@@ -2381,12 +2403,14 @@ dhd_dbg_monitor_get_rx_pkts(dhd_pub_t *dhdp, void __user *user_buf,
 		uint16 req_count, uint16 *resp_count)
 {
 	dhd_dbg_rx_report_t *rx_report;
-	dhd_dbg_rx_info_t *rx_pkt;
+	dhd_dbg_rx_info_t *rx_pkt, *ori_rx_pkt;
 	wifi_rx_report_t *ptr;
 	compat_wifi_rx_report_t *cptr;
 	dhd_dbg_pkt_mon_state_t rx_pkt_state;
 	uint16 pkt_count, count;
 	unsigned long flags;
+	dhd_dbg_rx_info_t *tmp_rx_pkt = NULL;
+	uint32 alloc_len, i, ret;
 
 	BCM_REFERENCE(ptr);
 	BCM_REFERENCE(cptr);
@@ -2408,8 +2432,31 @@ dhd_dbg_monitor_get_rx_pkts(dhd_pub_t *dhdp, void __user *user_buf,
 
 	count = 0;
 	rx_report = dhdp->dbg->pkt_mon.rx_report;
-	rx_pkt = rx_report->rx_pkts;
+	ori_rx_pkt = rx_report->rx_pkts;
 	pkt_count = MIN(req_count, rx_report->pkt_pos);
+
+	alloc_len = (sizeof(*tmp_rx_pkt) * pkt_count);
+	tmp_rx_pkt = (dhd_dbg_rx_info_t *)MALLOCZ(dhdp->osh, alloc_len);
+	if (unlikely(!tmp_rx_pkt)) {
+		DHD_PKT_MON_UNLOCK(dhdp->dbg->pkt_mon_lock, flags);
+		DHD_ERROR(("%s: failed to allocate tmp_rx_pkt", __FUNCTION__));
+		return -ENOMEM;
+	}
+	if ((ret = memcpy_s(tmp_rx_pkt, alloc_len, ori_rx_pkt, alloc_len))) {
+		DHD_PKT_MON_UNLOCK(dhdp->dbg->pkt_mon_lock, flags);
+		DHD_ERROR(("%s: failed to copy tmp_rx_pkt ret:%d", __FUNCTION__, ret));
+		return -EINVAL;
+	}
+	for (i = 0; i < pkt_count; i++) {
+		tmp_rx_pkt[i].info.pkt = skb_copy((struct sk_buff*)ori_rx_pkt[i].info.pkt,
+			GFP_ATOMIC);
+		if (!tmp_rx_pkt[i].info.pkt) {
+			DHD_PKT_MON_UNLOCK(dhdp->dbg->pkt_mon_lock, flags);
+			DHD_ERROR(("%s: failed to copy skb", __FUNCTION__));
+			return -ENOMEM;
+		}
+	}
+	rx_pkt = tmp_rx_pkt;
 	DHD_PKT_MON_UNLOCK(dhdp->dbg->pkt_mon_lock, flags);
 
 #ifdef CONFIG_COMPAT
@@ -2417,7 +2464,7 @@ dhd_dbg_monitor_get_rx_pkts(dhd_pub_t *dhdp, void __user *user_buf,
 	if (in_compat_syscall())
 #else
 	if (is_compat_task())
-#endif
+#endif /* LINUX_VER >= 4.6 */
 	{
 		cptr = (compat_wifi_rx_report_t *)user_buf;
 		while ((count < pkt_count) && rx_pkt && cptr) {
@@ -2461,6 +2508,11 @@ dhd_dbg_monitor_get_rx_pkts(dhd_pub_t *dhdp, void __user *user_buf,
 	}
 
 	*resp_count = pkt_count;
+
+	for (i = 0; i < pkt_count; i++) {
+		PKTFREE(dhdp->osh, tmp_rx_pkt[i].info.pkt, TRUE);
+	}
+	MFREE(dhdp->osh, tmp_rx_pkt, alloc_len);
 
 	return BCME_OK;
 }
