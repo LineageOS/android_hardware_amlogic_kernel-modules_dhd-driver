@@ -339,13 +339,13 @@ extern void osl_preempt_enable(osl_t *osh);
 	#define OSL_READ_REG(osh, r) (bcmsdh_reg_read(osl_get_bus_handle(osh), \
 		(uintptr)(r), sizeof(*(r))))
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
-	#define SELECT_BUS_WRITE(osh, mmap_op, bus_op) (((osl_pubinfo_t*)(osh))->mmbus) ? \
-		mmap_op : bus_op
-#else
-	#define SELECT_BUS_WRITE(osh, mmap_op, bus_op) if (((osl_pubinfo_t*)(osh))->mmbus) \
-		mmap_op else bus_op
-#endif
+	#define SELECT_BUS_WRITE(osh, mmap_op, bus_op) do {	\
+		if (((osl_pubinfo_t*)(osh))->mmbus) {	\
+			mmap_op;	\
+		} else {	\
+			bus_op;	\
+		}	\
+	} while(0)
 	#define SELECT_BUS_READ(osh, mmap_op, bus_op) (((osl_pubinfo_t*)(osh))->mmbus) ? \
 		mmap_op : bus_op
 #else
@@ -372,6 +372,10 @@ extern int osl_error(int bcmerror);
 extern uint64 osl_sysuptime_us(void);
 #define OSL_SYSUPTIME()		((uint32)jiffies_to_msecs(jiffies))
 #define OSL_SYSUPTIME_US()	osl_sysuptime_us()
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)
+extern uint64 osl_sysuptime_ns(void);
+#define OSL_SYSUPTIME_NS()     osl_sysuptime_ns()
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0) */
 extern uint64 osl_localtime_ns(void);
 extern void osl_get_localtime(uint64 *sec, uint64 *usec);
 extern uint64 osl_systztime_us(void);
@@ -447,7 +451,7 @@ extern void dhd_plat_l1_exit_io(void);
 #ifndef IL_BIGENDIAN
 #ifdef CONFIG_64BIT
 /* readq is defined only for 64 bit platform */
-#define R_REG(osh, r) (\
+#define NO_WIN_CHECK_R_REG(osh, r, addr) (\
 	SELECT_BUS_READ(osh, \
 		({ \
 			__typeof(*(r)) __osl_v = 0; \
@@ -455,13 +459,13 @@ extern void dhd_plat_l1_exit_io(void);
 			BCM_REFERENCE(osh);	\
 			switch (sizeof(*(r))) { \
 				case sizeof(uint8):	__osl_v = \
-					readb((volatile uint8*)(r)); break; \
+					readb((volatile uint8*)(addr)); break; \
 				case sizeof(uint16):	__osl_v = \
-					readw((volatile uint16*)(r)); break; \
+					readw((volatile uint16*)(addr)); break; \
 				case sizeof(uint32):	__osl_v = \
-					readl((volatile uint32*)(r)); break; \
+					readl((volatile uint32*)(addr)); break; \
 				case sizeof(uint64):	__osl_v = \
-					readq((volatile uint64*)(r)); break; \
+					readq((volatile uint64*)(addr)); break; \
 			} \
 			__osl_v; \
 		}), \
@@ -488,19 +492,19 @@ extern void dhd_plat_l1_exit_io(void);
 
 #ifdef CONFIG_64BIT
 /* writeq is defined only for 64 bit platform */
-#define W_REG(osh, r, v) do { \
+#define NO_WIN_CHECK_W_REG(osh, r, addr, v) do { \
 	SELECT_BUS_WRITE(osh, \
 		({ \
 			dhd_plat_l1_exit_io(); \
 			switch (sizeof(*(r))) { \
 				case sizeof(uint8):	writeb((uint8)(v), \
-						(volatile uint8*)(r)); break; \
+						(volatile uint8*)(addr)); break; \
 				case sizeof(uint16):	writew((uint16)(v), \
-						(volatile uint16*)(r)); break; \
+						(volatile uint16*)(addr)); break; \
 				case sizeof(uint32):	writel((uint32)(v), \
-						(volatile uint32*)(r)); break; \
+						(volatile uint32*)(addr)); break; \
 				case sizeof(uint64):	writeq((uint64)(v), \
-						(volatile uint64*)(r)); break; \
+						(volatile uint64*)(addr)); break; \
 			} \
 		 }), \
 		(OSL_WRITE_REG(osh, r, v))); \
@@ -587,9 +591,6 @@ extern void dhd_plat_l1_exit_io(void);
 #endif /* IL_BIGENDIAN */
 
 #endif /* OSLREGOPS */
-
-#define	AND_REG(osh, r, v)		W_REG(osh, (r), R_REG(osh, r) & (v))
-#define	OR_REG(osh, r, v)		W_REG(osh, (r), R_REG(osh, r) | (v))
 
 /* bcopy, bcmp, and bzero functions */
 #define	bcopy(src, dst, len)	memcpy((dst), (src), (len))
@@ -722,8 +723,6 @@ extern void dhd_plat_l1_exit_io(void);
 #define W_REG(osh, r, v) do { OSL_WRITE_REG(osh, r, v); } while (0)
 #endif /* !defined(BCMSDIO) */
 
-#define	AND_REG(osh, r, v)		W_REG(osh, (r), R_REG(osh, r) & (v))
-#define	OR_REG(osh, r, v)		W_REG(osh, (r), R_REG(osh, r) | (v))
 extern uint8 osl_readb(volatile uint8 *r);
 extern uint16 osl_readw(volatile uint16 *r);
 extern uint32 osl_readl(volatile uint32 *r);
@@ -805,6 +804,78 @@ extern int bcmp(const void *b1, const void *b2, size_t len);
 extern void bzero(void *b, size_t len);
 #endif /* ! BCMDRIVER */
 
+#if defined(NIC_REG_ACCESS_LEGACY) || defined(NIC_REG_ACCESS_LEGACY_DBG)
+/* TODO: For now check only for NICBUILD flag. Need to find PCIE + NIC equivalent flag */
+#if !defined(NICBUILD)
+#error NIC_REG_ACCESS_LEGACY is only compatible with NICBUILD
+#endif /* defined(NICBUILD) */
+
+typedef struct osl_pcie_window {
+	void *bp_access_lock;
+	unsigned long window_offset;
+	unsigned long bp_addr;
+	volatile void *bar_addr;
+} osl_pcie_window_t;
+
+extern osl_pcie_window_t osl_reg_access_pcie_window;
+
+/**
+ * Initialize osl_reg_access_pcie_window.
+ * @param[in]  osh                      OS handle.
+ * @param[in]  bp_access_lock           Lock for restricting backplane access.
+ * @param[in]  window_offset            Offset of the window to be managed.
+ * @param[in]  bar_addr                 ioremap address of this window.
+ */
+void osl_reg_access_pcie_window_init(osl_t *osh, void *bp_access_lock, unsigned long window_offset,
+	volatile void *bar_addr);
+
+/**
+ * Check that the osl_reg_access_pcie_window is configured to access the reg_addr and return the
+ * window address. If the window is not properly configured, then it will be reconfigured.
+ * @param[in]  osh        OS handle.
+ * @param[in]  reg_addr   Address that the window should be able to access after this function call.
+ * @return                Address of the pcie bar window that is configured to access the provided
+ *                        address.
+ */
+volatile void *osl_update_pcie_win(osl_t *osh, volatile void *reg_addr);
+
+#define BAR0_WINDOW_OFFSET_MASK		0xFFFu
+#define BAR0_WINDOW_ADDRESS_MASK	~BAR0_WINDOW_OFFSET_MASK
+
+#define WIN_CHECK_R_REG(osh, r) ({ \
+	unsigned long _lock_flags_r_ = osl_spin_lock(osl_reg_access_pcie_window.bp_access_lock); \
+	volatile void *_bar_addr_r_ = osl_update_pcie_win(osh, (volatile void *)r); \
+	typeof(*r) _retval_; \
+	_retval_ = (typeof(*r))NO_WIN_CHECK_R_REG(osh, r, _bar_addr_r_); \
+	osl_spin_unlock(osl_reg_access_pcie_window.bp_access_lock, _lock_flags_r_); \
+	_retval_; \
+})
+
+#define WIN_CHECK_W_REG(osh, r, v) ({ \
+	unsigned long _lock_flags_w_ = osl_spin_lock(osl_reg_access_pcie_window.bp_access_lock); \
+	volatile void *_bar_addr_w_ = osl_update_pcie_win(osh, (volatile void *)r); \
+	NO_WIN_CHECK_W_REG(osh, r, _bar_addr_w_, v); \
+	osl_spin_unlock(osl_reg_access_pcie_window.bp_access_lock, _lock_flags_w_); \
+})
+
+#endif /* defined(NIC_REG_ACCESS_LEGACY) || defined(NIC_REG_ACCESS_LEGACY_DBG) */
+
+#ifdef NIC_REG_ACCESS_LEGACY
+#define R_REG(osh, r)		WIN_CHECK_R_REG(osh, r)
+#define W_REG(osh, r, v)	WIN_CHECK_W_REG(osh, r, v)
+#else /* NIC_REG_ACCESS_LEGACY */
+
+#if !defined(IL_BIGENDIAN) && defined(CONFIG_64BIT)
+
+#define R_REG(osh, r)		NO_WIN_CHECK_R_REG(osh, r, r)
+#define W_REG(osh, r, v)	NO_WIN_CHECK_W_REG(osh, r, r, v)
+
+#endif /* !defined(IL_BIGENDIAN) && defined(CONFIG_64BIT) */
+#endif /* NIC_REG_ACCESS_LEGACY */
+
+#define	AND_REG(osh, r, v)		W_REG(osh, (r), R_REG(osh, r) & (v))
+#define	OR_REG(osh, r, v)		W_REG(osh, (r), R_REG(osh, r) | (v))
+
 typedef struct sk_buff_head PKT_LIST;
 #define PKTLIST_INIT(x)		skb_queue_head_init((x))
 #define PKTLIST_ENQ(x, y)	skb_queue_head((struct sk_buff_head *)(x), (struct sk_buff *)(y))
@@ -825,7 +896,7 @@ typedef struct osl_timer {
 
 typedef void (*linux_timer_fn)(ulong arg);
 
-extern osl_timer_t * osl_timer_init(osl_t *osh, const char *name, void (*fn)(void *arg), void *arg);
+extern osl_timer_t * osl_timer_init(osl_t *osh, const char *name, void (*fn)(ulong arg), void *arg);
 extern void osl_timer_add(osl_t *osh, osl_timer_t *t, uint32 ms, bool periodic);
 extern void osl_timer_update(osl_t *osh, osl_timer_t *t, uint32 ms, bool periodic);
 extern bool osl_timer_del(osl_t *osh, osl_timer_t *t);
@@ -864,6 +935,26 @@ extern void *osl_mutex_lock_init(osl_t *osh);
 extern void osl_mutex_lock_deinit(osl_t *osh, void *lock);
 extern unsigned long osl_mutex_lock(void *lock);
 void osl_mutex_unlock(void *lock, unsigned long flags);
+
+/* -Wimplicit-fallthrough=5 requires attribute to be used
+ * Use the attribute when defined and rely on FALLTHROUGH
+ * comment otherwisely.
+ */
+#ifndef fallthrough
+#if defined(__GNUC__)
+#if (__GNUC__ >= 7)
+#define fallthrough __attribute__ ((__fallthrough__))
+#else
+#define fallthrough  do {} while (0)  /* FALLTHROUGH */
+#endif /* GCC >= 7 */
+#else /* !GCC */
+#if __has_attribute(__fallthrough__)
+#define fallthrough __attribute__ ((__fallthrough__))
+#else
+#define fallthrough  do {} while (0)  /* FALLTHROUGH */
+#endif /* __has_attribute */
+#endif /* GCC */
+#endif /* fallthrough */
 
 typedef struct osl_timespec {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0))

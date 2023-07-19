@@ -76,7 +76,7 @@ extern s32 wl_cfg80211_scan(struct wiphy *wiphy, struct net_device *ndev,
 extern int wl_cfg80211_scan_stop(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev);
 #endif /* WL_CFG80211_P2P_DEV_IF */
 
-#if defined(OEM_ANDROID) && defined(DHCP_SCAN_SUPPRESS)
+#if defined(DHCP_SCAN_SUPPRESS)
 extern void wl_cfg80211_work_handler(struct work_struct *work);
 extern void wl_cfg80211_scan_supp_timerfunc(ulong data);
 #endif /* DHCP_SCAN_SUPPRESS */
@@ -172,7 +172,6 @@ extern void wl_cfgscan_scan_abort(struct bcm_cfg80211 *cfg);
 #define APCS_DEFAULT_5G_FREQ	5745u
 #define APCS_DEFAULT_6G_FREQ	5975u
 
-#ifdef DHD_GET_VALID_CHANNELS
 typedef enum {
 	WIFI_BAND_UNSPECIFIED,
 	/* 2.4 GHz */
@@ -200,7 +199,6 @@ typedef enum {
 extern bool wl_cfgscan_is_dfs_set(wifi_band band);
 extern s32 wl_cfgscan_get_band_freq_list(struct bcm_cfg80211 *cfg,
 		struct wireless_dev *wdev, int band, uint32 *list, uint32 *num_channels);
-#endif /* DHD_GET_VALID_CHANNELS */
 #define MAX_AP_IFACES 2
 typedef struct ap_iface_data {
 	chanspec_t chspec;
@@ -221,7 +219,7 @@ extern int wl_handle_acs_concurrency_cases(struct bcm_cfg80211 *cfg,
 extern void wl_cfgscan_sched_scan_stop_work(struct work_struct *work);
 #endif /* WL_SCHED_SCAN */
 #ifdef WL_SOFTAP_ACS
-extern bool is_chanspec_dfs(struct bcm_cfg80211 *cfg, chanspec_t chspec);
+extern bool wl_is_chanspec_restricted(struct bcm_cfg80211 *cfg, chanspec_t chspec);
 #endif /* WL_SOFTAP_ACS */
 #ifdef ESCAN_CHANNEL_CACHE
 void reset_roam_cache(struct bcm_cfg80211 *cfg);

@@ -29,9 +29,6 @@
 
 #include <typedefs.h>
 
-/* Use error codes from this file only if BCMUTILS_ERR_CODES is defined. */
-#ifdef BCMUTILS_ERR_CODES
-
 /* NOTE re: Module specific error codes.
  *
  * BCME_.. error codes are extended by various features - e.g. FTM, NAN, SAE etc.
@@ -55,7 +52,6 @@ typedef int bcmerror_t;
  * please update errorstring table with the related error string and
  * update osl files with os specific errorcode map
 */
-
 #define BCME_OK				0	/* Success */
 #define BCME_ERROR			-1	/* Error generic */
 #define BCME_BADARG			-2	/* Bad Argument */
@@ -104,6 +100,7 @@ typedef int bcmerror_t;
 #define BCME_IOCTL_ERROR		-45	/* WLCMD ioctl error */
 #define BCME_SERIAL_PORT_ERR		-46	/* RWL serial port error */
 #define BCME_DISABLED			-47	/* Disabled in this build */
+#define BCME_NOTENABLED			BCME_DISABLED
 #define BCME_DECERR			-48	/* Decrypt error */
 #define BCME_ENCERR			-49	/* Encrypt error */
 #define BCME_MICERR			-50	/* Integrity/MIC error */
@@ -138,9 +135,7 @@ typedef int bcmerror_t;
 #define BCME_6GCH_EPERM			-79	/* 6G channel is not permitted */
 #define BCME_6G_NO_TPE			-80	/* TPE for a 6G channel does not exist */
 
-#define BCME_LAST			BCME_6G_NO_TPE
-
-#define BCME_NOTENABLED BCME_DISABLED
+#define BCME_LAST			BCME_6G_NO_TPE /* add new one above and update this */
 
 /* This error code is *internal* to the driver, and is not propogated to users. It should
  * only be used by IOCTL patch handlers as an indication that it did not handle the IOCTL.
@@ -236,16 +231,19 @@ typedef int bcmerror_t;
 	"6G Not permitted", \
 	"tpe for 6g channel(s) does not exist", \
 }
-#endif /* BCMUTILS_ERR_CODES */
 
 /* FTM error codes [-1024, -2047] */
 enum {
-	WL_FTM_E_LAST			= -1085,
+	WL_FTM_E_LAST			= -1089,
+	WL_FTM_E_PRIMARY_CLONE_START	= -1089,
+	WL_FTM_E_DEFER_ACK_LOST		= -1088,
+	WL_FTM_E_NSTS_INCAPABLE		= -1087,
+	WL_FTM_E_KDK_NOT_READY		= -1086,
 	WL_FTM_E_INVALID_SLTF_COUNTER	= -1085,
 	WL_FTM_E_BAD_KEY_INFO_IDX	= -1084,
 	WL_FTM_E_VALID_SAC_GEN_FAIL	= -1083,
-	WL_FTM_E_NDPA_SAC_MISMATCH      = -1082,
-	WL_FTM_E_MEAS_SAC_MISMATCH      = -1081,
+	WL_FTM_E_NDPA_SAC_MISMATCH	= -1082,
+	WL_FTM_E_MEAS_SAC_MISMATCH	= -1081,
 	WL_FTM_E_VALID_SAC_MISMATCH	= -1080,
 	WL_FTM_E_OUTSIDE_RSTA_AW	= -1079,
 	WL_FTM_E_NO_STA_INFO		= -1078,

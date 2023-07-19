@@ -351,6 +351,9 @@ struct bcm_xlv {
 };
 typedef struct bcm_xlv bcm_xlv_t;
 
+#define XLV_HDR_LEN		(OFFSETOF(bcm_xlv_t, data))
+#define XLV_TOTAL_LEN(xlv)	(BCM_XTLV_LEN(xlv) + XLV_HDR_LEN)
+
 struct bcm_xlvp {
 	uint16 len;
 	uint8 *data;

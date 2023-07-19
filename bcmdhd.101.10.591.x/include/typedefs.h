@@ -201,9 +201,12 @@ typedef unsigned __int64 uint64;
 #ifdef USE_TYPEDEF_DEFAULTS
 #undef USE_TYPEDEF_DEFAULTS
 
+#ifndef BCMWIFI_DISSECTOR_BUILD
+/* BWD build throws errors for two or more data types in declaration */
 #ifndef TYPEDEF_BOOL
 typedef	/* @abstract@ */ unsigned char	bool;
 #endif /* endif TYPEDEF_BOOL */
+#endif /* !BCMWIFI_DISSECTOR_BUILD */
 
 /* define uchar, ushort, uint, ulong */
 
@@ -406,6 +409,12 @@ typedef UINTN         uintptr;
 #define	OFF	0
 
 #endif /* !EDK_RELEASE_VERSION || (EDK_RELEASE_VERSION < 0x00020000) */
+
+#ifndef SIZE_CONST_STRING
+/* use two level Macro mapping to make some CONSTANT value into number string */
+#define _SIZE_CONST_STRING(x)	#x
+#define SIZE_CONST_STRING(x)	_SIZE_CONST_STRING(x)
+#endif /* SIZE_CONST_STRING */
 
 /*
  * Including the bcmdefs.h here, to make sure everyone including typedefs.h

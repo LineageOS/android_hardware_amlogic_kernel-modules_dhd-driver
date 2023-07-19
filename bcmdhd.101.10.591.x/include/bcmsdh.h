@@ -289,4 +289,10 @@ extern bool bcmsdh_gpioin(void *sd, uint32 gpio);
 extern int bcmsdh_gpioouten(void *sd, uint32 gpio);
 extern int bcmsdh_gpioout(void *sd, uint32 gpio, bool enab);
 
-#endif	/* _bcmsdh_h_ */
+#ifdef DHD_WAKE_STATUS
+extern int bcmsdh_get_total_wake(bcmsdh_info_t *bcmsdh);
+extern int bcmsdh_set_get_wake(bcmsdh_info_t *bcmsdh, int flag);
+
+#endif /* DHD_WAKE_STATUS */
+
+#endif /* _bcmsdh_h_ */

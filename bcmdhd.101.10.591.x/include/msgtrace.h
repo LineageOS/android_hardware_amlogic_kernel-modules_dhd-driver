@@ -35,8 +35,7 @@
 
 enum msgtrace_hdr_type {
 	MSGTRACE_HDR_TYPE_MSG = 0u,
-	MSGTRACE_HDR_TYPE_LOG = 1u,
-	MSGTRACE_HDR_TYPE_COEX_LOG = 2u
+	MSGTRACE_HDR_TYPE_LOG = 1u
 };
 
 /* Message trace header */
