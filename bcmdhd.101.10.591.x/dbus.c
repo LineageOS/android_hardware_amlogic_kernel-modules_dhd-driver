@@ -413,13 +413,12 @@ dbus_irbq_init(dhd_bus_t *dhd_bus, dbus_irbq_t *q, int nq, int size_irb)
 	ASSERT(dhd_bus);
 
 	for (i = 0; i < nq; i++) {
-		/* MALLOC dbus_irb_tx or dbus_irb_rx, but cast to simple dbus_irb_t linkedlist */
-		irb = (dbus_irb_t *) MALLOC(dhd_bus->pub.osh, size_irb);
+		/* MALLOCZ dbus_irb_tx or dbus_irb_rx, but cast to simple dbus_irb_t linkedlist */
+		irb = (dbus_irb_t *) MALLOCZ(dhd_bus->pub.osh, size_irb);
 		if (irb == NULL) {
 			ASSERT(irb);
 			return DBUS_ERR;
 		}
-		bzero(irb, size_irb);
 
 		/* q_enq() does not need to go through EXEC_xxLOCK() during init() */
 		q_enq(q, irb);
@@ -463,7 +462,7 @@ dbus_rxirbs_fill(dhd_bus_t *dhd_bus)
 		optimize_submit_rx_request(&dhd_bus->pub, 1, NULL, NULL);
 #else
 		/* Copy mode - allocate own buffer to be reused */
-		void *buf = MALLOC(dhd_bus->pub.osh, 4000); /* usbos_info->rxbuf_len */
+		void *buf = MALLOCZ(dhd_bus->pub.osh, 4000); /* usbos_info->rxbuf_len */
 		optimize_submit_rx_request(&dhd_bus->pub, 1, NULL, buf);
 		/* ME: Need to check result and set err = DBUS_ERR_RXDROP */
 #endif /* BCM_RPC_NOCOPY || BCM_RPC_RXNOCOPY */
@@ -963,7 +962,7 @@ dbus_get_nvram(dhd_bus_t *dhd_bus)
 		dhd_bus->image = (uint8*)DHD_OS_PREALLOC(dhd_bus->dhd,
 			DHD_PREALLOC_MEMDUMP_RAM, len);
 #else
-		dhd_bus->image = MALLOC(dhd_bus->pub.osh, len);
+		dhd_bus->image = MALLOCZ(dhd_bus->pub.osh, len);
 #endif /* CONFIG_DHD_USE_STATIC_BUF */
 #endif /* USBAP */
 		dhd_bus->image_len = len;
@@ -1086,7 +1085,7 @@ dbus_do_download(dhd_bus_t *dhd_bus)
 		dhd_bus->pub.attrib.chiprev, (void *)&temp_nvram, &temp_len,
 		DBUS_NVFILE, boardtype, boardrev, dhd_bus->nv_path);
 	if (dhd_bus->nvfile) {
-		int8 *tmp = MALLOC(dhd_bus->pub.osh, temp_len);
+		int8 *tmp = MALLOCZ(dhd_bus->pub.osh, temp_len);
 		if (tmp) {
 			bcopy(temp_nvram, tmp, temp_len);
 			nonfwnvram = tmp;
@@ -1560,13 +1559,11 @@ dbus_attach(osl_t *osh, int rxsize, int nrxq, int ntxq, dhd_pub_t *pub,
 	if ((nrxq <= 0) || (ntxq <= 0))
 		return NULL;
 
-	dhd_bus = MALLOC(osh, sizeof(dhd_bus_t));
+	dhd_bus = MALLOCZ(osh, sizeof(dhd_bus_t));
 	if (dhd_bus == NULL) {
 		DBUSERR(("%s: malloc failed %zu\n", __FUNCTION__, sizeof(dhd_bus_t)));
 		return NULL;
 	}
-
-	bzero(dhd_bus, sizeof(dhd_bus_t));
 
 	/* BUS-specific driver interface (at a lower DBUS level) */
 	dhd_bus->drvintf = g_busintf;
@@ -1586,36 +1583,32 @@ dbus_attach(osl_t *osh, int rxsize, int nrxq, int ntxq, dhd_pub_t *pub,
 	dhd_bus->pub.ntxq = ntxq;
 	dhd_bus->tx_low_watermark = ntxq / 4;	/* flow control when too many tx urbs posted */
 
-	dhd_bus->tx_q = MALLOC(osh, sizeof(dbus_irbq_t));
+	dhd_bus->tx_q = MALLOCZ(osh, sizeof(dbus_irbq_t));
 	if (dhd_bus->tx_q == NULL)
 		goto error;
 	else {
-		bzero(dhd_bus->tx_q, sizeof(dbus_irbq_t));
 		err = dbus_irbq_init(dhd_bus, dhd_bus->tx_q, ntxq, sizeof(dbus_irb_tx_t));
 		if (err != DBUS_OK)
 			goto error;
 	}
 
-	dhd_bus->rx_q = MALLOC(osh, sizeof(dbus_irbq_t));
+	dhd_bus->rx_q = MALLOCZ(osh, sizeof(dbus_irbq_t));
 	if (dhd_bus->rx_q == NULL)
 		goto error;
 	else {
-		bzero(dhd_bus->rx_q, sizeof(dbus_irbq_t));
 		err = dbus_irbq_init(dhd_bus, dhd_bus->rx_q, nrxq, sizeof(dbus_irb_rx_t));
 		if (err != DBUS_OK)
 			goto error;
 	}
 
 #ifdef BCMDBG
-	dhd_bus->txpend_q_hist = MALLOC(osh, dhd_bus->pub.ntxq * sizeof(int));
+	dhd_bus->txpend_q_hist = MALLOCZ(osh, dhd_bus->pub.ntxq * sizeof(int));
 	if (dhd_bus->txpend_q_hist == NULL)
 		goto error;
-	bzero(dhd_bus->txpend_q_hist, dhd_bus->pub.ntxq * sizeof(int));
 
-	dhd_bus->rxpend_q_hist = MALLOC(osh, dhd_bus->pub.nrxq * sizeof(int));
+	dhd_bus->rxpend_q_hist = MALLOCZ(osh, dhd_bus->pub.nrxq * sizeof(int));
 	if (dhd_bus->rxpend_q_hist == NULL)
 		goto error;
-	bzero(dhd_bus->rxpend_q_hist, dhd_bus->pub.nrxq * sizeof(int));
 #endif /* BCMDBG */
 
 	dhd_bus->bus_info = (void *)g_busintf->attach(&dhd_bus->pub,
@@ -1628,7 +1621,7 @@ dbus_attach(osl_t *osh, int rxsize, int nrxq, int ntxq, dhd_pub_t *pub,
 #if defined(BCM_DNGL_EMBEDIMAGE) || defined(BCM_REQUEST_FW)
 	/* Need to copy external image for re-download */
 	if (extdl && extdl->fw && (extdl->fwlen > 0)) {
-		dhd_bus->extdl.fw = MALLOC(osh, extdl->fwlen);
+		dhd_bus->extdl.fw = MALLOCZ(osh, extdl->fwlen);
 		if (dhd_bus->extdl.fw) {
 			bcopy(extdl->fw, dhd_bus->extdl.fw, extdl->fwlen);
 			dhd_bus->extdl.fwlen = extdl->fwlen;
@@ -1636,7 +1629,7 @@ dbus_attach(osl_t *osh, int rxsize, int nrxq, int ntxq, dhd_pub_t *pub,
 	}
 
 	if (extdl && extdl->vars && (extdl->varslen > 0)) {
-		dhd_bus->extdl.vars = MALLOC(osh, extdl->varslen);
+		dhd_bus->extdl.vars = MALLOCZ(osh, extdl->varslen);
 		if (dhd_bus->extdl.vars) {
 			bcopy(extdl->vars, dhd_bus->extdl.vars, extdl->varslen);
 			dhd_bus->extdl.varslen = extdl->varslen;
@@ -2481,12 +2474,10 @@ dbus_zlib_decomp(dhd_bus_t *dhd_bus)
 
 	decomp_memsize = dhd_bus->fwlen * 2;
 	dhd_bus->decomp_memsize = decomp_memsize;
-	if (!(file = MALLOC(osl_handle, decomp_memsize))) {
+	if (!(file = MALLOCZ(osl_handle, decomp_memsize))) {
 		DBUSERR(("%s: check_file : failed malloc\n", __FUNCTION__));
 		goto err;
 	}
-
-	bzero(file, decomp_memsize);
 
 	/* Initialise the decompression struct */
 	d_stream.next_in = NULL;
@@ -2602,11 +2593,10 @@ dbus_zlib_calloc(int num, int size)
 
 	totalsize = (num * (size + 1));
 
-	ptr  = MALLOC(osl_handle, totalsize);
+	ptr  = MALLOCZ(osl_handle, totalsize);
 
 	if (ptr == NULL)
 		return NULL;
-	bzero(ptr, totalsize);
 
 	/* store the size in the first integer space */
 
@@ -2773,9 +2763,7 @@ dhd_dbus_state_change(void *handle, int state)
 	dhd_pub_t *dhd = (dhd_pub_t *)handle;
 	unsigned long flags;
 	wifi_adapter_info_t *adapter;
-#ifdef WL_EXT_WOWL
 	int wowl_dngldown = 0;
-#endif
 
 	if (dhd == NULL) {
 		DBUSERR(("%s: dhd is NULL\n", __FUNCTION__));
@@ -3240,7 +3228,7 @@ dbus_resume(void *context)
 	if (bus->dhd->up == FALSE) {
 		return BCME_OK;
 	}
-	
+
 	dlneeded = dbus_dlneeded(bus);
 	if (dlneeded == 0) {
 		ret = dbus_up(bus);

@@ -497,7 +497,7 @@ dhd_nla_put_sssr_dump_len(void *ndev, uint32 *arr_len)
 #endif /* DHD_SSSR_DUMP */
 
 uint32
-dhd_get_time_str_len()
+dhd_get_time_str_len(void)
 {
 	char *ts = NULL, time_str[128];
 
@@ -1183,16 +1183,17 @@ do_dhd_log_dump(dhd_pub_t *dhdp, log_dump_type_t *type)
 {
 	int ret = 0, i = 0;
 	struct file *fp = NULL;
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0))
+#ifdef get_fs
 	mm_segment_t old_fs;
-#endif
+#endif /* get_fs */
 	loff_t pos = 0;
 	char dump_path[128];
 	uint32 file_mode;
 	unsigned long flags = 0;
 	size_t log_size = 0;
 	size_t fspace_remain = 0;
-	struct kstat stat;
+	struct file *filep = NULL;
+	int logstrs_size = 0;
 	char time_str[128];
 	unsigned int len = 0;
 	log_dump_section_hdr_t sec_hdr;
@@ -1211,11 +1212,11 @@ do_dhd_log_dump(dhd_pub_t *dhdp, log_dump_type_t *type)
 	if ((ret = dhd_log_flush(dhdp, type)) < 0) {
 		goto exit1;
 	}
+#ifdef get_fs
 	/* change to KERNEL_DS address limit */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0))
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
-#endif
+#endif /* get_fs */
 
 	dhd_get_debug_dump_file_name(NULL, dhdp, dump_path, sizeof(dump_path));
 
@@ -1238,7 +1239,7 @@ do_dhd_log_dump(dhd_pub_t *dhdp, log_dump_type_t *type)
 	fp = dhd_filp_open(dump_path, file_mode, 0664);
 	if (IS_ERR(fp) || (fp == NULL)) {
 		/* If android installed image, try '/data' directory */
-#if defined(CONFIG_X86) && defined(OEM_ANDROID)
+#if defined(CONFIG_X86)
 		DHD_ERROR(("%s: File open error on Installed android image, trying /data...\n",
 			__FUNCTION__));
 		snprintf(dump_path, sizeof(dump_path), "/data/" DHD_DEBUG_DUMP_TYPE);
@@ -1261,15 +1262,16 @@ do_dhd_log_dump(dhd_pub_t *dhdp, log_dump_type_t *type)
 #endif /* CONFIG_X86 && OEM_ANDROID */
 	}
 
-	ret = dhd_vfs_stat(dump_path, &stat);
-	if (ret < 0) {
+	filep = dhd_filp_open(dump_path, O_RDONLY, 0);
+
+	if (IS_ERR(filep) || (filep == NULL)) {
 		DHD_ERROR(("file stat error, err = %d\n", ret));
 		goto exit2;
 	}
-
+	logstrs_size = dhd_vfs_size_read(filep);
 	/* if some one else has changed the file */
 	if (dhdp->last_file_posn != 0 &&
-			stat.size < dhdp->last_file_posn) {
+			logstrs_size < dhdp->last_file_posn) {
 		dhdp->last_file_posn = 0;
 	}
 
@@ -1426,9 +1428,9 @@ exit2:
 		DHD_ERROR(("%s: Finished writing log dump to file - '%s' \n",
 				__FUNCTION__, dump_path));
 	}
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0))
+#ifdef get_fs
 	set_fs(old_fs);
-#endif
+#endif /* get_fs */
 exit1:
 	if (type) {
 		MFREE(dhdp->osh, type, sizeof(*type));
@@ -1812,40 +1814,6 @@ dhd_log_dump_write(int type, char *binary_data,
 			}
 		}
 	}
-}
-
-char*
-dhd_dbg_get_system_timestamp(void)
-{
-	static char timebuf[DEBUG_DUMP_TIME_BUF_LEN];
-	struct osl_timespec tv;
-	unsigned long local_time;
-	struct rtc_time tm;
-
-	memset_s(timebuf, DEBUG_DUMP_TIME_BUF_LEN, 0, DEBUG_DUMP_TIME_BUF_LEN);
-	osl_do_gettimeofday(&tv);
-	local_time = (u32)(tv.tv_sec - (sys_tz.tz_minuteswest * 60));
-	rtc_time_to_tm(local_time, &tm);
-	snprintf(timebuf, DEBUG_DUMP_TIME_BUF_LEN,
-			DHD_LOG_DUMP_TS_FMT_YYMMDDHHMMSSMSMS,
-			tm.tm_year - 100, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min,
-			tm.tm_sec, tv.tv_usec);
-	return timebuf;
-}
-
-char*
-dhd_log_dump_get_timestamp(void)
-{
-	static char buf[32];
-	u64 ts_nsec;
-	unsigned long rem_nsec;
-
-	ts_nsec = local_clock();
-	rem_nsec = DIV_AND_MOD_U64_BY_U32(ts_nsec, NSEC_PER_SEC);
-	snprintf(buf, sizeof(buf), "%5lu.%06lu",
-		(unsigned long)ts_nsec, rem_nsec / NSEC_PER_USEC);
-
-	return buf;
 }
 
 void

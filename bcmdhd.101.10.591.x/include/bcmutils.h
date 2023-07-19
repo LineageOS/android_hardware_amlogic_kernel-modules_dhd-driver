@@ -25,11 +25,7 @@
 #define	_bcmutils_h_
 
 #include <bcmtlv.h>
-
-/* For now, protect the bcmerror.h */
-#ifdef BCMUTILS_ERR_CODES
 #include <bcmerror.h>
-#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -489,201 +485,6 @@ uint16 bcmhex2bin(const uint8* hex, uint hex_len, uint8 *buf, uint buf_len);
 #define DBG_BUS_INC(s, cnt)
 #endif /* DBG_BUS */
 
-/* BCMUTILS_ERR_CODES is defined to use the error codes from bcmerror.h
- * otherwise use from this file.
- */
-#ifndef BCMUTILS_ERR_CODES
-
-/*
- * error codes could be added but the defined ones shouldn't be changed/deleted
- * these error codes are exposed to the user code
- * when ever a new error code is added to this list
- * please update errorstring table with the related error string and
- * update osl files with os specific errorcode map
-*/
-
-#define BCME_OK				0	/* Success */
-#define BCME_ERROR			-1	/* Error generic */
-#define BCME_BADARG			-2	/* Bad Argument */
-#define BCME_BADOPTION			-3	/* Bad option */
-#define BCME_NOTUP			-4	/* Not up */
-#define BCME_NOTDOWN			-5	/* Not down */
-#define BCME_NOTAP			-6	/* Not AP */
-#define BCME_NOTSTA			-7	/* Not STA  */
-#define BCME_BADKEYIDX			-8	/* BAD Key Index */
-#define BCME_RADIOOFF			-9	/* Radio Off */
-#define BCME_NOTBANDLOCKED		-10	/* Not  band locked */
-#define BCME_NOCLK			-11	/* No Clock */
-#define BCME_BADRATESET			-12	/* BAD Rate valueset */
-#define BCME_BADBAND			-13	/* BAD Band */
-#define BCME_BUFTOOSHORT		-14	/* Buffer too short */
-#define BCME_BUFTOOLONG			-15	/* Buffer too long */
-#define BCME_BUSY			-16	/* Busy */
-#define BCME_NOTASSOCIATED		-17	/* Not Associated */
-#define BCME_BADSSIDLEN			-18	/* Bad SSID len */
-#define BCME_OUTOFRANGECHAN		-19	/* Out of Range Channel */
-#define BCME_BADCHAN			-20	/* Bad Channel */
-#define BCME_BADADDR			-21	/* Bad Address */
-#define BCME_NORESOURCE			-22	/* Not Enough Resources */
-#define BCME_UNSUPPORTED		-23	/* Unsupported */
-#define BCME_BADLEN			-24	/* Bad length */
-#define BCME_NOTREADY			-25	/* Not Ready */
-#define BCME_EPERM			-26	/* Not Permitted */
-#define BCME_NOMEM			-27	/* No Memory */
-#define BCME_ASSOCIATED			-28	/* Associated */
-#define BCME_RANGE			-29	/* Not In Range */
-#define BCME_NOTFOUND			-30	/* Not Found */
-#define BCME_WME_NOT_ENABLED		-31	/* WME Not Enabled */
-#define BCME_TSPEC_NOTFOUND		-32	/* TSPEC Not Found */
-#define BCME_ACM_NOTSUPPORTED		-33	/* ACM Not Supported */
-#define BCME_NOT_WME_ASSOCIATION	-34	/* Not WME Association */
-#define BCME_SDIO_ERROR			-35	/* SDIO Bus Error */
-#define BCME_DONGLE_DOWN		-36	/* Dongle Not Accessible */
-#define BCME_VERSION			-37	/* Incorrect version */
-#define BCME_TXFAIL			-38	/* TX failure */
-#define BCME_RXFAIL			-39	/* RX failure */
-#define BCME_NODEVICE			-40	/* Device not present */
-#define BCME_NMODE_DISABLED		-41	/* NMODE disabled */
-#define BCME_MSCH_DUP_REG		-42	/* Duplicate slot registration */
-#define BCME_SCANREJECT			-43	/* reject scan request */
-#define BCME_USAGE_ERROR		-44	/* WLCMD usage error */
-#define BCME_IOCTL_ERROR		-45	/* WLCMD ioctl error */
-#define BCME_SERIAL_PORT_ERR		-46	/* RWL serial port error */
-#define BCME_DISABLED			-47	/* Disabled in this build */
-#define BCME_DECERR			-48	/* Decrypt error */
-#define BCME_ENCERR			-49	/* Encrypt error */
-#define BCME_MICERR			-50	/* Integrity/MIC error */
-#define BCME_REPLAY			-51	/* Replay */
-#define BCME_IE_NOTFOUND		-52	/* IE not found */
-#define BCME_DATA_NOTFOUND		-53	/* Complete data not found in buffer */
-#define BCME_NOT_GC			-54	/* expecting a group client */
-#define BCME_PRS_REQ_FAILED		-55	/* GC presence req failed to sent */
-#define BCME_NO_P2P_SE			-56	/* Could not find P2P-Subelement */
-#define BCME_NOA_PND			-57	/* NoA pending, CB shuld be NULL */
-#define BCME_FRAG_Q_FAILED		-58	/* queueing 80211 frag failedi */
-#define BCME_GET_AF_FAILED		-59	/* Get p2p AF pkt failed */
-#define BCME_MSCH_NOTREADY		-60	/* scheduler not ready */
-#define BCME_IOV_LAST_CMD		-61	/* last batched iov sub-command */
-#define BCME_MINIPMU_CAL_FAIL		-62	/* MiniPMU cal failed */
-#define BCME_RCAL_FAIL			-63	/* Rcal failed */
-#define BCME_LPF_RCCAL_FAIL		-64	/* RCCAL failed */
-#define BCME_DACBUF_RCCAL_FAIL		-65	/* RCCAL failed */
-#define BCME_VCOCAL_FAIL		-66	/* VCOCAL failed */
-#define BCME_BANDLOCKED			-67	/* interface is restricted to a band */
-#define BCME_BAD_IE_DATA		-68	/* Recieved ie with invalid/bad data */
-#define BCME_REG_FAILED			-69	/* Generic registration failed */
-#define BCME_NOCHAN			-70	/* Registration with 0 chans in list */
-#define BCME_PKTTOSS			-71	/* Pkt tossed */
-#define BCME_DNGL_DEVRESET		-72	/* dongle re-attach during DEVRESET */
-#define BCME_ROAM			-73	/* Roam related failures */
-#define BCME_NO_SIG_FILE		-74	/* Signature file is missing */
-#define BCME_RESP_PENDING		-75	/* Command response is pending */
-#define BCME_ACTIVE			-76	/* Command/context is already active */
-#define BCME_IN_PROGRESS		-77	/* Command/context is in progress */
-#define BCME_NOP			-78	/* No action taken i.e. NOP */
-#define BCME_6GCH_EPERM			-79	/* 6G channel not permitted */
-#define BCME_6G_NO_TPE			-80	/* TPE for a 6G channel does not exist */
-
-#define BCME_LAST			BCME_6G_NO_TPE
-
-#define BCME_NOTENABLED BCME_DISABLED
-
-/* This error code is *internal* to the driver, and is not propogated to users. It should
- * only be used by IOCTL patch handlers as an indication that it did not handle the IOCTL.
- * (Since the error code is internal, an entry in 'BCMERRSTRINGTABLE' is not required,
- * nor does it need to be part of any OSL driver-to-OS error code mapping).
- */
-#define BCME_IOCTL_PATCH_UNSUPPORTED	-9999
-#if (BCME_LAST <= BCME_IOCTL_PATCH_UNSUPPORTED)
-	#error "BCME_LAST <= BCME_IOCTL_PATCH_UNSUPPORTED"
-#endif
-
-/* These are collection of BCME Error strings */
-#define BCMERRSTRINGTABLE {		\
-	"OK",				\
-	"Undefined error",		\
-	"Bad Argument",			\
-	"Bad Option",			\
-	"Not up",			\
-	"Not down",			\
-	"Not AP",			\
-	"Not STA",			\
-	"Bad Key Index",		\
-	"Radio Off",			\
-	"Not band locked",		\
-	"No clock",			\
-	"Bad Rate valueset",		\
-	"Bad Band",			\
-	"Buffer too short",		\
-	"Buffer too long",		\
-	"Busy",				\
-	"Not Associated",		\
-	"Bad SSID len",			\
-	"Out of Range Channel",		\
-	"Bad Channel",			\
-	"Bad Address",			\
-	"Not Enough Resources",		\
-	"Unsupported",			\
-	"Bad length",			\
-	"Not Ready",			\
-	"Not Permitted",		\
-	"No Memory",			\
-	"Associated",			\
-	"Not In Range",			\
-	"Not Found",			\
-	"WME Not Enabled",		\
-	"TSPEC Not Found",		\
-	"ACM Not Supported",		\
-	"Not WME Association",		\
-	"SDIO Bus Error",		\
-	"Dongle Not Accessible",	\
-	"Incorrect version",		\
-	"TX Failure",			\
-	"RX Failure",			\
-	"Device Not Present",		\
-	"NMODE Disabled",		\
-	"Host Offload in device",	\
-	"Scan Rejected",		\
-	"WLCMD usage error",		\
-	"WLCMD ioctl error",		\
-	"RWL serial port error",	\
-	"Disabled",			\
-	"Decrypt error",		\
-	"Encrypt error",		\
-	"MIC error",			\
-	"Replay",			\
-	"IE not found",			\
-	"Data not found",		\
-	"NOT GC",			\
-	"PRS REQ FAILED",		\
-	"NO P2P SubElement",		\
-	"NOA Pending",			\
-	"FRAG Q FAILED",		\
-	"GET ActionFrame failed",	\
-	"scheduler not ready",		\
-	"Last IOV batched sub-cmd",	\
-	"Mini PMU Cal failed",		\
-	"R-cal failed",			\
-	"LPF RC Cal failed",		\
-	"DAC buf RC Cal failed",	\
-	"VCO Cal failed",		\
-	"band locked",			\
-	"Recieved ie with invalid data", \
-	"registration failed",		\
-	"Registration with zero channels", \
-	"pkt toss",			\
-	"Dongle Devreset",		\
-	"Critical roam in progress",	\
-	"Signature file is missing",	\
-	"Command response pending",	\
-	"Command/context already active", \
-	"Command/context is in progress", \
-	"No action taken i.e. NOP",	\
-	"6G Not permitted", \
-	"tpe for 6g channel(s) does not exist", \
-}
-#endif	/* BCMUTILS_ERR_CODES */
-
 #ifndef STRIP_PARENS
 /* DROP Parenthesis from the ARGS
  * if ARG=(a,b,c) including parens, then ARG is evaluated as 1 argument not 3
@@ -708,7 +509,7 @@ uint16 bcmhex2bin(const uint8* hex, uint hex_len, uint8 *buf, uint buf_len);
 #define CONCAT(a, b)        CONCATENATE(a, b)
 #endif
 
-#ifndef COUNT_ARGS
+#ifdef COUNT_ARGS
 /* returns the count of argument passed to COUNT_ARGS
  * order or arguments to COUNT_ARGS_ is dummy, __VA_ARGS__, 30..0
  * a30 is returned if NARGS is 30 and a0 if NARGS is 0
@@ -717,11 +518,13 @@ uint16 bcmhex2bin(const uint8* hex, uint hex_len, uint8 *buf, uint buf_len);
  * 5 Args present, dummy, a30-a26(args passed) a25-a1==30-6, and a0 == 5
  */
 #undef __COUNT_ARGS
+#undef COUNT_ARGS
+#endif /* COUNT_ARGS */
+
 #define __COUNT_ARGS(dummy, a30, a29, a28, a27, a26, a25, a24, a23, a22, a21, a20, a19, a18, \
 	a17, a16, a15, a14, a13, a12, a11, a10, a9, a8, a7, a6, a5, a4, a3, a2, a1, a0, ...) a0
 #define COUNT_ARGS(...)  __COUNT_ARGS(dummy, ##__VA_ARGS__, 30, 29, 28, 27, 26, 25, 24, 23, 22, \
 	21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
-#endif
 
 #ifndef ABS
 #define	ABS(a)			(((a) < 0) ? -(a) : (a))
@@ -1804,5 +1607,7 @@ extern uint16 bcm_mwbmap_total_pktid(struct bcm_mwbmap * mwbmap_hdl);
 
 extern uint64 div_1K(uint64 q);
 extern uint64 div_1M(uint64 q);
+
+#define NS_PER_MS			(1000000u)
 
 #endif	/* _bcmutils_h_ */

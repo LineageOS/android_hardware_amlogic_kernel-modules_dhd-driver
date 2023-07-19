@@ -60,9 +60,7 @@
 #include <wl_cfgvif.h>
 #include <bcmdevs.h>
 
-#ifdef OEM_ANDROID
 #include <wl_android.h>
-#endif
 
 #if defined(BCMDONGLEHOST)
 #include <dngl_stats.h>
@@ -117,10 +115,8 @@
 	cfg80211_sched_scan_stopped(wiphy);
 #endif /* KERNEL > 4.11.0 */
 
-#ifdef DHD_GET_VALID_CHANNELS
 #define IS_DFS(chaninfo) ((chaninfo & WL_CHAN_RADAR) || \
 	 (chaninfo & WL_CHAN_PASSIVE))
-#endif /* DHD_GET_VALID_CHANNELS */
 
 #if defined(USE_INITIAL_2G_SCAN) || defined(USE_INITIAL_SHORT_DWELL_TIME)
 #define FIRST_SCAN_ACTIVE_DWELL_TIME_MS 40
@@ -216,6 +212,7 @@ static void wl_update_hidden_ap_ie(wl_bss_info_v109_t *bi, const u8 *ie_stream, 
 	int32 ssid_len = MIN(bi->SSID_len, DOT11_MAX_SSID_LEN);
 	int32 remaining_ie_buf_len, available_buffer_len, unused_buf_len;
 	/* cfg80211_find_ie defined in kernel returning const u8 */
+	int ret = 0;
 
 	GCC_DIAGNOSTIC_PUSH_SUPPRESS_CAST();
 	ssidie = (u8 *)cfg80211_find_ie(WLAN_EID_SSID, ie_stream, *ie_size);
@@ -259,10 +256,19 @@ static void wl_update_hidden_ap_ie(wl_bss_info_v109_t *bi, const u8 *ie_stream, 
 		 */
 		if ((update_ssid && (ssid_len > ssidie[1])) && (unused_buf_len > ssid_len)) {
 			WL_INFORM_MEM(("Changing the SSID Info.\n"));
-			memmove(ssidie + ssid_len + 2,
-				(ssidie + 2) + ssidie[1],
-				remaining_ie_buf_len);
-			memcpy(ssidie + 2, bi->SSID, ssid_len);
+			ret = memmove_s(ssidie + ssid_len + 2, available_buffer_len,
+				(ssidie + 2) + ssidie[1], remaining_ie_buf_len);
+			if (ret) {
+				WL_ERR(("SSID Info memmove failed:%d, destsz:%d, n:%d\n",
+					ret, available_buffer_len, remaining_ie_buf_len));
+				return;
+			}
+			ret = memcpy_s(ssidie + 2, DOT11_MAX_SSID_LEN, bi->SSID, ssid_len);
+			if (ret) {
+				WL_ERR(("SSID Info memcpy failed:%d, destsz:%d, n:%d\n",
+					ret, DOT11_MAX_SSID_LEN, ssid_len));
+				return;
+			}
 			*ie_size = *ie_size + ssid_len - ssidie[1];
 			ssidie[1] = ssid_len;
 		} else if (ssid_len < ssidie[1]) {
@@ -271,8 +277,14 @@ static void wl_update_hidden_ap_ie(wl_bss_info_v109_t *bi, const u8 *ie_stream, 
 		}
 		return;
 	}
-	if (*(ssidie + 2) == '\0')
-		 memcpy(ssidie + 2, bi->SSID, ssid_len);
+	if (*(ssidie + 2) == '\0') {
+		 ret = memcpy_s(ssidie + 2, DOT11_MAX_SSID_LEN, bi->SSID, ssid_len);
+		if (ret) {
+			WL_ERR(("memcopy failed:%d, destsz:%d, n:%d\n",
+				ret, DOT11_MAX_SSID_LEN, ssid_len));
+			return;
+		}
+	}
 	return;
 }
 
@@ -280,12 +292,19 @@ static s32 wl_mrg_ie(struct bcm_cfg80211 *cfg, u8 *ie_stream, u16 ie_size)
 {
 	struct wl_ie *ie = wl_to_ie(cfg);
 	s32 err = 0;
+	int ret = 0;
 
 	if (unlikely(ie->offset + ie_size > WL_TLV_INFO_MAX)) {
 		WL_ERR(("ei_stream crosses buffer boundary\n"));
 		return -ENOSPC;
 	}
-	memcpy(&ie->buf[ie->offset], ie_stream, ie_size);
+	ret = memcpy_s(&ie->buf[ie->offset], (sizeof(ie->buf) - ie->offset),
+		ie_stream, ie_size);
+	if (ret) {
+		WL_ERR(("memcpy failed:%d, destsz: %zu, n: %d\n",
+			ret, (sizeof(ie->buf) - ie->offset), ie_size));
+		return BCME_ERROR;
+	}
 	ie->offset += ie_size;
 
 	return err;
@@ -338,6 +357,12 @@ s32 wl_inform_single_bss(struct bcm_cfg80211 *cfg, wl_bss_info_v109_t *bi, bool 
 	if (unlikely(dtoh32(bi->length) > WL_BSS_INFO_MAX)) {
 		WL_DBG(("Beacon is larger than buffer. Discarding\n"));
 		return err;
+	}
+
+	if (bi->length < (bi->ie_offset + bi->ie_length)) {
+		WL_ERR(("IE length is not Valid. IE offse:%d, len:%d\n",
+			bi->ie_offset, bi->ie_length));
+		return -EINVAL;
 	}
 
 	if (bi->SSID_len > IEEE80211_MAX_SSID_LEN) {
@@ -594,7 +619,7 @@ s32 wl_inform_bss_cache(struct bcm_cfg80211 *cfg)
 		}
 	}
 
-	cnt = i;	
+	cnt = i;
 	node = cfg->g_bss_cache_ctrl.m_cache_head;
 	WL_SCAN(("cached AP count (%d)\n", wl_bss_cache_size(&cfg->g_bss_cache_ctrl)));
 	for (i=cnt; node && i<WL_AP_MAX; i++) {
@@ -795,6 +820,7 @@ wl_bcnrecv_result_handler(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev,
 	struct wiphy *wiphy = NULL;
 	wl_bcnrecv_result_t *bcn_recv = NULL;
 	struct osl_timespec ts;
+	int ret = 0;
 	if (!bi) {
 		WL_ERR(("%s: bi is NULL\n", __func__));
 		err = BCME_NORESOURCE;
@@ -817,11 +843,15 @@ wl_bcnrecv_result_handler(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev,
 			WL_ERR(("Failed to allocate memory\n"));
 			return -ENOMEM;
 		}
-		/* Returning void here as copy size does not exceed dest size of SSID */
-		(void)memcpy_s((char *)bcn_recv->SSID, DOT11_MAX_SSID_LEN,
-			(char *)bi->SSID, DOT11_MAX_SSID_LEN);
-		/* Returning void here as copy size does not exceed dest size of ETH_LEN */
-		(void)memcpy_s(&bcn_recv->BSSID, ETHER_ADDR_LEN, &bi->BSSID, ETH_ALEN);
+		ret = memcpy_s((char *)bcn_recv->SSID, sizeof(bcn_recv->SSID),
+			(char *)bi->SSID, bi->SSID_len);
+		if (ret) {
+			WL_ERR(("memcpy failed:%d, destsz:%lu, n:%d\n",
+				ret, sizeof(bcn_recv->SSID), bi->SSID_len));
+			err = BCME_ERROR;
+			goto exit;
+		}
+		eacopy(&bi->BSSID, &bcn_recv->BSSID);
 		bcn_recv->channel = wf_chspec_ctlchan(
 			wl_chspec_driver_to_host(bi->chanspec));
 		bcn_recv->beacon_interval = bi->beacon_period;
@@ -2543,11 +2573,11 @@ wl_cfgscan_handle_scanbusy(struct bcm_cfg80211 *cfg, struct net_device *ndev, s3
 #endif /* DHD_DEBUG && DHD_FW_COREDUMP */
 			dhdp->hang_reason = HANG_REASON_SCAN_BUSY;
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && defined(OEM_ANDROID)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
 			dhd_os_send_hang_message(dhdp);
-#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && defined(OEM_ANDROID) */
+#endif
 
-#if !((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && defined(OEM_ANDROID))
+#if !(LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
 			WL_ERR(("%s: HANG event is unsupported\n", __FUNCTION__));
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27) && OEM_ANDROID */
 #endif /* BCMDONGLEHOST */
@@ -2801,7 +2831,7 @@ __wl_cfg80211_scan(struct wiphy *wiphy, struct net_device *ndev,
 
 	WL_TRACE_HW4(("START SCAN\n"));
 
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 	DHD_OS_SCAN_WAKE_LOCK_TIMEOUT((dhd_pub_t *)(cfg->pub),
 		wl_get_scan_timeout_val(cfg) + SCAN_WAKE_LOCK_MARGIN_MS);
 	DHD_DISABLE_RUNTIME_PM((dhd_pub_t *)(cfg->pub));
@@ -2897,7 +2927,7 @@ scan_out:
 		if (scanbusy_err == BCME_NOTREADY) {
 			/* In case of bus failures avoid ioctl calls */
 
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 			DHD_OS_SCAN_WAKE_UNLOCK((dhd_pub_t *)(cfg->pub));
 			DHD_ENABLE_RUNTIME_PM((dhd_pub_t *)(cfg->pub));
 #endif
@@ -2907,7 +2937,7 @@ scan_out:
 		err = scanbusy_err;
 	}
 
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 	DHD_OS_SCAN_WAKE_UNLOCK((dhd_pub_t *)(cfg->pub));
 	DHD_ENABLE_RUNTIME_PM((dhd_pub_t *)(cfg->pub));
 #endif
@@ -3233,7 +3263,7 @@ wl_notify_escan_complete(struct bcm_cfg80211 *cfg,
 #endif /* WL_SCHED_SCAN */
 	wake_up_interruptible(&dhdp->conf->event_complete);
 
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 	DHD_OS_SCAN_WAKE_UNLOCK((dhd_pub_t *)(cfg->pub));
 	DHD_ENABLE_RUNTIME_PM((dhd_pub_t *)(cfg->pub));
 #endif
@@ -3273,7 +3303,7 @@ wl_cfg80211_abort_scan(struct wiphy *wiphy, struct wireless_dev *wdev)
 }
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)) */
 
-#if defined(OEM_ANDROID) && defined(DHCP_SCAN_SUPPRESS)
+#if defined(DHCP_SCAN_SUPPRESS)
 static void wl_cfg80211_scan_supp_timerfunc(ulong data)
 {
 	struct bcm_cfg80211 *cfg = (struct bcm_cfg80211 *)data;
@@ -4205,6 +4235,25 @@ exit:
 	return ret;
 }
 
+void
+wl_cfg80211_stop_pno(struct bcm_cfg80211 *cfg, struct net_device *dev)
+{
+#if defined(BCMDONGLEHOST)
+	dhd_pub_t *dhdp = (dhd_pub_t *)(cfg->pub);
+
+	if (dhd_dev_pno_stop_for_ssid(dev) < 0) {
+		WL_ERR(("PNO Stop for SSID failed"));
+	} else {
+		/*
+		 * purposefully logging here to make sure that
+		 * firmware configuration was successful
+		 */
+		UNUSED_PARAMETER(dhdp);
+		DBG_EVENT_LOG(dhdp, WIFI_EVENT_DRIVER_PNO_REMOVE);
+	}
+#endif /* BCMDONGLEHOST */
+}
+
 int
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(4, 11, 0))
 wl_cfg80211_sched_scan_stop(struct wiphy *wiphy, struct net_device *dev, u64 reqid)
@@ -4251,45 +4300,36 @@ wl_cfgscan_sched_scan_stop_work(struct work_struct *work)
 	cfg = container_of(dw, struct bcm_cfg80211, sched_scan_stop_work);
 	GCC_DIAGNOSTIC_POP();
 
-	/* Hold rtnl_lock -> scan_sync lock to be in sync with cfg80211_ops path */
-	rtnl_lock();
-	mutex_lock(&cfg->scan_sync);
 	if (cfg->sched_scan_req) {
+	/* Hold rtnl_lock -> scan_sync lock to be in sync with cfg80211_ops path */
 		wiphy = cfg->sched_scan_req->wiphy;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0))
+		wiphy_lock(wiphy);
+#else
+		rtnl_lock();
+#endif /* KERNEL > 5.12.0 */
+		mutex_lock(&cfg->scan_sync);
+
 		/* Indicate sched scan stopped so that user space
 		 * can do a full scan incase found match is empty.
 		 */
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0))
+		cfg80211_sched_scan_stopped_locked(wiphy, cfg->sched_scan_req->reqid);
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0))
 		cfg80211_sched_scan_stopped_rtnl(wiphy, cfg->sched_scan_req->reqid);
 #else
 		cfg80211_sched_scan_stopped_rtnl(wiphy);
-#endif /* KERNEL > 4.12.0 */
+#endif /* KERNEL > 5.12.0 */
 		cfg->sched_scan_req = NULL;
+		mutex_unlock(&cfg->scan_sync);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0))
+		wiphy_unlock(wiphy);
+#else
+		rtnl_unlock();
+#endif /* KERNEL > 5.12.0 */
 	}
-	mutex_unlock(&cfg->scan_sync);
-	rtnl_unlock();
 }
 #endif /* WL_SCHED_SCAN */
-
-#ifdef PNO_SUPPORT
-void
-wl_cfg80211_stop_pno(struct bcm_cfg80211 *cfg, struct net_device *dev)
-{
-#if defined(BCMDONGLEHOST)
-	dhd_pub_t *dhdp = (dhd_pub_t *)(cfg->pub);
-
-	if (dhd_dev_pno_stop_for_ssid(dev) < 0) {
-		WL_ERR(("PNO Stop for SSID failed"));
-	} else {
-		/*
-		 * purposefully logging here to make sure that
-		 * firmware configuration was successful
-		 */
-		DBG_EVENT_LOG(dhdp, WIFI_EVENT_DRIVER_PNO_REMOVE);
-	}
-#endif /* BCMDONGLEHOST */
-}
-#endif /* PNO_SUPPORT */
 
 #ifdef WES_SUPPORT
 #ifdef CUSTOMER_SCAN_TIMEOUT_SETTING
@@ -4374,12 +4414,10 @@ static void wl_scan_timeout(unsigned long data)
 		return;
 	}
 
-#ifdef DHD_FW_COREDUMP
+#if defined(DHD_KERNEL_SCHED_DEBUG) && defined(DHD_FW_COREDUMP)
 	if (dhdp->memdump_enabled) {
 		dhdp->hang_reason = HANG_REASON_SCAN_TIMEOUT;
 	}
-#endif /* DHD_FW_COREDUMP */
-#if defined(DHD_KERNEL_SCHED_DEBUG) && defined(DHD_FW_COREDUMP)
 	/* DHD triggers Kernel panic if the SCAN timeout occurrs
 	 * due to tasklet or workqueue scheduling problems in the Linux Kernel.
 	 * Customer informs that it is hard to find any clue from the
@@ -4477,7 +4515,7 @@ static void wl_scan_timeout(unsigned long data)
 		WL_ERR(("%s : PCIe link might be down\n", __FUNCTION__));
 		dhd_bus_set_linkdown(dhdp, TRUE);
 		dhdp->hang_reason = HANG_REASON_PCIE_LINK_DOWN_EP_DETECT;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && defined(OEM_ANDROID)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
 		dhd_os_send_hang_message(dhdp);
 #else
 		WL_ERR(("%s: HANG event is unsupported\n", __FUNCTION__));
@@ -4517,13 +4555,13 @@ static void wl_scan_timeout(unsigned long data)
 	dhd_os_send_alert_message(dhdp);
 #endif /* WL_CFGVENDOR_SEND_ALERT_EVENT */
 
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 	DHD_ENABLE_RUNTIME_PM(dhdp);
 #endif /* BCMDONGLEHOST && OEM_ANDROID */
 
 #if defined(BCMDONGLEHOST) && defined(DHD_FW_COREDUMP)
 	if (dhdp->memdump_enabled) {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && defined(OEM_ANDROID)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
 		dhd_os_send_hang_message(dhdp);
 #else
 		WL_ERR(("%s: HANG event is unsupported\n", __FUNCTION__));
@@ -4594,6 +4632,7 @@ wl_cfgscan_init_pno_escan(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 		goto exit;
 	}
 
+	UNUSED_PARAMETER(dhdp);
 	DBG_EVENT_LOG(dhdp, WIFI_EVENT_DRIVER_PNO_SCAN_REQUESTED);
 
 	cfg->sched_scan_running = TRUE;
@@ -5524,7 +5563,7 @@ wl_cfgscan_listen_on_channel(struct bcm_cfg80211 *cfg, struct wireless_dev *wdev
 		if (schedule_delayed_work(&cfg->loc.work,
 				msecs_to_jiffies(listen_timeout))) {
 
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 			DHD_PM_WAKE_LOCK_TIMEOUT(cfg->pub, listen_timeout);
 #endif /* BCMDONGLEHOST && OEM_ANDROID */
 
@@ -6050,7 +6089,6 @@ wl_get_assoc_channels(struct bcm_cfg80211 *cfg,
 	return BCME_OK;
 }
 
-#ifdef DHD_GET_VALID_CHANNELS
 bool
 wl_cfgscan_is_dfs_set(wifi_band band)
 {
@@ -6146,7 +6184,6 @@ wl_cfgscan_get_band_freq_list(struct bcm_cfg80211 *cfg, struct wireless_dev *wde
 	*num_channels = count;
 	return err;
 }
-#endif /* DHD_GET_VALID_CHANNELS */
 
 #if defined(WL_SOFTAP_ACS)
 #define SEC_FREQ_HT40_OFFSET 20
@@ -7027,7 +7064,7 @@ wl_cfgscan_acs(struct wiphy *wiphy,
 				parameter->band = WLC_BAND_2G;
 				break;
 			case HOSTAPD_MODE_IEEE80211A:
-				parameter->band = WLC_BAND_5G | WLC_BAND_6G;
+				parameter->band = WLC_BAND_5G;
 				break;
 			case HOSTAPD_MODE_IEEE80211ANY:
 				parameter->band = WLC_BAND_AUTO;
@@ -7193,27 +7230,32 @@ wl_get_ap_chanspecs(struct bcm_cfg80211 *cfg, wl_ap_oper_data_t *ap_data)
 	}
 }
 
-inline bool
-is_chanspec_dfs(struct bcm_cfg80211 *cfg, chanspec_t chspec)
+bool wl_is_chanspec_restricted(struct bcm_cfg80211 *cfg, chanspec_t sta_chanspec)
 {
-	u32 ch;
-	s32 err;
-	u8 buf[WLC_IOCTL_SMLEN];
-	struct net_device *ndev = bcmcfg_to_prmry_ndev(cfg);
+	struct net_device *dev = bcmcfg_to_prmry_ndev(cfg);
+	s32 ret = BCME_OK;
+	uint bitmap = 0;
+	u8 ioctl_buf[WLC_IOCTL_SMLEN];
 
-	ch = (u32)chspec;
-	err = wldev_iovar_getbuf_bsscfg(ndev, "per_chan_info", (void *)&ch,
-			sizeof(u32), buf, WLC_IOCTL_SMLEN, 0, NULL);
-	if (unlikely(err)) {
-		WL_ERR(("get per chan info failed:%d\n", err));
+	bzero(ioctl_buf, WLC_IOCTL_SMLEN);
+	ret = wldev_iovar_getbuf(dev, "per_chan_info",
+			(void *)&sta_chanspec, sizeof(sta_chanspec),
+			ioctl_buf, WLC_IOCTL_SMLEN, NULL);
+	if (ret != BCME_OK) {
+		WL_ERR(("Failed to get per_chan_info chspec:0x%x, error:%d\n",
+				sta_chanspec, ret));
 		return FALSE;
 	}
 
-	/* Check the channel flags returned by fw */
-	if ((*((u32 *)buf) & WL_CHAN_PASSIVE) ||
-		(*((u32 *)buf) & WL_CHAN_RADAR)) {
+	bitmap = dtoh32(*(uint *)ioctl_buf);
+	if (bitmap & (WL_CHAN_PASSIVE | WL_CHAN_RADAR |
+		WL_CHAN_RESTRICTED | WL_CHAN_CLM_RESTRICTED)) {
+		WL_INFORM_MEM(("chanspec:0x%x is restricted by per_chan_info:0x%x\n",
+			sta_chanspec, bitmap));
 		return TRUE;
 	}
+
+	WL_INFORM_MEM(("STA chanspec:0x%x per_chan_info:0x%x\n", sta_chanspec, bitmap));
 	return FALSE;
 }
 
@@ -7264,7 +7306,14 @@ wl_acs_check_scc(struct bcm_cfg80211 *cfg, drv_acs_params_t *parameter,
 	 * get active channels and check it
 	 */
 	if (scc == FALSE && CHSPEC_IS2G(sta_chanspec)) {
-		scc = wl_check_active_2g_chan(cfg, parameter, sta_chanspec);
+#ifdef WL_CELLULAR_CHAN_AVOID
+		scc = wl_cellavoid_operation_allowed(cfg->cellavoid_info,
+			sta_chanspec, NL80211_IFTYPE_AP);
+		if (scc == FALSE) {
+			WL_INFORM_MEM(("Not allow unsafe channel and mandatory chspec:0x%x\n",
+			sta_chanspec));
+		}
+#endif /* WL_CELLULAR_CHAN_AVOID */
 	}
 #endif /* DHD_ACS_CHECK_SCC_2G_ACTIVE_CH */
 
@@ -7342,7 +7391,8 @@ wl_handle_acs_concurrency_cases(struct bcm_cfg80211 *cfg, drv_acs_params_t *para
 		bool scc_case = false;
 		u32 sta_band = CHSPEC_TO_WLC_BAND(chspec);
 		if (sta_band == WLC_BAND_2G) {
-			if (parameter->freq_bands & (WLC_BAND_5G | WLC_BAND_6G)) {
+			if (wl_is_chanspec_restricted(cfg, chspec) ||
+				(parameter->freq_bands & (WLC_BAND_5G | WLC_BAND_6G))) {
 				/* Remove the 2g band from incoming ACS bands */
 				parameter->freq_bands &= ~WLC_BAND_2G;
 			} else if (wl_acs_check_scc(cfg, parameter, chspec, qty, pList)) {
@@ -7353,14 +7403,13 @@ wl_handle_acs_concurrency_cases(struct bcm_cfg80211 *cfg, drv_acs_params_t *para
 				return -EINVAL;
 			}
 		} else if (sta_band == WLC_BAND_5G) {
-			if (is_chanspec_dfs(cfg, chspec) ||
+			if (wl_is_chanspec_restricted(cfg, chspec) ||
 #ifdef WL_UNII4_CHAN
-				(CHSPEC_IS5G(chspec) &&
-				IS_UNII4_CHANNEL(wf_chspec_primary20_chan(chspec))) ||
+				IS_UNII4_CHANNEL(wf_chspec_primary20_chan(chspec)) ||
 #endif /* WL_UNII4_CHAN */
 				FALSE) {
 				/*
-				 * If STA is in DFS/UNII4 channel,
+				 * If STA is in DFS/Restricted/UNII4 channel,
 				 * check for 2G availability in ACS list
 				 */
 				if (!(parameter->freq_bands & WLC_BAND_2G)) {

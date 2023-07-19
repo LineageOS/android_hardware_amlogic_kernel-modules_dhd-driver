@@ -34,9 +34,7 @@
 #include <dhd.h>
 #include <dhd_bus.h>
 #include <dhd_linux.h>
-#if defined(OEM_ANDROID)
 #include <wl_android.h>
-#endif
 #include <dhd_plat.h>
 #if defined(CONFIG_WIFI_CONTROL_FUNC)
 #include <linux/wlan_plat.h>
@@ -145,7 +143,7 @@ wifi_adapter_info_t* dhd_wifi_platform_attach_adapter(uint32 bus_type,
 		if ((adapter->bus_type == -1 || adapter->bus_type == bus_type) &&
 			(adapter->bus_num == -1 || adapter->bus_num == bus_num) &&
 			(adapter->slot_num == -1 || adapter->slot_num == slot_num)
-#if defined(ENABLE_INSMOD_NO_FW_LOAD)
+#if defined(ENABLE_INSMOD_NO_FW_LOAD) && !defined(ENABLE_INSMOD_NO_POWER_OFF)
 			&& (wifi_chk_adapter_status(adapter, status))
 #endif
 		) {
@@ -175,6 +173,10 @@ wifi_adapter_info_t* dhd_wifi_platform_get_adapter(uint32 bus_type, uint32 bus_n
 	return NULL;
 }
 
+#if defined(CONFIG_WIFI_CONTROL_FUNC) && defined(CONFIG_DHD_USE_STATIC_BUF)
+extern void *dhd_wlan_mem_prealloc(int section, unsigned long size);
+#endif /* CONFIG_WIFI_CONTROL_FUNC && CONFIG_DHD_USE_STATIC_BUF */
+
 void* wifi_platform_prealloc(wifi_adapter_info_t *adapter, int section, unsigned long size)
 {
 	void *alloc_ptr = NULL;
@@ -187,7 +189,11 @@ void* wifi_platform_prealloc(wifi_adapter_info_t *adapter, int section, unsigned
 #if defined(BCMDHD_MDRIVER) && !defined(DHD_STATIC_IN_DRIVER)
 		alloc_ptr = plat_data->mem_prealloc(adapter->bus_type, adapter->index, section, size);
 #else
+#if defined(CONFIG_WIFI_CONTROL_FUNC) && defined(CONFIG_DHD_USE_STATIC_BUF)
+		alloc_ptr = dhd_wlan_mem_prealloc(section, size);
+#else
 		alloc_ptr = plat_data->mem_prealloc(section, size);
+#endif
 #endif
 		if (alloc_ptr) {
 			DHD_INFO(("success alloc section %d\n", section));
@@ -274,7 +280,11 @@ int wifi_platform_set_power(wifi_adapter_info_t *adapter, bool on, unsigned long
 		}
 #endif /* ENABLE_4335BT_WAR */
 
+#ifdef CONFIG_WIFI_CONTROL_FUNC
+		err = plat_data->set_power(on);
+#else
 		err = plat_data->set_power(on, adapter);
+#endif
 	}
 
 	if (msec && !err) {
@@ -326,7 +336,11 @@ int wifi_platform_get_mac_addr(wifi_adapter_info_t *adapter, unsigned char *buf,
 		return -EINVAL;
 	plat_data = adapter->wifi_plat_data;
 	if (plat_data->get_mac_addr) {
+#ifdef CONFIG_WIFI_CONTROL_FUNC
+		return plat_data->get_mac_addr(buf);
+#else
 		return plat_data->get_mac_addr(buf, ifidx);
+#endif
 	}
 	return -EOPNOTSUPP;
 }
@@ -609,6 +623,11 @@ static int wifi_ctrlfunc_register_drv(void)
 	is_power_on = FALSE;
 	wifi_plat_dev_probe_ret = 0;
 	dhd_wifi_platdata = kzalloc(sizeof(bcmdhd_wifi_platdata_t), GFP_KERNEL);
+	if (dhd_wifi_platdata == NULL) {
+		DHD_ERROR(("%s:dhd_wifi_platdata alloc failed", __FUNCTION__));
+		kfree(adapter);
+		return -ENOMEM;
+	}
 	dhd_wifi_platdata->num_adapters = 1;
 	dhd_wifi_platdata->adapters = adapter;
 	init_waitqueue_head(&adapter->status_event);
@@ -897,9 +916,9 @@ void dhd_wifi_platform_unregister_drv(void)
 extern int dhd_watchdog_prio;
 extern int dhd_dpc_prio;
 extern uint dhd_deferred_tx;
-#if defined(OEM_ANDROID) && (defined(BCMLXSDMMC) || defined(BCMDBUS))
+#if (defined(BCMLXSDMMC) || defined(BCMDBUS))
 extern struct semaphore dhd_registration_sem;
-#endif /* defined(OEM_ANDROID) && defined(BCMLXSDMMC) */
+#endif
 
 #ifdef BCMSDIO
 static int dhd_wifi_platform_load_sdio(void)
@@ -918,7 +937,7 @@ static int dhd_wifi_platform_load_sdio(void)
 		!(dhd_watchdog_prio >= 0 && dhd_dpc_prio >= 0 && dhd_deferred_tx))
 		return -EINVAL;
 
-#if defined(OEM_ANDROID) && defined(BCMLXSDMMC) && !defined(DHD_PRELOAD)
+#if defined(BCMLXSDMMC) && !defined(DHD_PRELOAD)
 	sema_init(&dhd_registration_sem, 0);
 #endif
 
@@ -930,7 +949,7 @@ static int dhd_wifi_platform_load_sdio(void)
 		return err;
 	}
 
-#if defined(OEM_ANDROID) && defined(BCMLXSDMMC) && !defined(DHD_PRELOAD)
+#if defined(BCMLXSDMMC) && !defined(DHD_PRELOAD)
 	/* power up all adapters */
 	for (i = 0; i < dhd_wifi_platdata->num_adapters; i++) {
 		bool chip_up = FALSE;
@@ -1042,7 +1061,7 @@ fail:
 #else
 	/* x86 bring-up PC needs no power-up operations */
 	err = dhd_bus_register();
-#endif /* defined(OEM_ANDROID) && defined(BCMLXSDMMC) */
+#endif
 
 	return err;
 }
@@ -1063,7 +1082,7 @@ static int dhd_wifi_platform_load_usb(void)
 	int i;
 #endif
 
-#if !defined(DHD_PRELOAD)
+#if !defined(DHD_PRELOAD) && !defined(ENABLE_INSMOD_NO_POWER_OFF)
 	/* power down all adapters */
 	for (i = 0; i < dhd_wifi_platdata->num_adapters; i++) {
 		adapter = &dhd_wifi_platdata->adapters[i];
@@ -1134,9 +1153,7 @@ static int dhd_wifi_platform_load()
 	int err = 0;
 	printf("%s: Enter\n", __FUNCTION__);
 
-#if defined(OEM_ANDROID)
 	wl_android_init();
-#endif /* OEM_ANDROID */
 
 	if ((err = dhd_wifi_platform_load_usb()))
 		goto end;
@@ -1146,14 +1163,12 @@ static int dhd_wifi_platform_load()
 		err = dhd_wifi_platform_load_pcie();
 
 end:
-#if defined(OEM_ANDROID)
 	if (err)
 		wl_android_exit();
 #if !defined(MULTIPLE_SUPPLICANT)
 	else
 		wl_android_post_init();
 #endif
-#endif /* OEM_ANDROID */
 
 	return err;
 }

@@ -164,8 +164,8 @@ do {	\
 		}	\
 	}	\
 	if (dhd_log_level & DHD_EVENT_VAL) {	\
-		DHD_LOG_DUMP_FWLOG_TS;		\
-		DHD_LOG_DUMP_FWLOG args;	\
+		DHD_LOG_DUMP_WRITE_PRSRV_TS;		\
+		DHD_LOG_DUMP_WRITE_PRSRV args;	\
 	}	\
 } while (0)
 /* Re-using 'DHD_MSGTRACE_VAL' for controlling printing of ecounter binary event
