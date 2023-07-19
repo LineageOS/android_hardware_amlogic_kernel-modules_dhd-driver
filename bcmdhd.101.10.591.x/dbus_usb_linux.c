@@ -505,7 +505,7 @@ MODULE_DEVICE_TABLE(usb, devid_table);
 
 /** functions called by the Linux kernel USB subsystem */
 static struct usb_driver dbus_usbdev = {
-	name:           "dbus_usbdev",
+	name:           "dbus_usbdev"BUS_TYPE,
 	probe:          dbus_usbos_probe,
 	disconnect:     dbus_usbos_disconnect,
 	id_table:       devid_table,
@@ -1021,7 +1021,11 @@ dbus_usbos_recv_urb_submit(usbos_info_t *usbos_info, dbus_irb_rx_t *rxirb,
 	usb_fill_bulk_urb(req->urb, usbos_info->usb, rx_pipe,
 		p,
 		rxirb->buf_len,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0))
+		(void *)dbus_usbos_recv_complete, req);
+#else
 		(usb_complete_t)dbus_usbos_recv_complete, req);
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0) */
 		req->urb->transfer_flags |= URB_QUEUE_BULK;
 
 	if ((ret = USB_SUBMIT_URB(req->urb))) {
@@ -1613,6 +1617,7 @@ DBUS_USBOS_PROBE()
 		usb->portnum, WIFI_STATUS_POWER_ON);
 	if (adapter == NULL) {
 		DBUSERR(("%s: can't find adapter info for this chip\n", __FUNCTION__));
+		ret = -ENOMEM;
 		goto fail;
 	}
 
@@ -2129,7 +2134,11 @@ dbus_usbos_intf_send_irb(void *bus, dbus_irb_tx_t *txirb)
 		req_zlp->buf_len = 0;
 
 		usb_fill_bulk_urb(req_zlp->urb, usbos_info->usb, usbos_info->tx_pipe, NULL,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0))
+			0, (void *)dbus_usbos_send_complete, req_zlp);
+#else
 			0, (usb_complete_t)dbus_usbos_send_complete, req_zlp);
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0) */
 
 		req_zlp->urb->transfer_flags |= URB_QUEUE_BULK;
 	}
@@ -2184,7 +2193,11 @@ dbus_usbos_intf_send_irb(void *bus, dbus_irb_tx_t *txirb)
 	}
 
 	usb_fill_bulk_urb(req->urb, usbos_info->usb, usbos_info->tx_pipe, buf,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0))
+		buffer_length, (void *)dbus_usbos_send_complete, req);
+#else
 		buffer_length, (usb_complete_t)dbus_usbos_send_complete, req);
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0) */
 
 	req->urb->transfer_flags |= URB_QUEUE_BULK;
 
@@ -2349,7 +2362,11 @@ dbus_usbos_intf_send_ctl(void *bus, uint8 *buf, int len)
 		usbos_info->usb,
 		usb_sndctrlpipe(usbos_info->usb, 0),
 		(unsigned char *) &usbos_info->ctl_write,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0))
+		buf, size, (void *)dbus_usbos_ctlwrite_complete, usbos_info);
+#else
 		buf, size, (usb_complete_t)dbus_usbos_ctlwrite_complete, usbos_info);
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0) */
 
 #ifdef USBOS_TX_THREAD
 	/* Enqueue CTRL request for transmission by the TX thread. The
@@ -2414,7 +2431,11 @@ dbus_usbos_intf_recv_ctl(void *bus, uint8 *buf, int len)
 		usbos_info->usb,
 		usb_rcvctrlpipe(usbos_info->usb, 0),
 		(unsigned char *) &usbos_info->ctl_read,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0))
+		buf, size, (void *)dbus_usbos_ctlread_complete, usbos_info);
+#else
 		buf, size, (usb_complete_t)dbus_usbos_ctlread_complete, usbos_info);
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0) */
 
 	status = USB_SUBMIT_URB(usbos_info->ctl_urb);
 	if (status < 0) {
@@ -4548,6 +4569,16 @@ dbus_get_fwfile(int devid, int chiprev, uint8 **fw, int *fwlen,
 					break;
 			}
 			break;
+		case BCM4382_CHIP_ID:
+			device_id = "4382";
+			switch (chiprev) {
+				case 1:
+					chip_rev = "a0";
+					break;
+				default:
+					break;
+			}
+			break;
 
 		default:
 			DBUSERR(("unsupported device %x\n", devid));
@@ -4583,6 +4614,16 @@ dbus_get_nvfile(int devid, int chiprev, uint8 **fw, int *fwlen,
 	switch (devid) {
 		case BCM4381_CHIP_ID:
 			device_id = "4381";
+			switch (chiprev) {
+				case 1:
+					chip_rev = "a0";
+					break;
+				default:
+					break;
+			}
+			break;
+		case BCM4382_CHIP_ID:
+			device_id = "4382";
 			switch (chiprev) {
 				case 1:
 					chip_rev = "a0";

@@ -28,6 +28,7 @@
 #define _EVENT_LOG_PAYLOAD_H_
 
 #include <typedefs.h>
+#include <bcmdefs.h>
 #include <bcmutils.h>
 #include <ethernet.h>
 #include <event_log_tag.h>
@@ -293,7 +294,10 @@ typedef struct wl_scan_channel_info_v2 {
 						* milliseconds for the chanspec
 						* or home_dwell time end
 						*/
+	union {
+	uint32 active_scan_conv_time;		/* passsive/fils scan can be converted to active */
 	uint32 chan_6g_act_scn_strt_time;	/* 6G active scan start, valid for 6G chan only */
+	};
 	uint16 probe_count;			/* No of probes sent out. For future use
 						*/
 	uint16 scn_res_count;			/* Count of scan_results found per
@@ -1515,5 +1519,27 @@ typedef struct wlc_rx_fifo_overflow_info_v1 {
 
 	uint32 rx_dma_desc_count[WLC_RX_FIFO_DMA_NUM];
 } wlc_rx_fifo_overflow_info_v1_t;
+
+/* Data structures for transferring channel switch histogram data to host */
+
+#define CHSW_HISTOGRAM_HOST_ENTRY_VERSION_1 (1u)
+
+typedef struct chsw_histogram_host_entry_v1 {
+	uint8 version;
+	uint8 PAD[3];
+	chanspec_t from_chanspec;
+	chanspec_t to_chanspec;
+	uint32 buckets[BCM_FLEX_ARRAY];
+} chsw_histogram_host_entry_v1_t;
+
+#define CHSW_HISTOGRAM_HOST_DATA_VERSION_1 (1u)
+
+typedef struct chsw_histogram_host_data_v1 {
+	uint8 version;
+	uint8 num_host_entries; /* Number of host entries */
+	uint8 num_buckets; /* Number of buckets in each host entry */
+	uint8 PAD;
+	chsw_histogram_host_entry_v1_t host_entries[BCM_FLEX_ARRAY];
+} chsw_histogram_host_data_v1_t;
 
 #endif /* _EVENT_LOG_PAYLOAD_H_ */

@@ -25,7 +25,7 @@
 #ifndef __DHD_PNO_H__
 #define __DHD_PNO_H__
 
-#if defined(OEM_ANDROID) && defined(PNO_SUPPORT)
+#if defined(PNO_SUPPORT)
 #define PNO_TLV_PREFIX			'S'
 #define PNO_TLV_VERSION			'1'
 #define PNO_TLV_SUBTYPE_LEGACY_PNO '2'
@@ -566,7 +566,7 @@ extern int dhd_pno_set_epno(dhd_pub_t *dhd);
 extern int dhd_pno_flush_fw_epno(dhd_pub_t *dhd);
 extern void dhd_pno_set_epno_auth_flag(uint32 *wpa_auth);
 #endif /* GSCAN_SUPPORT */
-#endif /* #if defined(OEM_ANDROID) && defined(PNO_SUPPORT) */
+#endif /* #if defined(PNO_SUPPORT) */
 
 #if defined(NDIS)
 #if defined(PNO_SUPPORT)

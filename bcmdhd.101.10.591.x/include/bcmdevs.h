@@ -151,6 +151,10 @@
 
 #define BCM43756_D11AX_ID	0x44a0		/* 43756 802.11ax dualband device */
 
+#define BCM43711_D11AX6E_ID	0x44b0          /* 43711 802.11ax dualband device */
+#define BCM43711_D11AC_ID	0x44b1          /* 43711 802.11ax 2.4G device */
+#define BCM43711_D11AX_ID	0x44b2          /* 43711 802.11ax 5G device */
+
 /* TBD change below values */
 #define BCM4369_D11AX_ID	0x4470		/* 4369 802.11ax dualband device */
 #define BCM4369_D11AX2G_ID	0x4471		/* 4369 802.11ax 2.4G device */
@@ -203,6 +207,7 @@
 #define BCM43751_CHIP_ID	0xAAE7          /* 43751 chipcommon chipid */
 #define BCM43752_CHIP_ID	0xAAE8          /* 43752 chipcommon chipid */
 #define BCM43756_CHIP_ID	0xAAEC          /* 43756 chipcommon chipid */
+#define BCM43711_CHIP_ID	0xAABF          /* 43711 chipcommon chipid */
 #define BCM4369_CHIP_ID		0x4369          /* 4369 chipcommon chipid */
 #define BCM4377_CHIP_ID		0x4377          /* 4377 chipcommon chipid */
 #define BCM4378_CHIP_ID		0x4378          /* 4378 chipcommon chipid */
@@ -626,6 +631,8 @@
 #define RDL_RAM_BASE_4360  0x60000000
 #define RDL_RAM_SIZE_4381	0x180000
 #define RDL_RAM_BASE_4381	0x740000
+#define RDL_RAM_SIZE_4382	0x200000
+#define RDL_RAM_BASE_4382	0x700000
 
 /* generic defs for nvram "muxenab" bits
 * Note: these differ for 4335a0. refer bcmchipc.h for specific mux options.

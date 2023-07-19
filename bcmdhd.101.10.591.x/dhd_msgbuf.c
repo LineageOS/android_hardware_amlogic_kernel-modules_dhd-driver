@@ -57,9 +57,6 @@
 #include <dhd_pcie.h>
 #include <dhd_config.h>
 #if defined(DHD_LB)
-#if !defined(LINUX) && !defined(linux) && !defined(OEM_ANDROID)
-#error "DHD Loadbalancing only supported on LINUX | OEM_ANDROID"
-#endif /* !LINUX && !OEM_ANDROID */
 #include <linux/cpu.h>
 #include <bcm_ring.h>
 #define DHD_LB_WORKQ_SZ			    (8192)
@@ -1358,8 +1355,6 @@ dhd_prot_d2h_sync_livelock(dhd_pub_t *dhd, uint32 msg_seqnum, msgbuf_ring_t *rin
 exit:
 	dhd_schedule_reset(dhd);
 
-#ifdef OEM_ANDROID
-#endif /* OEM_ANDROID */
 	dhd->livelock_occured = TRUE;
 }
 
@@ -3036,10 +3031,8 @@ dhd_pktid_map_save(dhd_pub_t *dhd, dhd_pktid_map_handle_t *handle, void *pkt,
 			/* collect core dump */
 			dhd->memdump_type = DUMP_TYPE_PKTID_INVALID;
 			dhd_bus_mem_dump(dhd);
-#ifdef OEM_ANDROID
 			dhd->hang_reason = HANG_REASON_PCIE_PKTID_ERROR;
 			dhd_os_send_hang_message(dhd);
-#endif /* OEM_ANDROID */
 
 		}
 #else
@@ -3123,10 +3116,8 @@ BCMFASTPATH(dhd_pktid_map_free)(dhd_pub_t *dhd, dhd_pktid_map_handle_t *handle, 
 			/* collect core dump */
 			dhd->memdump_type = DUMP_TYPE_PKTID_INVALID;
 			dhd_bus_mem_dump(dhd);
-#ifdef OEM_ANDROID
 			dhd->hang_reason = HANG_REASON_PCIE_PKTID_ERROR;
 			dhd_os_send_hang_message(dhd);
-#endif /* OEM_ANDROID */
 		}
 #else
 		ASSERT(0);
@@ -3152,10 +3143,8 @@ BCMFASTPATH(dhd_pktid_map_free)(dhd_pub_t *dhd, dhd_pktid_map_handle_t *handle, 
 			/* collect core dump */
 			dhd->memdump_type = DUMP_TYPE_PKTID_INVALID;
 			dhd_bus_mem_dump(dhd);
-#ifdef OEM_ANDROID
 			dhd->hang_reason = HANG_REASON_PCIE_PKTID_ERROR;
 			dhd_os_send_hang_message(dhd);
-#endif /* OEM_ANDROID */
 		}
 #else
 		ASSERT(0);
@@ -3187,10 +3176,8 @@ BCMFASTPATH(dhd_pktid_map_free)(dhd_pub_t *dhd, dhd_pktid_map_handle_t *handle, 
 			/* collect core dump */
 			dhd->memdump_type = DUMP_TYPE_PKTID_INVALID;
 			dhd_bus_mem_dump(dhd);
-#ifdef OEM_ANDROID
 			dhd->hang_reason = HANG_REASON_PCIE_PKTID_ERROR;
 			dhd_os_send_hang_message(dhd);
-#endif /* OEM_ANDROID */
 		}
 #else
 		ASSERT(0);
@@ -5078,22 +5065,8 @@ int dhd_sync_with_dongle(dhd_pub_t *dhd)
 		dhd->wlc_ver_minor = ((wl_wlc_version_t*)buf)->wlc_ver_minor;
 	}
 
-	DHD_ERROR(("wlc_ver_major %d, wlc_ver_minor %d",
+	DHD_ERROR(("wlc_ver_major %d, wlc_ver_minor %d\n",
 		dhd->wlc_ver_major, dhd->wlc_ver_minor));
-#ifndef OEM_ANDROID
-	/* Get the device MAC address */
-	bzero(buf, sizeof(buf));
-	strlcpy(buf, "cur_etheraddr", sizeof(buf));
-	ret = dhd_wl_ioctl_cmd(dhd, WLC_GET_VAR, buf, sizeof(buf), FALSE, 0);
-	if (ret < 0) {
-		DHD_ERROR(("%s: GET iovar cur_etheraddr FAILED\n", __FUNCTION__));
-		goto done;
-	}
-	memcpy(dhd->mac.octet, buf, ETHER_ADDR_LEN);
-	if (dhd_msg_level & DHD_INFO_VAL) {
-		bcm_print_bytes("CUR_ETHERADDR ", (uchar *)buf, ETHER_ADDR_LEN);
-	}
-#endif /* OEM_ANDROID */
 
 #ifdef DHD_FW_COREDUMP
 	/* Check the memdump capability */
@@ -5188,6 +5161,7 @@ BCMFASTPATH(dhd_prot_print_metadata)(dhd_pub_t *dhd, void *ptr, int len)
 	uint8 tlv_t;
 	uint8 tlv_l;
 	uint8 *tlv_v = (uint8 *)ptr;
+	int ret = 0;
 
 	if (len <= BCMPCIE_D2H_METADATA_HDRLEN)
 		return;
@@ -5209,13 +5183,18 @@ BCMFASTPATH(dhd_prot_print_metadata)(dhd_pub_t *dhd, void *ptr, int len)
 		switch (tlv_t) {
 		case WLFC_CTL_TYPE_TXSTATUS: {
 			uint32 txs;
-			memcpy(&txs, tlv_v, sizeof(uint32));
+			(void)memcpy_s(&txs, sizeof(txs), tlv_v, sizeof(uint32));
 			if (tlv_l < (sizeof(wl_txstatus_additional_info_t) + sizeof(uint32))) {
 				DHD_CONS_ONLY(("METADATA TX_STATUS: %08x\n", txs));
 			} else {
 				wl_txstatus_additional_info_t tx_add_info;
-				memcpy(&tx_add_info, tlv_v + sizeof(uint32),
-					sizeof(wl_txstatus_additional_info_t));
+				ret = memcpy_s(&tx_add_info, sizeof(wl_txstatus_additional_info_t),
+					tlv_v + sizeof(uint32), tlv_l);
+				if (ret) {
+					DHD_ERROR(("tx status memcpy failed:%d, destsz:%lu, n:%d\n",
+						ret, sizeof(wl_txstatus_additional_info_t), tlv_l));
+					break;
+				}
 				DHD_CONS_ONLY(("METADATA TX_STATUS: %08x"
 					" WLFCTS[%04x | %08x - %08x - %08x]"
 					" rate = %08x tries = %d - %d\n", txs,
@@ -5249,10 +5228,16 @@ BCMFASTPATH(dhd_prot_print_metadata)(dhd_pub_t *dhd, void *ptr, int len)
 				uint32 bus_time;
 				uint32 wlan_time;
 			} rx_tmstamp;
-			memcpy(&rx_tmstamp, tlv_v, sizeof(rx_tmstamp));
+			ret = memcpy_s(&rx_tmstamp, sizeof(rx_tmstamp), tlv_v, tlv_l);
+			if (ret) {
+				DHD_ERROR(("rx tmstamp memcpy failed:%d, destsz:%lu, n:%d\n",
+					ret, sizeof(rx_tmstamp), tlv_l));
+				break;
+			}
 			DHD_CONS_ONLY(("METADATA RX TIMESTMAP: WLFCTS[%08x - %08x] rate = %08x\n",
 				rx_tmstamp.wlan_time, rx_tmstamp.bus_time, rx_tmstamp.rspec));
-			} break;
+			}
+			break;
 
 		case WLFC_CTL_TYPE_TRANS_ID:
 			bcm_print_bytes("METADATA TRANS_ID", tlv_v, tlv_l);
@@ -6952,8 +6937,9 @@ BCMFASTPATH(dhd_prot_process_msgbuf_txcpl)(dhd_pub_t *dhd, int ringtype, uint32 
 int
 BCMFASTPATH(dhd_prot_process_trapbuf)(dhd_pub_t *dhd)
 {
-	uint32 data;
+	uint32 data, copylen;
 	dhd_dma_buf_t *trap_addr = &dhd->prot->fw_trap_buf;
+	int ret = 0;
 
 	/* Interrupts can come in before this struct
 	 *  has been initialized.
@@ -6987,8 +6973,16 @@ BCMFASTPATH(dhd_prot_process_trapbuf)(dhd_pub_t *dhd)
 			if (dhd->extended_trap_data) {
 				OSL_CACHE_INV((void *)trap_addr->va,
 				       BCMPCIE_EXT_TRAP_DATA_MAXLEN);
-				memcpy(dhd->extended_trap_data, (uint32 *)trap_addr->va,
-				       BCMPCIE_EXT_TRAP_DATA_MAXLEN);
+				copylen = MIN(trap_addr->len, BCMPCIE_EXT_TRAP_DATA_MAXLEN);
+				ret = memcpy_s(dhd->extended_trap_data,
+					BCMPCIE_EXT_TRAP_DATA_MAXLEN,
+					(uint32 *)trap_addr->va, copylen);
+				if (ret) {
+					DHD_ERROR(("trap data memcpy failed:%d, destsz:%d, n:%u\n",
+						ret, BCMPCIE_EXT_TRAP_DATA_MAXLEN,
+						copylen));
+					return 0;
+				}
 			}
 			if (dhd->db7_trap.fw_db7w_trap_inprogress == FALSE) {
 				DHD_ERROR(("Extended trap data available\n"));
@@ -7325,6 +7319,7 @@ dhd_prot_ioctcmplt_process(dhd_pub_t *dhd, void *msg)
 #ifdef REPORT_FATAL_TIMEOUTS
 	uint16	dhd_xt_id;
 #endif
+	int ret = 0;
 
 	/* Check for ioctl timeout induce flag, which is set by firing
 	 * dhd iovar to induce IOCTL timeout. If flag is set,
@@ -7420,11 +7415,18 @@ dhd_prot_ioctcmplt_process(dhd_pub_t *dhd, void *msg)
 		pkt_id, xt_id, prot->ioctl_status, prot->ioctl_resplen));
 
 	if (prot->ioctl_resplen > 0) {
+		uint16 copy_len = MIN(prot->ioctl_resplen, prot->retbuf.len);
 #ifndef IOCTLRESP_USE_CONSTMEM
-		bcopy(PKTDATA(dhd->osh, pkt), prot->retbuf.va, prot->ioctl_resplen);
+		ret = memcpy_s(prot->retbuf.va, prot->retbuf.len, PKTDATA(dhd->osh, pkt), copy_len);
 #else
-		bcopy(pkt, prot->retbuf.va, prot->ioctl_resplen);
+		ret = memcpy_s(prot->retbuf.va, prot->retbuf.len, pkt, copy_len);
 #endif /* !IOCTLRESP_USE_CONSTMEM */
+		if (ret) {
+			DHD_ERROR(("memcpy failed:%d, destsz:%d, n:%u\n",
+				ret, prot->retbuf.len, copy_len));
+			dhd_wakeup_ioctl_event(dhd, IOCTL_RETURN_ON_ERROR);
+			goto exit;
+		}
 	}
 
 	/* wake up any dhd_os_ioctl_resp_wait() */
@@ -7571,10 +7573,8 @@ BCMFASTPATH(dhd_prot_txstatus_process)(dhd_pub_t *dhd, void *msg)
 			/* collect core dump */
 			dhd->memdump_type = DUMP_TYPE_PKTID_INVALID;
 			dhd_bus_mem_dump(dhd);
-#ifdef OEM_ANDROID
 			dhd->hang_reason = HANG_REASON_PCIE_PKTID_ERROR;
 			dhd_os_send_hang_message(dhd);
-#endif /* OEM_ANDROID */
 		}
 #else
 		ASSERT(0);
@@ -7615,12 +7615,12 @@ BCMFASTPATH(dhd_prot_txstatus_process)(dhd_pub_t *dhd, void *msg)
 			&status, NULL, NULL, TRUE, FALSE, TRUE);
 	}
 #endif /* DHD_PKT_LOGGING */
-#if defined(BCMPCIE) && (defined(LINUX) || defined(OEM_ANDROID))
+#if defined(BCMPCIE)
 	dhd_txcomplete(dhd, pkt, pkt_fate);
 #ifdef DHD_4WAYM4_FAIL_DISCONNECT
 	dhd_eap_txcomplete(dhd, pkt, pkt_fate, txstatus->cmn_hdr.if_id);
 #endif /* DHD_4WAYM4_FAIL_DISCONNECT */
-#endif /* BCMPCIE && (defined(LINUX) || defined(OEM_ANDROID)) */
+#endif
 
 #if DHD_DBG_SHOW_METADATA
 	if (dhd->prot->metadata_dbg &&
@@ -8019,8 +8019,16 @@ BCMFASTPATH(dhd_prot_txdata)(dhd_pub_t *dhd, void *PKTBUF, uint8 ifidx)
 			dhd->prot->hmaptest_tx_active = HMAPTEST_D11_TX_INACTIVE;
 			dhd->prot->hmaptest.in_progress = FALSE;
 		} else {
+			int ret = 0;
 			/* copy pktdata to our va */
-			memcpy(dhd->prot->hmap_tx_buf_va, PKTDATA(dhd->osh, PKTBUF), pktlen);
+			ret = memcpy_s(dhd->prot->hmap_tx_buf_va, dhd->prot->hmap_tx_buf_len,
+				PKTDATA(dhd->osh, PKTBUF), pktlen);
+			if (ret) {
+				DHD_ERROR(("memcpy hmap_tx_buf_va failed:%d, destsz:%d, n:%d\n",
+					ret, dhd->prot->hmap_tx_buf_len, pktlen));
+				ASSERT(0);
+				goto err_rollback_idx;
+			}
 			pa = DMA_MAP(dhd->osh, dhd->prot->hmap_tx_buf_va,
 				dhd->prot->hmap_tx_buf_len, DMA_TX, PKTBUF, 0);
 
@@ -8788,21 +8796,6 @@ int dhd_prot_ioctl(dhd_pub_t *dhd, int ifidx, wl_ioctl_t * ioc, void * buf, int 
 	}
 
 	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
-
-#ifdef DHD_PCIE_REG_ACCESS
-#ifdef BOARD_HIKEY
-#ifndef PCIE_LNK_SPEED_GEN1
-#define PCIE_LNK_SPEED_GEN1		0x1
-#endif
-	/* BUG_ON if link speed is GEN1 in Hikey for 4389B0 */
-	if (dhd->bus->sih->buscorerev == 72) {
-		if (dhd_get_pcie_linkspeed(dhd) == PCIE_LNK_SPEED_GEN1) {
-			DHD_ERROR(("%s: ******* Link Speed is GEN1 *********\n", __FUNCTION__));
-			BUG_ON(1);
-		}
-	}
-#endif /* BOARD_HIKEY */
-#endif /* DHD_PCIE_REG_ACCESS */
 
 	if (ioc->cmd == WLC_SET_PM) {
 #ifdef DHD_PM_CONTROL_FROM_FILE
@@ -9832,7 +9825,11 @@ int dhd_edl_ring_hdr_write(dhd_pub_t *dhd, msgbuf_ring_t *ring, void *file, cons
 
 	for (; nitems < D2HRING_EDL_MAX_ITEM; nitems++, rd++) {
 		msg_addr = (uint8 *)ring->dma_buf.va + (rd * ring->item_len);
-		memcpy(ptr, (char *)msg_addr, D2HRING_EDL_HDR_SIZE);
+		ret = memcpy_s(ptr, D2HRING_EDL_HDR_SIZE, (char *)msg_addr, ring->item_len);
+		if (ret) {
+			DHD_ERROR(("D2HRING_EDL_HDR(%d) memcpy failed:%d, destsz:%d, n:%d\n",
+				rd, ret, D2HRING_EDL_HDR_SIZE, ring->item_len));
+		}
 		ptr += D2HRING_EDL_HDR_SIZE;
 	}
 	if (file) {
@@ -10111,6 +10108,7 @@ dhd_fillup_ioct_reqst(dhd_pub_t *dhd, uint16 len, uint cmd, void* buf, int ifidx
 	dhd_prot_t *prot = dhd->prot;
 	ioctl_req_msg_t *ioct_rqst;
 	void * ioct_buf;	/* For ioctl payload */
+	uint32	ioct_buf_len;
 	uint16  rqstlen, resplen;
 	unsigned long flags;
 	uint16 alloced = 0;
@@ -10201,11 +10199,19 @@ dhd_fillup_ioct_reqst(dhd_pub_t *dhd, uint16 len, uint cmd, void* buf, int ifidx
 	ioct_rqst->host_input_buf_addr.low = htol32(PHYSADDRLO(prot->ioctbuf.pa));
 	/* copy ioct payload */
 	ioct_buf = (void *) prot->ioctbuf.va;
+	ioct_buf_len = prot->ioctbuf.len;
 
 	prot->ioctl_fillup_time = OSL_LOCALTIME_NS();
 
-	if (buf)
-		memcpy(ioct_buf, buf, len);
+	if (buf) {
+		int ret = 0;
+		ret = memcpy_s(ioct_buf, ioct_buf_len, buf, len);
+		if (ret) {
+			DHD_ERROR(("ioct_buf memcopy failed:%d, destsz:%d, n:%d\n",
+				ret, ioct_buf_len, len));
+			return BCME_ERROR;
+		}
+	}
 
 	OSL_CACHE_FLUSH((void *) prot->ioctbuf.va, len);
 
@@ -11521,6 +11527,7 @@ dhd_prot_get_read_addr(dhd_pub_t *dhd, msgbuf_ring_t *ring, uint32 *available_le
 	int i;
 	uint8 *ptr = NULL;
 	uint32 total_md_len = 0;
+	UNUSED_PARAMETER(total_md_len);
 
 	DHD_TRACE(("%s: d2h_dma_indx_rd_buf %p, d2h_dma_indx_wr_buf %p\n",
 		__FUNCTION__, (uint32 *)(dhd->prot->d2h_dma_indx_rd_buf.va),
@@ -11735,6 +11742,7 @@ dhd_prot_flow_ring_create(dhd_pub_t *dhd, flow_ring_node_t *flow_ring_node)
 	uint16 alloced = 0;
 	msgbuf_ring_t *ctrl_ring = &prot->h2dring_ctrl_subn;
 	uint16 max_flowrings = dhd->bus->max_tx_flowrings;
+	int ret = 0;
 
 	/* Fetch a pre-initialized msgbuf_ring from the flowring pool */
 	flow_ring = dhd_prot_flowrings_pool_fetch(dhd, flow_ring_node->flowid);
@@ -11779,8 +11787,20 @@ dhd_prot_flow_ring_create(dhd_pub_t *dhd, flow_ring_node_t *flow_ring_node)
 	/* Update flow create message */
 	flow_create_rqst->tid = flow_ring_node->flow_info.tid;
 	flow_create_rqst->flow_ring_id = htol16((uint16)flow_ring_node->flowid);
-	memcpy(flow_create_rqst->sa, flow_ring_node->flow_info.sa, sizeof(flow_create_rqst->sa));
-	memcpy(flow_create_rqst->da, flow_ring_node->flow_info.da, sizeof(flow_create_rqst->da));
+	ret = memcpy_s(flow_create_rqst->sa, sizeof(flow_create_rqst->sa),
+		flow_ring_node->flow_info.sa, sizeof(flow_ring_node->flow_info.sa));
+	if (ret) {
+		DHD_ERROR(("flow message sa memcpy failed:%d, destsz:%zu, n:%zu\n",
+			ret, sizeof(flow_create_rqst->sa), sizeof(flow_ring_node->flow_info.sa)));
+		return BCME_ERROR;
+	}
+	ret = memcpy_s(flow_create_rqst->da, sizeof(flow_create_rqst->da),
+		flow_ring_node->flow_info.da, sizeof(flow_ring_node->flow_info.da));
+	if (ret) {
+		DHD_ERROR(("flow message da memcpy failed:%d, destsz:%zu, n:%zu\n",
+			ret, sizeof(flow_create_rqst->da), sizeof(flow_ring_node->flow_info.da)));
+		return BCME_ERROR;
+	}
 	/* CAUTION: ring::base_addr already in Little Endian */
 	flow_create_rqst->flow_ring_ptr.low_addr = flow_ring->base_addr.low_addr;
 	flow_create_rqst->flow_ring_ptr.high_addr = flow_ring->base_addr.high_addr;
@@ -13576,6 +13596,7 @@ dhd_prot_send_host_timestamp(dhd_pub_t *dhdp, uchar *tlvs, uint16 tlv_len,
 	uint16 alloced = 0;
 	uchar *ts_tlv_buf;
 	msgbuf_ring_t *ctrl_ring = &prot->h2dring_ctrl_subn;
+	int ret;
 
 	if ((tlvs == NULL) || (tlv_len == 0)) {
 		DHD_ERROR(("%s: argument error tlv: %p, tlv_len %d\n",
@@ -13630,7 +13651,12 @@ dhd_prot_send_host_timestamp(dhd_pub_t *dhdp, uchar *tlvs, uint16 tlv_len,
 	/* copy ioct payload */
 	ts_tlv_buf = (void *) prot->hostts_req_buf.va;
 	prot->hostts_req_buf_inuse = TRUE;
-	memcpy(ts_tlv_buf, tlvs, tlv_len);
+	ret = memcpy_s(ts_tlv_buf, prot->hostts_req_buf.len, tlvs, tlv_len);
+	if (ret) {
+		DHD_ERROR(("copy ioct payload failed:%d, destsz:%d, n:%d\n",
+			ret, prot->hostts_req_buf.len, tlv_len));
+		return BCME_ERROR;
+	}
 
 	OSL_CACHE_FLUSH((void *) prot->hostts_req_buf.va, tlv_len);
 
@@ -13749,24 +13775,6 @@ int dhd_get_hscb_info(dhd_pub_t *dhd, void ** va, uint32 *len)
 
 	return BCME_OK;
 }
-
-#ifdef DHD_BUS_MEM_ACCESS
-int dhd_get_hscb_buff(dhd_pub_t *dhd, uint32 offset, uint32 length, void * buff)
-{
-	if (!dhd->hscb_enable) {
-		return BCME_UNSUPPORTED;
-	}
-
-	if (dhd->prot->host_scb_buf.va == NULL ||
-		((uint64)offset + length > (uint64)dhd->prot->host_scb_buf.len)) {
-		return BCME_BADADDR;
-	}
-
-	memcpy(buff, (char*)dhd->prot->host_scb_buf.va + offset, length);
-
-	return BCME_OK;
-}
-#endif /* DHD_BUS_MEM_ACCESS */
 
 static uint16
 dhd_d2h_cpl_ring_id(dhd_pub_t *dhd, msgbuf_ring_t *ring)

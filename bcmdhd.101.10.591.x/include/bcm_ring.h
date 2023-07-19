@@ -429,7 +429,7 @@ bcm_ring_cons_avail(const bcm_ring_t *ring, const int ring_size)
 	} else {
 		cons_avail = ring->write - ring->read;
 	}
-	ASSERT(cons_avail < ring_size);
+	ASSERT_FP(cons_avail < ring_size);
 	return cons_avail;
 }
 

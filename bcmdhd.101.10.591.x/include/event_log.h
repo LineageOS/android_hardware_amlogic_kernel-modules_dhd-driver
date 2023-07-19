@@ -41,275 +41,21 @@
 /* We make sure that the block size will fit in a single packet
  *  (allowing for a bit of overhead on each packet
  */
+#ifndef EVENT_LOG_MAX_BLOCK_SIZE
 #if (defined(BCMPCIEDEV) && defined(BCMPCIEDEV_ENABLED)) || defined(BCMPCIE)
 #define EVENT_LOG_MAX_BLOCK_SIZE	1832
 #else
 #define EVENT_LOG_MAX_BLOCK_SIZE	1400
 #endif
+#endif /* EVENT_LOG_MAX_BLOCK_SIZE */
 
 #define EVENT_LOG_BLOCK_SIZE_1K		0x400u
 #define EVENT_LOG_BLOCK_SIZE_512B	0x200u
 #define EVENT_LOG_BLOCK_SIZE_256B	0x100u
 #define EVENT_LOG_BLOCK_SIZE_1648B	0x670u
 
-/* Log set 0 */
-#ifndef EVENT_LOG_SET_BUS_NUM_BLOCKS
-#define EVENT_LOG_SET_BUS_NUM_BLOCKS	(2u)
-#endif
-
-#ifndef EVENT_LOG_SET_BUS_BLOCK_SIZE
-#define EVENT_LOG_SET_BUS_BLOCK_SIZE	(EVENT_LOG_BLOCK_SIZE_512B)
-#endif
-
-/* Log set 1 */
-#ifndef EVENT_LOG_SET_WL_NUM_BLOCKS
-#define EVENT_LOG_SET_WL_NUM_BLOCKS	(4u)
-#endif
-
-#ifndef EVENT_LOG_SET_WL_BLOCK_SIZE
-#define EVENT_LOG_SET_WL_BLOCK_SIZE	(EVENT_LOG_BLOCK_SIZE_512B)
-#endif
-
-/* Log set 3 */
-#ifndef EVENT_LOG_SET_ERROR_NUM_BLOCKS
-#define EVENT_LOG_SET_ERROR_NUM_BLOCKS	(2u)
-#endif
-
-#ifndef EVENT_LOG_SET_ERROR_BLOCK_SIZE
-#define EVENT_LOG_SET_ERROR_BLOCK_SIZE	(EVENT_LOG_BLOCK_SIZE_1K)
-#endif
-
-/* Log set 4 */
-#ifndef EVENT_LOG_SET_MSCH_NUM_BLOCKS
-#define EVENT_LOG_SET_MSCH_NUM_BLOCKS	(2u)
-#endif
-
-#ifndef EVENT_LOG_SET_MSCH_BLOCK_SIZE
-/* Updated the size as per comment in the msch profiler attach code */
-#define EVENT_LOG_SET_MSCH_BLOCK_SIZE	(EVENT_LOG_BLOCK_SIZE_1K)
-#endif
-
-/* Log sets 5, 6, and 7 are customer defined */
-
-/* Log set 8 */
-#ifndef EVENT_LOG_SET_PRSRV_NUM_BLOCKS
-#define EVENT_LOG_SET_PRSRV_NUM_BLOCKS	(3u)
-#endif
-
-#ifndef EVENT_LOG_SET_PRSRV_BLOCK_SIZE
-#define EVENT_LOG_SET_PRSRV_BLOCK_SIZE	(EVENT_LOG_MAX_BLOCK_SIZE)
-#endif
-
-/* Log set 9 */
-#ifndef EVENT_LOG_SET_GP_PRSRV_CHATTY_NUM_BLOCKS
-#define EVENT_LOG_SET_GP_PRSRV_CHATTY_NUM_BLOCKS	(2u)
-#endif
-
-#ifndef EVENT_LOG_SET_GP_PRSRV_CHATTY_BLOCK_SIZE
-#define EVENT_LOG_SET_GP_PRSRV_CHATTY_BLOCK_SIZE	(EVENT_LOG_BLOCK_SIZE_1K)
-#endif
-
-/* Log set 10 */
-#ifndef EVENT_LOG_SET_PRSRV_BUS_NUM_BLOCKS
-#define EVENT_LOG_SET_PRSRV_BUS_NUM_BLOCKS	(3u)
-#endif
-
-#ifndef EVENT_LOG_SET_PRSRV_BUS_BLOCK_SIZE
-#define EVENT_LOG_SET_PRSRV_BUS_BLOCK_SIZE	(EVENT_LOG_BLOCK_SIZE_512B)
-#endif
-
-/* Log set 11 */
-#ifndef EVENT_LOG_SET_PRSRV_WL_NUM_BLOCKS
-#define EVENT_LOG_SET_PRSRV_WL_NUM_BLOCKS	(2u)
-#endif
-
-#ifndef EVENT_LOG_SET_PRSRV_WL_BLOCK_SIZE
-#define EVENT_LOG_SET_PRSRV_WL_BLOCK_SIZE	(EVENT_LOG_MAX_BLOCK_SIZE)
-#endif
-
-/* Log set 12 */
-#ifndef EVENT_LOG_SET_WL_SLOTTED_BSS_NUM_BLOCKS
-#define EVENT_LOG_SET_WL_SLOTTED_BSS_NUM_BLOCKS	(5u)
-#endif
-
-#ifndef EVENT_LOG_SET_WL_SLOTTED_BSS_BLOCK_SIZE
-#define EVENT_LOG_SET_WL_SLOTTED_BSS_BLOCK_SIZE	(EVENT_LOG_BLOCK_SIZE_512B)
-#endif
-
-/* Log set 13 */
-#ifndef EVENT_LOG_SET_PHY_NUM_BLOCKS
-#define EVENT_LOG_SET_PHY_NUM_BLOCKS	(2u)
-#endif
-
-#ifndef EVENT_LOG_SET_PHY_BLOCK_SIZE
-#define EVENT_LOG_SET_PHY_BLOCK_SIZE	(EVENT_LOG_MAX_BLOCK_SIZE)
-#endif
-
-/* Log set 14 */
-#ifndef EVENT_LOG_SET_PHY_PERIODIC_NUM_BLOCKS
-#define EVENT_LOG_SET_PHY_PERIODIC_NUM_BLOCKS	(4u)
-#endif
-
-#ifndef EVENT_LOG_SET_PHY_PERIODIC_BLOCK_SIZE
-#define EVENT_LOG_SET_PHY_PERIODIC_BLOCK_SIZE	(EVENT_LOG_MAX_BLOCK_SIZE)
-#endif
-
-/* Log set 15 not instantiated yet */
-
-/* Log set 16 */
-#ifndef EVENT_LOG_SET_MEM_API_NUM_BLOCKS
-#define EVENT_LOG_SET_MEM_API_NUM_BLOCKS	(7u)
-#endif
-
-#ifndef EVENT_LOG_SET_MEM_API_BLOCK_SIZE
-#define EVENT_LOG_SET_MEM_API_BLOCK_SIZE	(EVENT_LOG_BLOCK_SIZE_512B)
-#endif
-
-/* Log sets 17 not yet instantiated. */
-/* Log sets 18, 19, 20 are debug log sets and are instantiated dynamically */
-
-/* Log set 21 */
-#ifndef EVENT_LOG_SET_POWER_1_NUM_BLOCKS
-#define EVENT_LOG_SET_POWER_1_NUM_BLOCKS	(2u)
-#endif
-
-#ifndef EVENT_LOG_SET_POWER_1_BLOCK_SIZE
-#define EVENT_LOG_SET_POWER_1_BLOCK_SIZE	(EVENT_LOG_BLOCK_SIZE_1K)
-#endif
-
-/* Log set 22 */
-#ifndef EVENT_LOG_SET_POWER_2_NUM_BLOCKS
-#define EVENT_LOG_SET_POWER_2_NUM_BLOCKS	(2u)
-#endif
-
-#ifndef EVENT_LOG_SET_POWER_2_BLOCK_SIZE
-#define EVENT_LOG_SET_POWER_2_BLOCK_SIZE	(EVENT_LOG_BLOCK_SIZE_1K)
-#endif
-
-/* Log set 23 */
-#ifndef EVENT_LOG_SET_TS_LOG_NUM_BLOCKS
-#define EVENT_LOG_SET_TS_LOG_NUM_BLOCKS	(4u)
-#endif
-
-#ifndef EVENT_LOG_SET_TS_LOG_BLOCK_SIZE
-#define EVENT_LOG_SET_TS_LOG_BLOCK_SIZE	(EVENT_LOG_BLOCK_SIZE_512B)
-#endif
-
-/* Log set 24 */
-#ifndef EVENT_LOG_SET_PRSRV_BUS_CHATTY_NUM_BLOCKS
-#define EVENT_LOG_SET_PRSRV_BUS_CHATTY_NUM_BLOCKS	(2u)
-#endif
-
-#ifndef EVENT_LOG_SET_PRSRV_BUS_CHATTY_BLOCK_SIZE
-#define EVENT_LOG_SET_PRSRV_BUS_CHATTY_BLOCK_SIZE	(EVENT_LOG_BLOCK_SIZE_512B)
-#endif
-
-/* Log set 25 */
-#ifndef EVENT_LOG_SET_PRSRV_PERIODIC_NUM_BLOCKS
-#define EVENT_LOG_SET_PRSRV_PERIODIC_NUM_BLOCKS		(3u)
-#endif
-
-#ifndef EVENT_LOG_SET_PRSRV_PERIODIC_BLOCK_SIZE
-#define EVENT_LOG_SET_PRSRV_PERIODIC_BLOCK_SIZE		(EVENT_LOG_BLOCK_SIZE_512B)
-#endif
-
-/* Log set 26 */
-#ifndef EVENT_LOG_SET_AMT_NUM_BLOCKS
-#define EVENT_LOG_SET_AMT_NUM_BLOCKS	(2u)
-#endif
-
-#ifndef EVENT_LOG_SET_AMT_BLOCK_SIZE
-#define EVENT_LOG_SET_AMT_BLOCK_SIZE	(EVENT_LOG_MAX_BLOCK_SIZE)
-#endif
-
-/* Log set 27 */
-#ifndef EVENT_LOG_SET_FSM_NUM_BLOCKS
-#define EVENT_LOG_SET_FSM_NUM_BLOCKS	(2u)
-#endif
-
-#ifndef EVENT_LOG_SET_FSM_BLOCK_SIZE
-#define EVENT_LOG_SET_FSM_BLOCK_SIZE	(EVENT_LOG_BLOCK_SIZE_1K)
-#endif
-
-/* Log set 28 */
-#ifndef EVENT_LOG_SET_WBUS_NUM_BLOCKS
-#define EVENT_LOG_SET_WBUS_NUM_BLOCKS	(3u)
-#endif
-
-#ifndef EVENT_LOG_SET_WBUS_BLOCK_SIZE
-#define EVENT_LOG_SET_WBUS_BLOCK_SIZE	(EVENT_LOG_BLOCK_SIZE_256B)
-#endif
-
-/* Log set 29 */
-#ifndef EVENT_LOG_SET_BCM_TRACE_NUM_BLOCKS
-#define EVENT_LOG_SET_BCM_TRACE_NUM_BLOCKS	(2u)
-#endif
-
-#ifndef EVENT_LOG_SET_BCM_TRACE_BLOCK_SIZE
-#define EVENT_LOG_SET_BCM_TRACE_BLOCK_SIZE	(EVENT_LOG_BLOCK_SIZE_1K)
-#endif
-
-/* Log set 30 */
-#ifndef EVENT_LOG_SET_WL_PS_NUM_BLOCKS
-#define EVENT_LOG_SET_WL_PS_NUM_BLOCKS	(2u)
-#endif
-
-#ifndef EVENT_LOG_SET_WL_PS_BLOCK_SIZE
-#define EVENT_LOG_SET_WL_PS_BLOCK_SIZE	(EVENT_LOG_BLOCK_SIZE_1K)
-#endif
-
-/* Set 31 not instantiated */
-/* Set 32: Set for logging at boot time is instantiated in a different way */
-
-/* Log set 33 */
-#ifndef EVENT_LOG_SET_CHRE_NUM_BLOCKS
-#define EVENT_LOG_SET_CHRE_NUM_BLOCKS	(4u)
-#endif
-
-#ifndef EVENT_LOG_SET_CHRE_BLOCK_SIZE
-#define EVENT_LOG_SET_CHRE_BLOCK_SIZE	(EVENT_LOG_BLOCK_SIZE_1K)
-#endif
-
-/* Sets 34, 35, 36, 37 not instantiated */
-
-/* Log set 38 */
-#ifndef EVENT_LOG_SET_BCMHAL_NUM_BLOCKS
-#define EVENT_LOG_SET_BCMHAL_NUM_BLOCKS	(2u)
-#endif
-
-#ifndef EVENT_LOG_SET_BCMHAL_BLOCK_SIZE
-#define EVENT_LOG_SET_BCMHAL_BLOCK_SIZE	(EVENT_LOG_BLOCK_SIZE_512B)
-#endif
-
-/* Log set 39 */
-#ifndef EVENT_LOG_SET_OBP_TRACE_LOG_NUM_BLOCKS
-#define EVENT_LOG_SET_OBP_TRACE_LOG_NUM_BLOCKS	(2u)
-#endif
-
-#ifndef EVENT_LOG_SET_OBP_TRACE_LOG_BLOCK_SIZE
-#define EVENT_LOG_SET_OBP_TRACE_LOG_BLOCK_SIZE	(EVENT_LOG_BLOCK_SIZE_1K)
-#endif
-
-#define EVENT_LOG_WL_BLOCK_SIZE		0x200
-#define EVENT_LOG_PSM_BLOCK_SIZE	0x200
-#define EVENT_LOG_MEM_API_BLOCK_SIZE	0x200
-#define EVENT_LOG_BUS_BLOCK_SIZE	0x200
-#define EVENT_LOG_ERROR_BLOCK_SIZE	0x400
-#define EVENT_LOG_MSCH_BLOCK_SIZE	0x400
-#define EVENT_LOG_WBUS_BLOCK_SIZE	0x100
-#define EVENT_LOG_PRSV_PERIODIC_BLOCK_SIZE (0x200u)
-#define EVENT_LOG_WL_BUF_SIZE		(EVENT_LOG_WL_BLOCK_SIZE * 3u)
-#define EVENT_LOG_SIB_BLOCK_SIZE	0x100
-
 #define EVENT_LOG_TOF_INLINE_BLOCK_SIZE	1300u
 #define EVENT_LOG_TOF_INLINE_BUF_SIZE (EVENT_LOG_TOF_INLINE_BLOCK_SIZE * 3u)
-
-#define EVENT_LOG_PRSRV_BUF_SIZE	(EVENT_LOG_BLOCK_SIZE_1648B * 2)
-#define EVENT_LOG_BUS_PRSRV_BUF_SIZE	(EVENT_LOG_BUS_BLOCK_SIZE * 2)
-#define EVENT_LOG_WBUS_PRSRV_BUF_SIZE	(EVENT_LOG_WBUS_BLOCK_SIZE * 2)
-
-#define EVENT_LOG_BLOCK_SIZE_PRSRV_CHATTY	(EVENT_LOG_BLOCK_SIZE_1648B * 1)
-#define EVENT_LOG_BLOCK_SIZE_BUS_PRSRV_CHATTY	(EVENT_LOG_BLOCK_SIZE_1648B * 1)
 
 /* Maximum event log record payload size = 1016 bytes or 254 words. */
 #define EVENT_LOG_MAX_RECORD_PAYLOAD_SIZE	254
@@ -474,7 +220,8 @@ typedef struct event_log_set {
 	uint32 blockcount;		/* Number of blocks */
 	uint16 logtrace_count;		/* Last count for logtrace */
 	uint16 blockfill_count;		/* Fill count for logtrace */
-	uint32 reserved;		/* Reserved */
+	bool is_shdw_set;		/* true if log set is a shadow set */
+	uint8 pad[3];			/* explicit padding */
 	uint32 cyclecount;		/* Cycles at last timestamp event */
 	event_log_set_destination_t destination;
 	uint16 size;			/* same size for all buffers in one  set */
@@ -568,9 +315,9 @@ extern bool d3_preserve_enab;
 #if defined(ROM_ENAB_RUNTIME_CHECK)
 	#define D3_PRESERVE_ENAB()   (d3_preserve_enab)
 #elif defined(EVENTLOG_D3_PRESERVE_DISABLED)
-	#define D3_PRESERVE_ENAB()   (0)
+	#define D3_PRESERVE_ENAB()   (FALSE)
 #else
-	#define D3_PRESERVE_ENAB()   (1)
+	#define D3_PRESERVE_ENAB()   (TRUE)
 #endif
 
 #if defined(EVENTLOG_PRSV_PERIODIC)
@@ -578,9 +325,9 @@ extern bool prsv_periodic_enab;
 #if defined(ROM_ENAB_RUNTIME_CHECK)
 	#define PRSV_PRD_ENAB()   (prsv_periodic_enab)
 #elif defined(EVENTLOG_PRSV_PERIODIC_DISABLED)
-	#define PRSV_PRD_ENAB()   (0)
+	#define PRSV_PRD_ENAB()   (FALSE)
 #else
-	#define PRSV_PRD_ENAB()   (1)
+	#define PRSV_PRD_ENAB()   (TRUE)
 #endif
 #endif /* EVENTLOG_PRSV_PERIODIC */
 

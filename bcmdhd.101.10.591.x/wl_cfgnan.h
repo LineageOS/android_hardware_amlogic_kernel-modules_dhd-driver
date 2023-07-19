@@ -90,7 +90,9 @@
 #define NAME_TO_STR(name) #name
 #define NAN_ID_CTRL_SIZE ((NAN_MAXIMUM_ID_NUMBER/8) + 1)
 
+#ifndef tolower
 #define tolower(c) bcm_tolower(c)
+#endif /* tolower */
 
 #define NMR2STR(a) (a)[0], (a)[1], (a)[2], (a)[3], (a)[4], (a)[5], (a)[6], (a)[7]
 #define NMRSTR "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x"
@@ -541,7 +543,7 @@ typedef struct nan_config_cmd_data {
 	wl_nan_disc_bcn_interval_t disc_bcn_interval;
 	uint32 dw_early_termination;
 	uint32 instant_mode_en;
-	uint32 instant_chan;
+	chanspec_t instant_chspec;
 	uint8 chre_req;
 } nan_config_cmd_data_t;
 

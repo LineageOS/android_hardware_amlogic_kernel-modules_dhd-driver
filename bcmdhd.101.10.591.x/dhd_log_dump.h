@@ -86,7 +86,7 @@
 
 #define DHD_LOG_DUMP_WRITE		DHD_DBG_RING
 #define DHD_LOG_DUMP_WRITE_EX		DHD_DBG_RING_EX
-#define DHD_LOG_DUMP_WRITE_PRSRV	DHD_DBG_RING
+#define DHD_LOG_DUMP_WRITE_PRSRV	DHD_DBG_RING_EX
 #define DHD_LOG_DUMP_WRITE_ROAM		DHD_DBG_RING_ROAM
 
 #define DHD_PREFIX_TS "[%s][%s] ",	\
@@ -97,8 +97,8 @@
 #define DHD_LOG_DUMP_WRITE_TS_FN	DHD_DBG_RING(DHD_PREFIX_TS_FN)
 #define DHD_LOG_DUMP_WRITE_EX_TS	DHD_DBG_RING_EX(DHD_PREFIX_TS)
 #define DHD_LOG_DUMP_WRITE_EX_TS_FN	DHD_DBG_RING_EX(DHD_PREFIX_TS_FN)
-#define DHD_LOG_DUMP_WRITE_PRSRV_TS	DHD_DBG_RING(DHD_PREFIX_TS)
-#define DHD_LOG_DUMP_WRITE_PRSRV_TS_FN	DHD_DBG_RING(DHD_PREFIX_TS_FN)
+#define DHD_LOG_DUMP_WRITE_PRSRV_TS	DHD_DBG_RING_EX(DHD_PREFIX_TS)
+#define DHD_LOG_DUMP_WRITE_PRSRV_TS_FN	DHD_DBG_RING_EX(DHD_PREFIX_TS_FN)
 #define DHD_LOG_DUMP_WRITE_ROAM_TS	DHD_DBG_RING_ROAM(DHD_PREFIX_TS)
 #define DHD_LOG_DUMP_WRITE_ROAM_TS_FN	DHD_DBG_RING_ROAM(DHD_PREFIX_TS_FN)
 #else
@@ -255,9 +255,7 @@ typedef struct dhd_debug_dump_ring_entry {
 /* below structure describe ring buffer. */
 struct dhd_log_dump_buf
 {
-#if defined(LINUX) || defined(linux) || defined(ANDROID) || defined(OEM_ANDROID)
 	spinlock_t lock;
-#endif
 	void *dhd_pub;
 	unsigned int enable;
 	unsigned int wraparound;
