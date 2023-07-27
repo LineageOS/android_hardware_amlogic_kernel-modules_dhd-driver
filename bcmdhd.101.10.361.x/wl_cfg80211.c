@@ -129,6 +129,10 @@
 #include <linux/notifier.h>
 #endif /* CONFIG_WLAN_BEYONDX || defined(CONFIG_SEC_5GMODEL) */
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 41) && defined (CONFIG_AMLOGIC_KERNEL_VERSION))
+#include <linux/upstream_version.h>
+#endif
+
 #if (defined(WL_FW_OCE_AP_SELECT) || defined(BCMFW_ROAM_ENABLE)) && \
 	((LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)) || defined(WL_COMPAT_WIRELESS))
 uint fw_ap_select = true;
@@ -22099,7 +22103,12 @@ wl_cfg80211_sup_event_handler(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgde
 
 	if ((status == WLC_SUP_KEYED || status == WLC_SUP_KEYXCHANGE_WAIT_G1) &&
 	    reason == WLC_E_SUP_OTHER) {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0))
+#if ((defined (AML_KERNEL_VERSION) && AML_KERNEL_VERSION >= 15) || LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
+		/* NL80211_CMD_PORT_AUTHORIZED supported above >= 4.15 */
+		cfg80211_port_authorized(ndev, (u8 *)wl_read_prof(cfg, ndev, WL_PROF_BSSID),
+			NULL, 0, GFP_KERNEL);
+		WL_INFORM_MEM(("4way HS finished. port authorized event sent\n"));
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0))
 		/* NL80211_CMD_PORT_AUTHORIZED supported above >= 4.15 */
 		cfg80211_port_authorized(ndev, (u8 *)wl_read_prof(cfg, ndev, WL_PROF_BSSID),
 			GFP_KERNEL);
