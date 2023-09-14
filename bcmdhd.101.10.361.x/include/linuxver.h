@@ -941,6 +941,10 @@ int kernel_read_compat(struct file *file, loff_t offset, char *addr, unsigned lo
 #define kernel_read_compat(file, offset, addr, count) kernel_read(file, offset, addr, count)
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0) */
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0))
+#include <linux/sched/clock.h>
+#endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0)) */
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
 #define netdev_tx_t int
 #endif

@@ -90,7 +90,9 @@
 #define NAME_TO_STR(name) #name
 #define NAN_ID_CTRL_SIZE ((NAN_MAXIMUM_ID_NUMBER/8) + 1)
 
+#ifndef tolower
 #define tolower(c) bcm_tolower(c)
+#endif /* tolower */
 
 #define NMR2STR(a) (a)[0], (a)[1], (a)[2], (a)[3], (a)[4], (a)[5], (a)[6], (a)[7]
 #define NMRSTR "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x"

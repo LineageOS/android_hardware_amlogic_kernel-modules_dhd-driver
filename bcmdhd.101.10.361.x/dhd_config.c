@@ -1932,24 +1932,39 @@ dhd_conf_scan_mac(dhd_pub_t * dhd, char *cmd, char *buf)
 }
 #endif
 
+bool
+dhd_conf_same_country(dhd_pub_t *dhd, char *buf)
+{
+	wl_country_t cspec = {{0}, 0, {0}};
+	wl_country_t cur_cspec = {{0}, 0, {0}};
+
+	strlcpy(cspec.country_abbrev, buf, WL_CCODE_LEN + 1);
+	strlcpy(cspec.ccode, buf, WL_CCODE_LEN + 1);
+	dhd_conf_map_country_list(dhd, &cspec);
+	dhd_conf_get_country(dhd, &cur_cspec);
+	if (!memcmp(&cspec.ccode, &cur_cspec.ccode, WL_CCODE_LEN) &&
+			(cspec.rev == cur_cspec.rev)) {
+		CONFIG_MSG("country code = %s/%d is already configured\n",
+			cspec.ccode, cspec.rev);
+		return TRUE;
+	}
+
+	return FALSE;
+}
+
 int
 dhd_conf_country(dhd_pub_t *dhd, char *cmd, char *buf)
 {
 	wl_country_t cspec = {{0}, 0, {0}};
-	wl_country_t cur_cspec = {{0}, 0, {0}};
 	int err = 0;
 
 	if (buf) {
-		dhd_conf_get_country(dhd, &cur_cspec);
+		if (dhd_conf_same_country(dhd, buf)) {
+			return 0;
+		}
 		strlcpy(cspec.country_abbrev, buf, WL_CCODE_LEN + 1);
 		strlcpy(cspec.ccode, buf, WL_CCODE_LEN + 1);
 		dhd_conf_map_country_list(dhd, &cspec);
-		if (!memcmp(&cspec.ccode, &cur_cspec.ccode, WL_CCODE_LEN) &&
-				(cspec.rev == cur_cspec.rev)) {
-			CONFIG_MSG("country code = %s/%d is already configured\n",
-				cspec.ccode, cspec.rev);
-			return 0;
-		}
 		err = dhd_conf_set_country(dhd, &cspec);
 		if (!err) {
 			dhd_conf_fix_country(dhd);

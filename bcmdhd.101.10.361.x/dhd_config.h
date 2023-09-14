@@ -418,6 +418,7 @@ void dhd_conf_set_path_params(dhd_pub_t *dhd, char *fw_path, char *nv_path);
 int dhd_conf_set_intiovar(dhd_pub_t *dhd, int ifidx, uint cmd, char *name,
 	int val, int def, bool down);
 int dhd_conf_get_band(dhd_pub_t *dhd);
+bool dhd_conf_same_country(dhd_pub_t *dhd, char *buf);
 int dhd_conf_country(dhd_pub_t *dhd, char *cmd, char *buf);
 int dhd_conf_get_country(dhd_pub_t *dhd, wl_country_t *cspec);
 #ifdef CCODE_LIST

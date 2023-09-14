@@ -3558,7 +3558,9 @@ static void
 dhd_set_mac_addr_handler(void *handle, void *event_info, u8 event)
 {
 	dhd_info_t *dhd = handle;
-	dhd_if_t *ifp = event_info;
+	int ifidx = (int)((long int)event_info);
+	dhd_if_t *ifp = NULL;
+
 
 	if (event != DHD_WQ_WORK_SET_MAC) {
 		DHD_ERROR(("%s: unexpected event \n", __FUNCTION__));
@@ -3574,6 +3576,8 @@ dhd_set_mac_addr_handler(void *handle, void *event_info, u8 event)
 #endif /* DHD_NOTIFY_MAC_CHANGED */
 	dhd_net_if_lock_local(dhd);
 	DHD_OS_WAKE_LOCK(&dhd->pub);
+
+	ifp = dhd->iflist[ifidx];
 
 	// terence 20160907: fix for not able to set mac when wlan0 is down
 	if (ifp == NULL || !ifp->set_macaddress) {
@@ -3620,11 +3624,6 @@ dhd_set_mcast_list_handler(void *handle, void *event_info, u8 event)
 	DHD_OS_WAKE_LOCK(&dhd->pub);
 
 	ifp = dhd->iflist[ifidx];
-
-	if (ifp == NULL || !dhd->pub.up) {
-		DHD_ERROR(("%s: interface info not available/down \n", __FUNCTION__));
-		goto done;
-	}
 
 	if (ifp == NULL || !dhd->pub.up) {
 		DHD_ERROR(("%s: interface info not available/down \n", __FUNCTION__));
@@ -3703,8 +3702,8 @@ dhd_set_mac_address(struct net_device *dev, void *addr)
 	}
 #endif /* WL_CFG80211 */
 
-	dhd_deferred_schedule_work(dhd->dhd_deferred_wq, (void *)dhdif, DHD_WQ_WORK_SET_MAC,
-		dhd_set_mac_addr_handler, DHD_WQ_WORK_PRIORITY_LOW);
+	dhd_deferred_schedule_work(dhd->dhd_deferred_wq, (void *)((long int)ifidx),
+		DHD_WQ_WORK_SET_MAC, dhd_set_mac_addr_handler, DHD_WQ_WORK_PRIORITY_LOW);
 	return ret;
 }
 
@@ -3723,7 +3722,7 @@ dhd_set_multicast_list(struct net_device *dev)
 		DHD_WQ_WORK_SET_MCAST_LIST, dhd_set_mcast_list_handler, DHD_WQ_WORK_PRIORITY_LOW);
 
 	// terence 20160907: fix for not able to set mac when wlan0 is down
-	dhd_deferred_schedule_work(dhd->dhd_deferred_wq, (void *)dhd->iflist[ifidx],
+	dhd_deferred_schedule_work(dhd->dhd_deferred_wq, (void *)((long int)ifidx),
 		DHD_WQ_WORK_SET_MAC, dhd_set_mac_addr_handler, DHD_WQ_WORK_PRIORITY_LOW);
 }
 
@@ -16993,7 +16992,8 @@ dhd_register_if(dhd_pub_t *dhdp, int ifidx, bool need_rtnl_lock)
 		wl_ext_iapsta_update_net_device(net, ifidx);
 #endif /* WL_EXT_IAPSTA */
 		if (dhd->pub.up == 1) {
-			if (_dhd_set_mac_address(dhd, ifidx, net->dev_addr, FALSE) == 0)
+			memcpy(temp_addr, net->dev_addr, ETHER_ADDR_LEN);
+			if (_dhd_set_mac_address(dhd, ifidx, temp_addr, FALSE) == 0)
 				DHD_INFO(("%s: MACID is overwritten\n", __FUNCTION__));
 			else
 				DHD_ERROR(("%s: _dhd_set_mac_address() failed\n", __FUNCTION__));

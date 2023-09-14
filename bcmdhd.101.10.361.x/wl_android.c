@@ -450,6 +450,7 @@ typedef struct android_wifi_af_params {
 #define BUFSZ 8
 #define BUFSZN	BUFSZ + 1
 
+#undef _S
 #define _S(x) #x
 #define S(x) _S(x)
 

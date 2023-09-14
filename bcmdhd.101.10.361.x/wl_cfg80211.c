@@ -1335,9 +1335,6 @@ static const rsn_akm_wpa_auth_entry_t rsn_akm_wpa_auth_lookup_tbl[] = {
 #define BUFSZ 8
 #define BUFSZN	BUFSZ + 1
 
-#define _S(x) #x
-#define S(x) _S(x)
-
 #define SOFT_AP_IF_NAME         "swlan0"
 
 /* watchdog timer for disconnecting when fw is not associated for FW_ASSOC_WATCHDOG_TIME ms */
@@ -2462,7 +2459,7 @@ _wl_cfg80211_check_axi_error(struct bcm_cfg80211 *cfg)
 struct wireless_dev *
 wl_cfg80211_add_if(struct bcm_cfg80211 *cfg,
 	struct net_device *primary_ndev,
-	wl_iftype_t wl_iftype, const char *name, u8 *mac)
+	wl_iftype_t wl_iftype, const char *name, const u8 *mac)
 {
 	u8 mac_addr[ETH_ALEN];
 	s32 err = -ENODEV;
@@ -10673,6 +10670,11 @@ wl_is_ccode_change_required(struct net_device *net,
 	s32 ret = BCME_OK;
 	wl_country_t cspec = {{0}, 0, {0}};
 	wl_country_t cur_cspec = {{0}, 0, {0}};
+	struct dhd_pub *dhd = dhd_get_pub(net);
+
+	if (dhd_conf_same_country(dhd, country_code)) {
+		return false;
+	}
 
 	ret = wldev_iovar_getbuf(net, "country", NULL, 0, &cur_cspec,
 		sizeof(cur_cspec), NULL);
@@ -14016,7 +14018,7 @@ wl_bss_roaming_done(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 	return err;
 
 fail:
-#ifdef WL_EXT_IAPSTA
+#if defined(WL_EXT_IAPSTA) && !defined(WL_EXT_DISCONNECT_RECONNECT)
 	if (err)
 		wl_ext_in4way_sync(ndev, STA_NO_BTC_IN4WAY, WL_EXT_STATUS_DISCONNECTED, NULL);
 #endif
@@ -20664,19 +20666,28 @@ static int wl_cfg80211_update_owe_info(struct wiphy *wiphy, struct net_device *d
 	int err = 0;
 	struct bcm_cfg80211 *cfg = wl_get_cfg(dev);
 	dhd_pub_t *dhdp = (dhd_pub_t *)(cfg->pub);
-	wl_assoc_resp_params_v1_t *assoc_resp_params;
-	uint8 resp_buf[AP_OWE_IOCTL_BUF_SIZE];
+	wl_assoc_resp_params_v1_t *assoc_resp_params = NULL;
+	uint8 *resp_buf = NULL;
 	uint8 *p_resp_ies_tlv = NULL;
 	uint16 assoc_params_iovsize;
 
 	WL_DBG(("%s: Enter\n", __func__));
+
+	resp_buf = MALLOCZ(dhdp->osh, AP_OWE_IOCTL_BUF_SIZE);
+	if (resp_buf == NULL) {
+		WL_ERR(("error: failed to allocate %d bytes of memory\n", AP_OWE_IOCTL_BUF_SIZE));
+		err = BCME_NOMEM;
+		goto exit;
+	}
+
 	assoc_params_iovsize = AP_OWE_ASSOC_RESP_PARAMS_BUFSZ +
 			OFFSETOF(wl_assoc_resp_params_v1_t, ies);
 	assoc_resp_params = (wl_assoc_resp_params_v1_t *)MALLOCZ(dhdp->osh, assoc_params_iovsize);
 
 	if (assoc_resp_params == NULL) {
 		WL_ERR(("error: failed to allocate %d bytes of memory\n", assoc_params_iovsize));
-		return BCME_ERROR;
+		err = BCME_NOMEM;
+		goto exit;
 	}
 	/* setup assoc_resp_params iovar */
 	assoc_resp_params->version = WL_ASSOC_RESP_PARAMS_V1;
@@ -20709,6 +20720,10 @@ static int wl_cfg80211_update_owe_info(struct wiphy *wiphy, struct net_device *d
 		WL_DBG(("ap_assoc_resp_params failed, err=%d\n", err));
 	}
 exit:
+	if (resp_buf)
+		MFREE(dhdp->osh, resp_buf, AP_OWE_IOCTL_BUF_SIZE);
+	if (assoc_resp_params)
+		MFREE(dhdp->osh, assoc_resp_params, assoc_params_iovsize);
 	return err;
 }
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0) */
@@ -22090,6 +22105,9 @@ wl_cfg80211_sup_event_handler(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgde
 	u32 status = ntoh32(event->status);
 	struct net_device *ndev = bcmcfg_to_prmry_ndev(cfg);
 	u32 reason = ntoh32(event->reason);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0))
+	const u8 *curbssid = (const u8 *)event->addr.octet;
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(4, 15, 0) */
 
 	if (!wl_get_drv_status(cfg, CFG80211_CONNECT, ndev)) {
 		/* Join attempt via non-cfg80211 interface.
@@ -22103,17 +22121,23 @@ wl_cfg80211_sup_event_handler(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgde
 
 	if ((status == WLC_SUP_KEYED || status == WLC_SUP_KEYXCHANGE_WAIT_G1) &&
 	    reason == WLC_E_SUP_OTHER) {
-#if ((defined (AML_KERNEL_VERSION) && AML_KERNEL_VERSION >= 15) || LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
-		/* NL80211_CMD_PORT_AUTHORIZED supported above >= 4.15 */
-		cfg80211_port_authorized(ndev, (u8 *)wl_read_prof(cfg, ndev, WL_PROF_BSSID),
-			NULL, 0, GFP_KERNEL);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0))
+		if (!ETHER_ISNULLADDR(curbssid)) {
+			WL_DBG(("Authorizing Port with BSSID from FW event " MACDBG" \n",
+				MAC2STRDBG(curbssid)));
+		} else {
+			curbssid = wl_read_prof(cfg, ndev, WL_PROF_BSSID);
+			WL_DBG(("Authorizing Port with BSSID from DHD profile " MACDBG" \n",
+				MAC2STRDBG(curbssid)));
+		}
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)) || \
+		((ANDROID_VERSION >= 13) && (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 94)))
+		cfg80211_port_authorized(ndev, (const u8 *)curbssid, NULL, 0, GFP_KERNEL);
+#else
+		cfg80211_port_authorized(ndev, (const u8 *)curbssid, GFP_KERNEL);
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0) */
 		WL_INFORM_MEM(("4way HS finished. port authorized event sent\n"));
-#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0))
-		/* NL80211_CMD_PORT_AUTHORIZED supported above >= 4.15 */
-		cfg80211_port_authorized(ndev, (u8 *)wl_read_prof(cfg, ndev, WL_PROF_BSSID),
-			GFP_KERNEL);
-		WL_INFORM_MEM(("4way HS finished. port authorized event sent\n"));
-#elif ((LINUX_VERSION_CODE > KERNEL_VERSION(3, 14, 0)) || defined(WL_VENDOR_EXT_SUPPORT))
+#elif (LINUX_VERSION_CODE > KERNEL_VERSION(3, 14, 0)) || defined(WL_VENDOR_EXT_SUPPORT)
 		err = wl_cfgvendor_send_async_event(bcmcfg_to_wiphy(cfg), ndev,
 			BRCM_VENDOR_EVENT_PORT_AUTHORIZED, NULL, 0);
 		WL_INFORM_MEM(("4way HS finished. port authorized event sent\n"));

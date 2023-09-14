@@ -513,7 +513,8 @@ enum {
 	IOV_HCIREGS,
 	IOV_POWER,
 	IOV_CLOCK,
-	IOV_RXCHAIN
+	IOV_RXCHAIN,
+	IOV_DS
 };
 
 const bcm_iovar_t sdioh_iovars[] = {
@@ -537,6 +538,7 @@ const bcm_iovar_t sdioh_iovars[] = {
 #ifdef BCMDBG
 	{"sd_hciregs",	IOV_HCIREGS,	0, 0,	IOVT_BUFFER,	0 },
 #endif
+	{"sd_ds",	IOV_DS,		0, 0,	IOVT_UINT32,	0 },
 	{NULL, 0, 0, 0, 0, 0 }
 };
 
@@ -751,6 +753,64 @@ sdioh_iovar_op(sdioh_info_t *si, const char *name,
 		int_val = (int32)0;
 		bcopy(&int_val, arg, val_size);
 		break;
+
+	case IOV_GVAL(IOV_DS):
+	{
+		uint8 reg2;
+		int err;
+
+		sdio_claim_host(si->func[0]);
+		reg2 = sdio_readb(si->func[0], SDIOD_CCCR_DRIVER_STRENGTH, &err);
+		if (err) {
+			sd_err(("sd_ds error for read SDIOD_CCCR_DRIVER_STRENGTH : 0x%x\n", err));
+			bcmerror = BCME_SDIO_ERROR;
+		} else {
+			sd_trace(("sd_ds get cccr driver strength 0x%x\n", reg2));
+		}
+		sdio_release_host(si->func[0]);
+
+		int_val = (int)reg2;
+		bcopy(&int_val, arg, sizeof(int_val));
+		break;
+	}
+
+	case IOV_SVAL(IOV_DS):
+	{
+		uint8 reg2;
+		int err;
+
+		sdio_claim_host(si->func[0]);
+		reg2 = sdio_readb(si->func[0], SDIOD_CCCR_DRIVER_STRENGTH, &err);
+		if (err) {
+			sd_err(("sd_ds error for read SDIOD_CCCR_DRIVER_STRENGTH : 0x%x\n", err));
+			bcmerror = BCME_SDIO_ERROR;
+			sdio_release_host(si->func[0]);
+			break;
+		} else {
+			sd_trace(("sd_ds get cccr driver strength 0x%x\n", reg2));
+		}
+
+		if (int_val == 0) {
+			reg2 = ((reg2 & 0xf) | 0x0);
+		} else if (int_val == 1) {
+			reg2 = ((reg2 & 0xf) | 0x10);
+		} else if (int_val == 2) {
+			reg2 = ((reg2 & 0xf) | 0x20);
+		} else if (int_val == 3) {
+			reg2 = ((reg2 & 0xf) | 0x30);
+		} else {
+			bcmerror = BCME_BADARG;
+			sdio_release_host(si->func[0]);
+			break;
+		}
+
+		sdio_writeb(si->func[0], reg2, SDIOD_CCCR_DRIVER_STRENGTH, &err);
+		if (err) {
+			sd_err(("sd_ds error write SDIOD_CCCR_DRIVER_STRENGTH : 0x%x\n", err));
+		}
+		sdio_release_host(si->func[0]);
+		break;
+	}
 #ifdef BCMINTERNAL
 	case IOV_GVAL(IOV_HOSTREG):
 	{

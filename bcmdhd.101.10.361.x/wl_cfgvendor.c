@@ -6945,6 +6945,8 @@ static int wl_cfgvendor_lstats_get_info(struct wiphy *wiphy,
 	if (err != BCME_OK && err != BCME_UNSUPPORTED) {
 		WL_ERR(("error (%d) - size = %zu\n", err, sizeof(wl_pwrstats_t)));
 		goto exit;
+	} else if (err == BCME_UNSUPPORTED) {
+		goto exit;
 	}
 
 	pwrstats = (wl_pwrstats_t *) iovar_buf;
@@ -8302,7 +8304,9 @@ static int wl_cfgvendor_nla_put_dump_data(dhd_pub_t *dhd_pub, struct sk_buff *sk
 		wl_cfgvendor_nla_put_axi_error_data(skb, ndev);
 	}
 #endif /* DNGL_AXI_ERROR_LOGGING */
+#if defined(DHD_FW_COREDUMP)
 	if (dhd_pub->memdump_enabled || (dhd_pub->memdump_type == DUMP_TYPE_BY_SYSDUMP)) {
+#endif /* DHD_FW_COREDUMP */
 		if (((ret = wl_cfgvendor_nla_put_debug_dump_data(skb, ndev)) < 0) ||
 			((ret = wl_cfgvendor_nla_put_memdump_data(skb, ndev, fw_len)) < 0) ||
 			((ret = wl_cfgvendor_nla_put_sssr_dump_data(skb, ndev)) < 0)) {
@@ -8313,7 +8317,9 @@ static int wl_cfgvendor_nla_put_dump_data(dhd_pub_t *dhd_pub, struct sk_buff *sk
 			goto done;
 		}
 #endif /* DHD_PKT_LOGGING */
+#if defined(DHD_FW_COREDUMP)
 	}
+#endif /* DHD_FW_COREDUMP */
 done:
 	return ret;
 }
