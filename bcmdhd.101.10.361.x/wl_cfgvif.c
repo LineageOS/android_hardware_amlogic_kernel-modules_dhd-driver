@@ -879,7 +879,7 @@ wl_cfg80211_handle_if_role_conflict(struct bcm_cfg80211 *cfg,
 #endif /* WL_IFACE_MGMT */
 
 s32
-wl_release_vif_macaddr(struct bcm_cfg80211 *cfg, u8 *mac_addr, u16 wl_iftype)
+wl_release_vif_macaddr(struct bcm_cfg80211 *cfg, const u8 *mac_addr, u16 wl_iftype)
 {
 	struct net_device *ndev =  bcmcfg_to_prmry_ndev(cfg);
 	u16 org_toggle_bytes;
@@ -4430,7 +4430,7 @@ wl_get_auth_assoc_status(struct bcm_cfg80211 *cfg, struct net_device *ndev,
  */
 #if !defined(WL_CFG80211_STA_EVENT) && (LINUX_VERSION_CODE < KERNEL_VERSION(3, 2, 0))
 static s32
-wl_notify_connect_status_ap_legacy(struct bcm_cfg80211 *cfg, struct net_device *ndev
+wl_notify_connect_status_ap_legacy(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 	const wl_event_msg_t *e, void *data)
 {
 	s32 err = 0;
@@ -4438,6 +4438,8 @@ wl_notify_connect_status_ap_legacy(struct bcm_cfg80211 *cfg, struct net_device *
 	u32 reason = ntoh32(e->reason);
 	u32 len = ntoh32(e->datalen);
 	u32 status = ntoh32(e->status);
+	chanspec_t chanspec;
+	bool retval;
 
 	bool isfree = false;
 	u8 *mgmt_frame;
@@ -4508,7 +4510,8 @@ wl_notify_connect_status_ap_legacy(struct bcm_cfg80211 *cfg, struct net_device *
 		return err;
 	}
 	chanspec = wl_chspec_driver_to_host(chanspec);
-	freq = wl_channel_to_frequency(wf_chspec_ctlchan(chanspec), CHSPEC_BAND(chanspec));
+	channel = wf_chspec_ctlchan(chanspec);
+	freq = wl_channel_to_frequency(channel, CHSPEC_BAND(chanspec));
 	body_len = len;
 	err = wl_frame_get_mgmt(cfg, fc, &da, &e->addr, &bssid,
 		&mgmt_frame, &len, body);
@@ -4519,16 +4522,44 @@ wl_notify_connect_status_ap_legacy(struct bcm_cfg80211 *cfg, struct net_device *
 	if ((event == WLC_E_ASSOC_IND && reason == DOT11_SC_SUCCESS) ||
 			(event == WLC_E_DISASSOC_IND) ||
 			((event == WLC_E_DEAUTH_IND) || (event == WLC_E_DEAUTH))) {
+		if (event == WLC_E_ASSOC_IND && reason == DOT11_SC_SUCCESS) {
+			WL_MSG(ndev->name, "new sta event for "MACDBG "\n",
+				MAC2STRDBG(e->addr.octet));
+#ifdef WL_EXT_IAPSTA
+			wl_ext_in4way_sync(ndev, AP_WAIT_STA_RECONNECT,
+				WL_EXT_STATUS_STA_CONNECTED, (void *)&e->addr);
+#endif
+#ifdef STA_MGMT
+			if (!wl_ext_add_sta_info(ndev, (u8 *)&e->addr)) {
+				return -EINVAL;
+			}
+#endif /* STA_MGMT */
+		} else if (event == WLC_E_DISASSOC_IND || event == WLC_E_DEAUTH_IND ||
+				event == WLC_E_DEAUTH) {
+			WL_MSG_RLMT(ndev->name, &e->addr, ETHER_ADDR_LEN,
+				"del sta event for "MACDBG "\n", MAC2STRDBG(e->addr.octet));
+#ifdef WL_EXT_IAPSTA
+			wl_ext_in4way_sync(ndev, AP_WAIT_STA_RECONNECT,
+				WL_EXT_STATUS_STA_DISCONNECTED, (void *)&e->addr);
+#endif
+#ifdef STA_MGMT
+			if (!wl_ext_del_sta_info(ndev, (u8 *)&e->addr)) {
+				return -EINVAL;
+			}
+#endif /* STA_MGMT */
+		}
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0))
-		cfg80211_rx_mgmt(ndev, freq, 0, mgmt_frame, len, 0);
+		retval = cfg80211_rx_mgmt(ndev, freq, 0, mgmt_frame, len, 0);
 #elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0))
-		cfg80211_rx_mgmt(ndev, freq, 0, mgmt_frame, len, 0, GFP_ATOMIC);
+		retval = cfg80211_rx_mgmt(ndev, freq, 0, mgmt_frame, len, 0, GFP_ATOMIC);
 #elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)) || \
 		defined(WL_COMPAT_WIRELESS)
-		cfg80211_rx_mgmt(ndev, freq, 0, mgmt_frame, len, GFP_ATOMIC);
+		retval = cfg80211_rx_mgmt(ndev, freq, 0, mgmt_frame, len, GFP_ATOMIC);
 #else
-		cfg80211_rx_mgmt(ndev, freq, mgmt_frame, len, GFP_ATOMIC);
+		retval = cfg80211_rx_mgmt(ndev, freq, mgmt_frame, len, GFP_ATOMIC);
 #endif /* LINUX_VERSION >= VERSION(3, 18,0) || WL_COMPAT_WIRELESS */
+		WL_DBG(("mgmt_frame_len (%d) , e->datalen (%d), channel (%d), freq (%d) retval (%d)\n",
+			len, ntoh32(e->datalen), channel, freq, retval));
 	}
 
 exit:
@@ -4698,8 +4729,6 @@ wl_notify_connect_status_ap(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 		wl_wps_session_update(ndev, WPS_STATE_LINKDOWN, e->addr.octet);
 #endif /* WL_WPS_SYNC */
 	}
-
-#endif /* LINUX_VERSION < VERSION(3,2,0) && !WL_CFG80211_STA_EVENT && !WL_COMPAT_WIRELESS */
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0))
 	else if (event == WLC_E_OWE_INFO) {
 		if (!data) {
@@ -4717,6 +4746,7 @@ wl_notify_connect_status_ap(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 		cfg80211_update_owe_info_event(ndev, &owe_info, GFP_ATOMIC);
 	}
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0) */
+#endif /* LINUX_VERSION < VERSION(3,2,0) && !WL_CFG80211_STA_EVENT && !WL_COMPAT_WIRELESS */
 	return err;
 }
 
@@ -5337,13 +5367,14 @@ wl_cfg80211_ch_switch_notify(struct net_device *dev, uint16 chanspec, struct wip
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION (3, 8, 0))
 	freq = chandef.chan ? chandef.chan->center_freq : chandef.center_freq1;
-#if ((defined (AML_KERNEL_VERSION) && AML_KERNEL_VERSION >= 15) || LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0))
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0) || \
+		((ANDROID_VERSION >= 13) && (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 94)))
 	cfg80211_ch_switch_notify(dev, &chandef, 0, 0);
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 2) || defined(CFG80211_BKPORT_MLO)
 	cfg80211_ch_switch_notify(dev, &chandef, 0);
 #else
 	cfg80211_ch_switch_notify(dev, &chandef);
-#endif /* CFG80211_BKPORT_MLO */
+#endif /* LINUX_VER >= 5.19.2 || defined(CFG80211_BKPORT_MLO) */
 #elif (LINUX_VERSION_CODE >= KERNEL_VERSION (3, 5, 0) && (LINUX_VERSION_CODE <= (3, 7, 0)))
 	freq = chandef.freq;
 	cfg80211_ch_switch_notify(dev, freq, chandef.chan_type);

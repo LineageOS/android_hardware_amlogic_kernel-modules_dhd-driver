@@ -1568,17 +1568,20 @@ wl_iw_handle_scanresults_ies(char **event_p, char *end,
 	if (bi->ie_length) {
 		/* look for wpa/rsn ies in the ie list... */
 		bcm_tlv_t *ie;
-		uint8 *ptr = ((uint8 *)bi) + bi->ie_offset;
+		uint8 *ptr = ((uint8 *)bi) + bi->ie_offset, *ie_data;
 		int ptr_len = bi->ie_length;
 
 		/* OSEN IE */
-		if ((ie = bcm_parse_tlvs(ptr, ptr_len, DOT11_MNG_VS_ID)) &&
-			ie->len > WFA_OUI_LEN + 1 &&
-			!bcmp((const void *)&ie->data[0], (const void *)WFA_OUI, WFA_OUI_LEN) &&
-			ie->data[WFA_OUI_LEN] == WFA_OUI_TYPE_OSEN) {
-			iwe.cmd = IWEVGENIE;
-			iwe.u.data.length = ie->len + 2;
-			event = IWE_STREAM_ADD_POINT(info, event, end, &iwe, (char *)ie);
+		ie = bcm_parse_tlvs(ptr, ptr_len, DOT11_MNG_VS_ID);
+		if (ie) {
+			ie_data = ie->data;
+			if (ie->len > WFA_OUI_LEN + 1 &&
+				!bcmp((const void *)&ie->data[0], (const void *)WFA_OUI, WFA_OUI_LEN) &&
+				ie_data[WFA_OUI_LEN] == WFA_OUI_TYPE_OSEN) {
+					iwe.cmd = IWEVGENIE;
+					iwe.u.data.length = ie->len + 2;
+					event = IWE_STREAM_ADD_POINT(info, event, end, &iwe, (char *)ie);
+			}
 		}
 		ptr = ((uint8 *)bi) + bi->ie_offset;
 

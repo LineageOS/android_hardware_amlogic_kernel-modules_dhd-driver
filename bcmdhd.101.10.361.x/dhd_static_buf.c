@@ -48,7 +48,9 @@ do { \
 #ifndef BCMDBUS
 #define BCMDBUS
 #endif
+#ifndef DHD_USE_STATIC_MEMDUMP
 #define DHD_USE_STATIC_MEMDUMP { : = y}
+#endif
 //#define BCMDHD_UNUSE_MEM
 #endif
 
