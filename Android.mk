@@ -35,7 +35,7 @@ $(_dhd_ko): $(KERNEL_OUT)/arch/$(KERNEL_ARCH)/boot/$(BOARD_KERNEL_IMAGE_NAME)
 	@mkdir -p $(dir $@)
 	@cp -R $(DHD_PATH)/* $(dir $@)/
 	$(PATH_OVERRIDE) $(KERNEL_MAKE_CMD) $(KERNEL_MAKE_FLAGS) -C $(_dhd_intermediates) M=$(abspath $(_dhd_intermediates)) ARCH=$(TARGET_KERNEL_ARCH) $(KERNEL_CROSS_COMPILE) $(KERNEL_CLANG_TRIPLE) $(KERNEL_CC) KERNEL_SRC=$(abspath $(KERNEL_OUT)) bcmdhd_sdio
-	$(KERNEL_TOOLCHAIN_PATH)strip --strip-unneeded $@;
+	$(TARGET_KERNEL_CLANG_PATH)/bin/llvm-strip --strip-unneeded $@;
 
 include $(BUILD_SYSTEM)/base_rules.mk
 endif
