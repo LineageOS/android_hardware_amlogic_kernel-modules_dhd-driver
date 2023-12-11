@@ -47,6 +47,7 @@
 #include <pcicfg.h>
 #include <dhd_pcie.h>
 #include <dhd_linux.h>
+#ifdef OEM_ANDROID
 #ifdef CONFIG_ARCH_MSM
 #if IS_ENABLED(CONFIG_PCI_MSM) || defined(CONFIG_ARCH_MSM8996)
 #include <linux/msm_pcie.h>
@@ -54,6 +55,7 @@
 #include <mach/msm_pcie.h>
 #endif /* CONFIG_PCI_MSM */
 #endif /* CONFIG_ARCH_MSM */
+#endif /* OEM_ANDROID */
 
 #ifdef DHD_PCIE_NATIVE_RUNTIMEPM
 #include <linux/pm_runtime.h>
@@ -218,6 +220,9 @@ static struct pci_device_id dhdpcie_pci_devid[] __devinitdata = {
 	class: PCI_CLASS_NETWORK_OTHER << 8,
 	class_mask: 0xffff00,
 	driver_data: 0,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0))
+	override_only: 0,
+#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)) */
 	},
 #if (BCMPCI_DEV_ID != PCI_ANY_ID) && defined(BCMPCI_NOOTP_DEV_ID)
 	{ vendor: VENDOR_BROADCOM,
@@ -227,9 +232,16 @@ static struct pci_device_id dhdpcie_pci_devid[] __devinitdata = {
 	class: PCI_CLASS_NETWORK_OTHER << 8,
 	class_mask: 0xffff00,
 	driver_data: 0,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0))
+	override_only: 0,
+#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)) */
 	},
 #endif /* BCMPCI_DEV_ID != PCI_ANY_ID && BCMPCI_NOOTP_DEV_ID */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0))
+	{ 0, 0, 0, 0, 0, 0, 0, 0}
+#else
 	{ 0, 0, 0, 0, 0, 0, 0}
+#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)) */
 };
 MODULE_DEVICE_TABLE(pci, dhdpcie_pci_devid);
 
@@ -986,7 +998,7 @@ static int dhdpcie_pm_system_resume_noirq(struct device * dev)
 }
 #endif /* DHD_PCIE_NATIVE_RUNTIMEPM */
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0))
+#if defined(OEM_ANDROID) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0))
 extern void dhd_dpc_tasklet_kill(dhd_pub_t *dhdp);
 #endif /* OEM_ANDROID && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0) */
 
@@ -1017,7 +1029,7 @@ static int dhdpcie_suspend_dev(struct pci_dev *dev)
 	dhdpcie_info_t *pch = pci_get_drvdata(dev);
 	dhd_bus_t *bus = pch->bus;
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0))
+#if defined(OEM_ANDROID) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0))
 	if (bus->is_linkdown) {
 		DHD_ERROR(("%s: PCIe link is down\n", __FUNCTION__));
 		return BCME_ERROR;
@@ -1034,11 +1046,11 @@ static int dhdpcie_suspend_dev(struct pci_dev *dev)
 	dhd_plat_l1ss_ctrl(0);
 
 	dhdpcie_suspend_dump_cfgregs(bus, "BEFORE_EP_SUSPEND");
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0))
+#if defined(OEM_ANDROID) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0))
 	dhd_dpc_tasklet_kill(bus->dhd);
 #endif /* OEM_ANDROID && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0) */
 	pci_save_state(dev);
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0))
+#if defined(OEM_ANDROID) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0))
 	pch->state = pci_store_saved_state(dev);
 #endif /* OEM_ANDROID && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0) */
 	pci_enable_wake(dev, PCI_D0, TRUE);
@@ -1050,7 +1062,9 @@ static int dhdpcie_suspend_dev(struct pci_dev *dev)
 		DHD_ERROR(("%s: pci_set_power_state error %d\n",
 			__FUNCTION__, ret));
 	}
+#ifdef OEM_ANDROID
 //	dev->state_saved = FALSE;
+#endif /* OEM_ANDROID */
 	dhdpcie_suspend_dump_cfgregs(bus, "AFTER_EP_SUSPEND");
 	return ret;
 }
@@ -1108,7 +1122,7 @@ static int dhdpcie_resume_dev(struct pci_dev *dev)
 {
 	int err = 0;
 	dhdpcie_info_t *pch = pci_get_drvdata(dev);
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0))
+#if defined(OEM_ANDROID) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0))
 	pci_load_and_free_saved_state(dev, &pch->state);
 #endif /* OEM_ANDROID && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0) */
 	DHD_RPM(("%s: Enter\n", __FUNCTION__));
@@ -1133,7 +1147,9 @@ static int dhdpcie_resume_dev(struct pci_dev *dev)
 		goto out;
 	}
 
+#ifdef OEM_ANDROID
 	dev->state_saved = TRUE;
+#endif /* OEM_ANDROID */
 	pci_restore_state(dev);
 
 	BCM_REFERENCE(pch);
@@ -1371,6 +1387,7 @@ int dhdpcie_pci_suspend_resume(dhd_bus_t *bus, bool state)
 #endif /* !BCMPCIE_OOB_HOST_WAKE && !PCIE_OOB */
 			dhdpcie_config_save_restore_coherent(bus, state);
 		}
+#if defined(OEM_ANDROID)
 #if defined(DHD_HANG_SEND_UP_TEST)
 		if (bus->is_linkdown ||
 			bus->dhd->req_hang_type == HANG_REASON_PCIE_RC_LINK_UP_FAIL)
@@ -1381,6 +1398,7 @@ int dhdpcie_pci_suspend_resume(dhd_bus_t *bus, bool state)
 			bus->dhd->hang_reason = HANG_REASON_PCIE_RC_LINK_UP_FAIL;
 			dhd_os_send_hang_message(bus->dhd);
 		}
+#endif /* OEM_ANDROID */
 	}
 	return rc;
 }
@@ -1549,7 +1567,7 @@ int
 dhdpcie_detach(dhdpcie_info_t *pch)
 {
 	if (pch) {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0))
+#if defined(OEM_ANDROID) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0))
 		if (!dhd_download_fw_on_driverload) {
 			pci_load_and_free_saved_state(pch->dev, &pch->default_state);
 		}

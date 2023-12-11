@@ -574,10 +574,13 @@ int dhd_dongle_ramsize;
 
 uint dhd_doflow = TRUE;
 uint dhd_dpcpoll = FALSE;
+/* SR memory size */
+uint dhd_srmem = 0;
 
 #ifdef linux
 module_param(dhd_doflow, uint, 0644);
 module_param(dhd_dpcpoll, uint, 0644);
+module_param(dhd_srmem, uint, 0644);
 #endif
 
 static bool dhd_alignctl;
@@ -1670,10 +1673,12 @@ dhdsdio_htclk(dhd_bus_t *bus, bool on, bool pendok)
 				DHD_ERROR(("%s: HT Avail request error: %d\n", __FUNCTION__, err));
 			}
 
+#ifdef OEM_ANDROID
 			else if (ht_avail_error == HT_AVAIL_ERROR_MAX) {
 				bus->dhd->hang_reason = HANG_REASON_HT_AVAIL_ERROR;
 				dhd_os_send_hang_message(bus->dhd);
 			}
+#endif /* OEM_ANDROID */
 			return BCME_ERROR;
 		} else {
 			ht_avail_error = 0;
@@ -2132,7 +2137,7 @@ dhdsdio_bussleep(dhd_bus_t *bus, bool sleep)
 			if (retries <= retry_limit)
 				W_SDREG(SMB_DEV_INT, &regs->tosbmailbox, retries);
 #endif
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && defined(OEM_ANDROID)
 			if (err < 0) {
 				struct net_device *net = NULL;
 				dhd_pub_t *dhd = bus->dhd;
@@ -2822,8 +2827,11 @@ static int dhdsdio_txpkt(dhd_bus_t *bus, uint chan, void** pkts, int num_pkt, bo
 			, i
 #endif
 		);
-		if (pkt_len <= 0)
+		if (pkt_len <= 0) {
+			if (new_pkt)
+				PKTFREE(osh, new_pkt, TRUE);
 			goto done;
+		}
 		if (new_pkt) {
 			pkt = new_pkt;
 			new_pkts[new_pkt_num++] = new_pkt;
@@ -2996,8 +3004,8 @@ dhdsdio_sendfromq(dhd_bus_t *bus, uint maxframes)
 #ifdef DHD_PKTDUMP_TOFW
 			dhd_dump_pkt(bus->dhd, BDC_GET_IF_IDX(bdc_header), pktdata,
 				(uint32)PKTLEN(bus->dhd->osh, pkts[i]), TRUE, NULL, NULL);
-#endif
-#endif /* DHD_LOSSLESS_ROAMING || DHD_8021X_DUMP */
+#endif /* DHD_PKTDUMP_TOFW */
+#endif /* DHD_LOSSLESS_ROAMING || DHD_PKTDUMP_TOFW */
 			if (!bus->dhd->conf->orphan_move)
 				PKTORPHAN(pkts[i], bus->dhd->conf->tsq);
 			datalen += PKTLEN(osh, pkts[i]);
@@ -3425,6 +3433,9 @@ enum {
 	IOV_SDREG,
 	IOV_SBREG,
 	IOV_SDCIS,
+#ifdef DHD_BUS_MEM_ACCESS
+	IOV_MEMBYTES,
+#endif /* DHD_BUS_MEM_ACCESS */
 	IOV_RAMSIZE,
 	IOV_RAMSTART,
 #ifdef DHD_DEBUG
@@ -3483,6 +3494,9 @@ const bcm_iovar_t dhdsdio_iovars[] = {
 	{"idletime",	IOV_IDLETIME,	0, 0,	IOVT_INT32,	0 },
 	{"idleclock",	IOV_IDLECLOCK,	0, 0,	IOVT_INT32,	0 },
 	{"sd1idle",	IOV_SD1IDLE,	0, 0,	IOVT_BOOL,	0 },
+#ifdef DHD_BUS_MEM_ACCESS
+	{"membytes",	IOV_MEMBYTES,	0, 0,	IOVT_BUFFER,	2 * sizeof(int) },
+#endif /* DHD_BUS_MEM_ACCESS */
 	{"ramsize",	IOV_RAMSIZE,	0, 0,	IOVT_UINT32,	0 },
 	{"ramstart",	IOV_RAMSTART,	0, 0,	IOVT_UINT32,	0 },
 	{"dwnldstate",	IOV_SET_DOWNLOAD_STATE,	0, 0,	IOVT_BOOL,	0 },
@@ -3927,7 +3941,7 @@ dhdsdio_readshared(dhd_bus_t *bus, sdpcm_shared_t *sh)
 
 		addr = ltoh32(addr);
 
-		DHD_INFO(("sdpcm_shared address 0x%08X\n", addr));
+		DHD_INFO(("sdpcm_shared shaddr %x addr 0x%08X\n", shaddr, addr));
 
 		/*
 		 * Check if addr is valid.
@@ -4012,6 +4026,30 @@ dhdsdio_readshared(dhd_bus_t *bus, sdpcm_shared_t *sh)
 	}
 #endif /* FW_SIGNATURE */
 	return BCME_OK;
+}
+
+void
+dhd_bus_check_srmemsize(dhd_pub_t *dhdp)
+{
+	dhd_bus_t *dhd = dhdp->bus;
+	uint32 srmem_size = 0;
+	int err = BCME_OK;
+
+	err = dhd_iovar(dhdp, 0, "bus:srmem_size", NULL, 0,
+		(char *)&srmem_size, sizeof(srmem_size), FALSE);
+	if (err) {
+		DHD_ERROR(("%s : srmem_size no need to change.\n", __FUNCTION__));
+		return;
+	}
+
+	if (srmem_size != dhd->srmemsize) {
+		sdpcm_shared_t shared;
+		dhd->srmemsize = srmem_size;
+		if (dhdsdio_readshared(dhd, &shared) == 0)
+			dhd->console_addr = shared.console_addr;
+	}
+
+	return;
 }
 
 #define CONSOLE_LINE_MAX	192
@@ -4626,6 +4664,55 @@ dhdsdio_doiovar(dhd_bus_t *bus, const bcm_iovar_t *vi, uint32 actionid, const ch
 		bcmerror = dhdsdio_checkdied(bus, arg, len);
 		break;
 #endif /* DHD_DEBUG */
+
+#ifdef DHD_BUS_MEM_ACCESS
+	case IOV_SVAL(IOV_MEMBYTES):
+	case IOV_GVAL(IOV_MEMBYTES):
+	{
+		uint32 address;
+		uint size, dsize;
+		uint8 *data;
+
+		bool set = (actionid == IOV_SVAL(IOV_MEMBYTES));
+
+		ASSERT(plen >= 2*sizeof(int));
+
+		address = (uint32)int_val;
+		bcopy((char *)params + sizeof(int_val), &int_val, sizeof(int_val));
+		size = (uint)int_val;
+
+		/* Do some validation */
+		dsize = set ? plen - (2 * sizeof(int)) : len;
+		if (dsize < size) {
+			DHD_ERROR(("%s: error on %s membytes, addr 0x%08x size %d dsize %d\n",
+			           __FUNCTION__, (set ? "set" : "get"), address, size, dsize));
+			bcmerror = BCME_BADARG;
+			break;
+		}
+
+		DHD_INFO(("%s: Request to %s %d bytes at address 0x%08x\n", __FUNCTION__,
+		          (set ? "write" : "read"), size, address));
+
+		/* check if CR4 */
+		if (si_setcore(bus->sih, ARMCR4_CORE_ID, 0)) {
+			/*
+			 * If address is start of RAM (i.e. a downloaded image),
+			 * store the reset instruction to be written in 0
+			 */
+			if (set && address == bus->dongle_ram_base) {
+				bus->resetinstr = *(((uint32*)params) + 2);
+			}
+		}
+
+		/* Generate the actual data pointer */
+		data = set ? (uint8*)params + 2 * sizeof(int): (uint8*)arg;
+
+		/* Call to do the transfer */
+		bcmerror = dhdsdio_membytes(bus, set, address, data, size);
+
+		break;
+	}
+#endif /* DHD_BUS_MEM_ACCESS */
 
 #if defined(FW_SIGNATURE)
 	case IOV_SVAL(IOV_SET_DOWNLOAD_INFO):
@@ -5764,7 +5851,7 @@ dhdsdio_download_sig_file(dhd_bus_t *bus, char *path, uint32 type)
 		goto exit;
 	}
 	DHD_ERROR(("%s: dhd_os_get_img(Request Firmware API) success. size %d.\n",
-		__FUNCTION__, sig->size));
+		__FUNCTION__, (int)sig->size));
 
 	srcsize = sig->size;
 	if (srcsize <= 0 || srcsize > MEMBLOCK) {
@@ -8448,9 +8535,16 @@ bool
 dhd_bus_dpc(struct dhd_bus *bus)
 {
 	bool resched;
+#ifdef DHD_WAKE_STATUS
+	dhd_pub_t  *dhdp = bus->dhd;
+#endif
 
 	/* Call the DPC directly. */
 	DHD_TRACE(("Calling dhdsdio_dpc() from %s\n", __FUNCTION__));
+#ifdef DHD_WAKE_STATUS
+	if (dhdp && dhdp->in_suspend)
+		bcmsdh_set_get_wake(bus->sdh, 1);
+#endif
 	resched = dhdsdio_dpc(bus);
 
 	return resched;
@@ -9153,6 +9247,14 @@ dhd_bus_watchdog(dhd_pub_t *dhdp)
 			bus->idlecount = 0;
 			if (bus->activity) {
 				bus->activity = FALSE;
+#if !defined(OEM_ANDROID) && !defined(NDIS)
+/* XXX
+ * For Android turn off clocks as soon as possible, to improve power
+ * efficiency. For non-android, extend clock-active period for voice
+ * quality reasons (see PR84690/Jira:SWWLAN-7650).
+ */
+			} else {
+#endif /* !defined(OEM_ANDROID) && !defined(NDIS) */
 				if (!bus->poll && SLPAUTO_ENAB(bus)) {
 					if (!bus->readframes)
 						dhdsdio_bussleep(bus, TRUE);
@@ -9568,6 +9670,9 @@ dhdsdio_probe(uint16 venid, uint16 devid, uint16 bus_no, uint16 slot,
 	{
 		if ((ret = dhd_bus_start(bus->dhd)) != 0) {
 			DHD_ERROR(("%s: dhd_bus_start failed\n", __FUNCTION__));
+#if !defined(OEM_ANDROID)
+			if (ret == BCME_NOTUP)
+#endif /* !OEM_ANDROID */
 				goto fail;
 		}
 #if defined(LINUX) || defined(linux)
@@ -9848,6 +9953,16 @@ dhdsdio_probe_attach(struct dhd_bus *bus, osl_t *osh, void *sdh, void *regsva,
 		           bus->ramsize, bus->orig_ramsize, bus->dongle_ram_base));
 
 		bus->srmemsize = si_socram_srmem_size(bus->sih);
+	}
+
+	if ((CHIPID(bus->sih->chip) == BCM43430_CHIP_ID) && dhdsdio_sr_cap(bus)) {
+		if (dhd_srmem) {
+			bus->srmemsize = dhd_srmem;
+		} else {
+			/* 43436/8 default sr size is 64K */
+			bus->srmemsize = 0x10000;
+		}
+		DHD_ERROR(("%s srmem size is set %x\n", __func__, bus->srmemsize));
 	}
 
 	/* ...but normally deal with the SDPCMDEV core */
@@ -11328,10 +11443,12 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 			dhdsdio_advertise_bus_cleanup(bus->dhd);
 			dhd_os_sdlock(dhdp);
 			dhd_os_wd_timer(dhdp, 0);
+#if defined(OEM_ANDROID)
 #if !defined(IGNORE_ETH0_DOWN)
 			/* Force flow control as protection when stop come before ifconfig_down */
 			dhd_txflowcontrol(bus->dhd, ALL_INTERFACES, ON);
 #endif /* !defined(IGNORE_ETH0_DOWN) */
+#endif /* OEM_ANDROID */
 			/* Expect app to have torn down any connection before calling */
 			/* Stop the bus, disable F2 */
 			dhd_bus_stop(bus, FALSE);
@@ -11400,10 +11517,10 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 						bus->dhd->dongle_reset = FALSE;
 						bus->dhd->up = TRUE;
 
-#if !defined(IGNORE_ETH0_DOWN)
+#if defined(OEM_ANDROID) && !defined(IGNORE_ETH0_DOWN)
 						/* Restore flow control  */
 						dhd_txflowcontrol(bus->dhd, ALL_INTERFACES, OFF);
-#endif
+#endif /* defined(OEM_ANDROID) &&  (!defined(IGNORE_ETH0_DOWN)) */
 						dhd_os_wd_timer(dhdp, dhd_watchdog_ms);
 
 						DHD_TRACE(("%s: WLAN ON DONE\n", __FUNCTION__));
@@ -11428,6 +11545,7 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 		} else {
 			DHD_INFO(("%s called when dongle is not in reset\n",
 				__FUNCTION__));
+#if defined(OEM_ANDROID)
 			DHD_INFO(("Will call dhd_bus_start instead\n"));
 			dhd_bus_resume(dhdp, 1);
 #if defined(HW_OOB) || defined(FORCE_WOWLAN)
@@ -11436,6 +11554,7 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 			if ((bcmerror = dhd_bus_start(dhdp)) != 0)
 				DHD_ERROR(("%s: dhd_bus_start fail with %d\n",
 					__FUNCTION__, bcmerror));
+#endif /* defined(OEM_ANDROID) */
 		}
 	}
 
