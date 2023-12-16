@@ -25,7 +25,12 @@ include $(CLEAR_VARS)
 LOCAL_MODULE        := dhd
 LOCAL_MODULE_SUFFIX := .ko
 LOCAL_MODULE_CLASS  := ETC
-LOCAL_MODULE_PATH   := $(TARGET_OUT_VENDOR)/lib/modules
+
+ifeq ($(BUILDING_VENDOR_DLKM_IMAGE),)
+    LOCAL_MODULE_PATH := $(TARGET_OUT_VENDOR)/lib/modules
+else
+    LOCAL_MODULE_PATH := $(TARGET_OUT_VENDOR_DLKM)/lib/modules
+endif
 
 _dhd_intermediates := $(call intermediates-dir-for,$(LOCAL_MODULE_CLASS),$(LOCAL_MODULE))
 _dhd_ko := $(_dhd_intermediates)/$(LOCAL_MODULE)$(LOCAL_MODULE_SUFFIX)
