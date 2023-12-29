@@ -2990,6 +2990,7 @@ _dhd_set_mac_address(dhd_info_t *dhd, int ifidx, uint8 *addr, bool skip_stop)
 	if (skip_stop) {
 		WL_MSG(dhd_ifname(&dhd->pub, ifidx), "close dev for mac changing\n");
 		dhd->pub.skip_dhd_stop = TRUE;
+		WL_MSG(dhd_ifname(&dhd->pub, ifidx),"[%d] do dev_close in driver", __LINE__);
 		dev_close(dhd->iflist[ifidx]->net);
 	}
 #endif /* DHD_NOTIFY_MAC_CHANGED */
@@ -3016,6 +3017,7 @@ exit:
 		dev_open(dhd->iflist[ifidx]->net);
 #endif
 		dhd->pub.skip_dhd_stop = FALSE;
+		WL_MSG(dhd_ifname(&dhd->pub, ifidx),"[%d] dev_open done wifi driver", __LINE__);
 		WL_MSG(dhd_ifname(&dhd->pub, ifidx), "notify mac changed done\n");
 	}
 #endif /* DHD_NOTIFY_MAC_CHANGED */
@@ -3590,13 +3592,15 @@ dhd_set_mac_address(struct net_device *dev, void *addr)
 			 * from interface create context.
 			 */
 			DEV_ADDR_SET(dev, dhdif->mac_addr);
-#ifdef DHD_NOTIFY_MAC_CHANGED
+#if 0
+//#ifdef DHD_NOTIFY_MAC_CHANGED
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0))
 			dev_open(dev, NULL);
 #else
 			dev_open(dev);
 #endif
 #endif /* DHD_NOTIFY_MAC_CHANGED */
+			WL_MSG(dhd_ifname(&dhd->pub, ifidx),"[%d] dont dev_open even IFF_UP.", __LINE__);
 			return ret;
 		}
 #endif /* WL_STATIC_IF */
