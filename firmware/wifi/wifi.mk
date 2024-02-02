@@ -38,7 +38,7 @@ PRODUCT_COPY_FILES += \
 # bcm4359c0_ag ap6398s
 ifneq ($(filter %sabrina,$(TARGET_PRODUCT)),)
 PRODUCT_COPY_FILES += \
-    $(WIFI_FIRMWARE_PATH)/bcm4359c0_ag/sabrina/config_bcm4359c0_ag.txt:$(TARGET_COPY_OUT_VENDOR)/firmware/wifi/config_bcm4359c0_ag.txt \
+    $(WIFI_FIRMWARE_PATH)/bcm4359c0_ag/sabrina/config.txt:$(TARGET_COPY_OUT_VENDOR)/firmware/wifi/config.txt \
     $(WIFI_FIRMWARE_PATH)/bcm4359c0_ag/sabrina/fw_bcm4359c0_ag.bin:$(TARGET_COPY_OUT_VENDOR)/firmware/wifi/fw_bcm4359c0_ag.bin \
     $(WIFI_FIRMWARE_PATH)/bcm4359c0_ag/sabrina/nvram_ap6398s.txt:$(TARGET_COPY_OUT_VENDOR)/firmware/wifi/nvram_ap6398s.txt
 else
