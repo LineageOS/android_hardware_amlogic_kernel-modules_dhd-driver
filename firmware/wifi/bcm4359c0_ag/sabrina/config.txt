@@ -20,6 +20,7 @@ country_list= \
     ES:ES/68, \
     AU:AU/68, \
     NZ:NZ/68, \
-    KR:KR/68
-ccode=WW
+    KR:KR/68, \
+    BR:BR/68
+ccode=US
 wl_dbg_level=1

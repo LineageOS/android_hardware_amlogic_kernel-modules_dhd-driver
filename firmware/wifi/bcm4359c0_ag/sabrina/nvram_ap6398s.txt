@@ -177,7 +177,7 @@ rssi_delta_2g_c1=-2,-1,-2,-1
 muxenab=0x10
 cck_onecore_tx=1
 #avs_enab=1
-ocl=1
+ocl=0
 # ###########  BTC Dynctl profile params  ############
 # flags:bit0 - dynctl enabled, bit1 dynamic desense, bit2 dynamic mode
 btcdyn_flags=0x0
