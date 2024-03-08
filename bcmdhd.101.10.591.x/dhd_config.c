@@ -2662,28 +2662,35 @@ dhd_conf_set_mchan_bw(dhd_pub_t *dhd, int p2p_mode, int miracast_mode)
 void
 dhd_conf_add_pkt_filter(dhd_pub_t *dhd)
 {
-	int i, j;
-	char str[16];
+	int i, j, magic_id;
+	char str[16], magic[20];
 #define MACS "%02x%02x%02x%02x%02x%02x"
 
 	/*  0) suspend_mode=1
 	 * Case 0: default is unicast pkt and event wake up
 	 * Case 1: no connection in suspend
-	 *   1) wl_suspend=3=0
+	 *   1) wl_suspend=52=0, 3=0
 	 *   2) wl_resume=2=0
 	 *   3) insuspend=0x7
 	 * Case 2: keep connection in suspend, but no pkt and event wake up
 	 *   1) dhd_master_mode=1
-	 *   2) pkt_filter_delete=100, 102, 103, 104, 105, 106, 107
+	 *   2) pkt_filter_delete=100, 102, 103, 104, 105, 106, 107, 200
 	 *   3) pkt_filter_add=141 0 0 0 0xFFFFFFFFFFFF 0x000000000000
 	 *   4) insuspend=0x7
 	 *   5) rekey_offload=1
 	 * Case 3: magic pkt and event wake up
 	 *   1) dhd_master_mode=1
-	 *   2) pkt_filter_delete=100, 102, 103, 104, 105, 106, 107
+	 *   2) pkt_filter_delete=100, 102, 103, 104, 105, 106, 107, 200
 	 *   3) magic_pkt_filter_add=141 0 1 12
 	 *   4) rekey_offload=1
 	 */
+	if (!dhd->conf->pkt_filter_cnt_default) {
+		dhd->conf->pkt_filter_cnt_default = dhd->pktfilter_count;
+		if (dhd->conf->magic_pkt_filter_add)
+			dhd->conf->magic_pkt_hdr_len = strlen(dhd->conf->magic_pkt_filter_add);
+	}
+	dhd->pktfilter_count = dhd->conf->pkt_filter_cnt_default;
+
 	for(i=0; i<dhd->conf->pkt_filter_add.count; i++) {
 		dhd->pktfilter[i+dhd->pktfilter_count] = dhd->conf->pkt_filter_add.filter[i];
 		CONFIG_MSG("%s\n", dhd->pktfilter[i+dhd->pktfilter_count]);
@@ -2691,6 +2698,10 @@ dhd_conf_add_pkt_filter(dhd_pub_t *dhd)
 	dhd->pktfilter_count += i;
 
 	if (dhd->conf->magic_pkt_filter_add) {
+		strncpy(magic, dhd->conf->magic_pkt_filter_add, dhd->conf->magic_pkt_hdr_len);
+		memset(dhd->conf->magic_pkt_filter_add, 0, MAGIC_PKT_FILTER_LEN);
+		strcpy(dhd->conf->magic_pkt_filter_add, magic);
+		magic_id = (int32)simple_strtol(magic, NULL, 10);
 		strcat(dhd->conf->magic_pkt_filter_add, " 0x");
 		strcat(dhd->conf->magic_pkt_filter_add, "FFFFFFFFFFFF");
 		for (j=0; j<16; j++)
@@ -2701,7 +2712,10 @@ dhd_conf_add_pkt_filter(dhd_pub_t *dhd)
 		for (j=0; j<16; j++)
 			strncat(dhd->conf->magic_pkt_filter_add, str, 12);
 		dhd->pktfilter[dhd->pktfilter_count] = dhd->conf->magic_pkt_filter_add;
+		dhd_pktfilter_offload_delete(dhd, magic_id);
+		dhd_pktfilter_offload_set(dhd, dhd->pktfilter[dhd->pktfilter_count]);
 		dhd->pktfilter_count += 1;
+		CONFIG_MSG("%s\n", dhd->conf->magic_pkt_filter_add);
 	}
 }
 
@@ -5474,6 +5488,8 @@ dhd_conf_free_preinit(dhd_pub_t *dhd)
 		kfree(conf->magic_pkt_filter_add);
 		conf->magic_pkt_filter_add = NULL;
 	}
+	conf->magic_pkt_hdr_len = 0;
+	conf->pkt_filter_cnt_default = 0;
 #endif
 	if (conf->wl_preinit) {
 		kfree(conf->wl_preinit);

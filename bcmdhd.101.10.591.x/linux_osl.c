@@ -368,14 +368,14 @@ inline void
 BCMFASTPATH(osl_cache_flush)(void *va, uint size)
 {
 	if (size > 0)
-		dma_sync_single_for_device(OSH_NULL, virt_to_dma(OSH_NULL, va), size,
+		dma_sync_single_for_device(OSH_NULL, virt_to_phys(va), size,
 			DMA_TO_DEVICE);
 }
 
 inline void
 BCMFASTPATH(osl_cache_inv)(void *va, uint size)
 {
-	dma_sync_single_for_cpu(OSH_NULL, virt_to_dma(OSH_NULL, va), size, DMA_FROM_DEVICE);
+	dma_sync_single_for_cpu(OSH_NULL, virt_to_phys(va), size, DMA_FROM_DEVICE);
 }
 
 inline void

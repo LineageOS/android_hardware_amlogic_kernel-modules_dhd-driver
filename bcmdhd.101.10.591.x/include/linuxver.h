@@ -95,6 +95,9 @@
 #include <linux/interrupt.h>
 #include <linux/kthread.h>
 #include <linux/netdevice.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+#include <net/netdev_rx_queue.h>
+#endif
 #include <linux/time.h>
 #include <linux/rtc.h>
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))

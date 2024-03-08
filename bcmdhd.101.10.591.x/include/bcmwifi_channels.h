@@ -68,6 +68,9 @@ typedef uint16 chanspec_subband_t;
 
 #define INVCHANNEL                      255u    /* error value for a bad channel */
 
+/* channel 52 ~ 144 */
+#define CH_RADAR_CHANNEL_MIN            50
+#define CH_RADAR_CHANNEL_MAX            146
 /* length of channel vector bitmap is the MAXCHANNEL we want to handle rounded up to a byte */
 /* The actual CHANVEC_LEN fix is leading to high static memory impact
 * in all projects wherein the previous CHANVEC_LEN definition is used.

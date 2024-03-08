@@ -245,6 +245,8 @@ typedef struct dhd_conf {
 	conf_pkt_filter_add_t pkt_filter_add;
 	conf_pkt_filter_del_t pkt_filter_del;
 	char *magic_pkt_filter_add;
+	int magic_pkt_hdr_len;
+	int pkt_filter_cnt_default;
 #endif
 	int srl;
 	int lrl;

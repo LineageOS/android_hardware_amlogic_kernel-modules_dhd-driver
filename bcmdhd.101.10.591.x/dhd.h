@@ -1874,6 +1874,9 @@ typedef struct dhd_pub {
 #endif /* DEVICE_TX_STUCK_DETECT && ASSOC_CHECK_SR */
 	uint32 p2p_disc_busy_cnt;
 	bool skip_memdump_map_read;
+#if defined(DHD_SI_WD_RESET)
+	bool si_wd;
+#endif
 #ifdef CSI_SUPPORT
 	struct list_head csi_list;
 	int csi_count;
@@ -2138,16 +2141,19 @@ inline static void MUTEX_UNLOCK_SOFTAP_SET(dhd_pub_t * dhdp)
 }
 
 #ifdef DHD_DEBUG_WAKE_LOCK
+extern int dhd_wakelock_counter_get(dhd_pub_t *pub);
+extern int dhd_wakelock_wd_counter_get(dhd_pub_t *pub);
+
 #define DHD_OS_WAKE_LOCK(pub) \
 	do { \
-		printf("call wake_lock: %s %d\n", \
-			__FUNCTION__, __LINE__); \
+		printf("call wake_lock: %s %d (%d)\n", \
+			__FUNCTION__, __LINE__, dhd_wakelock_counter_get(pub)); \
 		dhd_os_wake_lock(pub); \
 	} while (0)
 #define DHD_OS_WAKE_UNLOCK(pub) \
 	do { \
-		printf("call wake_unlock: %s %d\n", \
-			__FUNCTION__, __LINE__); \
+		printf("call wake_unlock: %s %d (%d)\n", \
+			__FUNCTION__, __LINE__, dhd_wakelock_counter_get(pub)); \
 		dhd_os_wake_unlock(pub); \
 	} while (0)
 #define DHD_EVENT_WAKE_LOCK(pub) \
@@ -2246,6 +2252,18 @@ inline static void MUTEX_UNLOCK_SOFTAP_SET(dhd_pub_t * dhdp)
 			__FUNCTION__, __LINE__); \
 		dhd_os_wake_lock_destroy(dhd); \
 	} while (0)
+#define DHD_OS_WD_WAKE_LOCK(pub) \
+	do { \
+		printf("call dhd_os_WD_wake_lock: %s %d (%d)\n", \
+			__FUNCTION__, __LINE__, dhd_wakelock_wd_counter_get(pub)); \
+		dhd_os_wd_wake_lock(pub); \
+	} while (0)
+#define DHD_OS_WD_WAKE_UNLOCK(pub) \
+	do { \
+		printf("call dhd_os_WD_wake_unlock: %s %d (%d)\n", \
+			__FUNCTION__, __LINE__, dhd_wakelock_wd_counter_get(pub)); \
+		dhd_os_wd_wake_unlock(pub); \
+	} while (0)
 #else
 #define DHD_OS_WAKE_LOCK(pub)			dhd_os_wake_lock(pub)
 #define DHD_OS_WAKE_UNLOCK(pub)		dhd_os_wake_unlock(pub)
@@ -2268,10 +2286,9 @@ inline static void MUTEX_UNLOCK_SOFTAP_SET(dhd_pub_t * dhdp)
 #define DHD_OS_WAKE_LOCK_RESTORE(pub)		dhd_os_wake_lock_restore(pub)
 #define DHD_OS_WAKE_LOCK_INIT(dhd)		dhd_os_wake_lock_init(dhd);
 #define DHD_OS_WAKE_LOCK_DESTROY(dhd)		dhd_os_wake_lock_destroy(dhd);
-#endif /* DHD_DEBUG_WAKE_LOCK */
-
 #define DHD_OS_WD_WAKE_LOCK(pub)		dhd_os_wd_wake_lock(pub)
 #define DHD_OS_WD_WAKE_UNLOCK(pub)		dhd_os_wd_wake_unlock(pub)
+#endif /* DHD_DEBUG_WAKE_LOCK */
 
 #ifdef DHD_USE_SCAN_WAKELOCK
 #ifdef DHD_DEBUG_SCAN_WAKELOCK
@@ -2554,6 +2571,7 @@ extern void dhd_bus_wakeup_work(dhd_pub_t *dhdp);
 #define MAX_FEATURE_SET_CONCURRRENT_GROUPS  3
 
 #if defined(linux) || defined(LINUX) || defined(OEM_ANDROID)
+extern int dhd_dev_indoor_cfg(struct net_device *dev, u8 enable);
 extern int dhd_dev_get_feature_set(struct net_device *dev);
 extern int dhd_dev_get_feature_set_matrix(struct net_device *dev, int num);
 extern int dhd_dev_cfg_rand_mac_oui(struct net_device *dev, uint8 *oui);
@@ -3278,7 +3296,7 @@ extern uint dhd_force_tx_queueing;
 #define CUSTOM_RXF_PRIO_SETTING		MAX((CUSTOM_DPC_PRIO_SETTING - 1), 1)
 #endif
 
-#define DEFAULT_WIFI_TURNOFF_DELAY		0
+#define DEFAULT_WIFI_TURNOFF_DELAY		10
 #ifndef WIFI_TURNOFF_DELAY
 #define WIFI_TURNOFF_DELAY		DEFAULT_WIFI_TURNOFF_DELAY
 #endif /* WIFI_TURNOFF_DELAY */
@@ -4109,6 +4127,7 @@ extern int dhd_prot_debug_info_print(dhd_pub_t *dhd);
 extern bool dhd_bus_skip_clm(dhd_pub_t *dhdp);
 extern void dhd_pcie_dump_rc_conf_space_cap(dhd_pub_t *dhd);
 extern bool dhd_pcie_dump_int_regs(dhd_pub_t *dhd);
+extern bool dhd_pcie_check_lps_d3_acked(dhd_pub_t *dhd);
 void dhd_prot_ctrl_info_print(dhd_pub_t *dhd);
 #else
 #define dhd_prot_debug_info_print(x)
@@ -4536,6 +4555,9 @@ static inline uint32 next_larger_power2(uint32 num)
 
 extern struct dhd_if * dhd_get_ifp(dhd_pub_t *dhdp, uint32 ifidx);
 uint8 dhd_d11_slices_num_get(dhd_pub_t *dhdp);
+#if defined(WL_AUTO_QOS) && defined(DHD_QOS_ON_SOCK_FLOW)
+extern void dhd_wl_sock_qos_set_status(dhd_pub_t *dhdp, unsigned long on_off);
+#endif /* WL_AUTO_QOS && DHD_QOS_ON_SOCK_FLOW */
 
 extern void *dhd_get_roam_evt(dhd_pub_t *dhdp);
 #if defined(DISABLE_HE_ENAB) || defined(CUSTOM_CONTROL_HE_ENAB)
@@ -4762,6 +4784,10 @@ extern uint32 dhd_get_concurrent_capabilites(dhd_pub_t *dhd);
 #endif
 int dhd_config_rts_in_suspend(dhd_pub_t *dhdp, bool suspend);
 #endif /* DHD_CUSTOM_CONFIG_RTS_IN_SUSPEND */
+
+extern void dhd_unregister_net(struct net_device *net, bool need_rtnl_lock);
+extern int dhd_register_net(struct net_device *net, bool need_rtnl_lock);
+
 #ifdef WL_MONITOR
 void dhd_set_monitor(dhd_pub_t *pub, int ifidx, int val);
 #ifdef BCMSDIO

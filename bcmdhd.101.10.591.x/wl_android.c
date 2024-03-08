@@ -4327,6 +4327,7 @@ resume:
 	return ret;
 }
 
+#ifdef WL_NETLINK
 #define NETLINK_OXYGEN     30
 #define AIBSS_BEACON_TIMEOUT	10
 
@@ -4412,6 +4413,7 @@ wl_netlink_send_msg(int pid, int type, int seq, const void *data, size_t size)
 nlmsg_failure:
 	return ret;
 }
+#endif /* WL_NETLINK */
 
 int wl_keep_alive_set(struct net_device *dev, char* extra)
 {
@@ -8848,7 +8850,9 @@ int wl_android_init(void)
 #ifdef WL_GENL
 	wl_genl_init();
 #endif
+#ifdef WL_NETLINK
 	wl_netlink_init();
+#endif
 
 	return ret;
 }
@@ -8861,7 +8865,9 @@ int wl_android_exit(void)
 #ifdef WL_GENL
 	wl_genl_deinit();
 #endif /* WL_GENL */
+#ifdef WL_NETLINK
 	wl_netlink_deinit();
+#endif
 
 	GCC_DIAGNOSTIC_PUSH_SUPPRESS_CAST();
 	list_for_each_entry_safe(cur, q, &miracast_resume_list, list) {

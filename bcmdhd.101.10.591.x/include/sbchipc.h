@@ -2825,8 +2825,6 @@ typedef volatile struct {
 #define PMU4369_PLL6VAL_PRE_SCALE		(1 << 17)
 #define PMU4369_PLL6VAL_POST_SCALE		(1 << 3)
 
-#define PMU_PLL_CTRL_REG6      6
-
 /* PLL usage in 4378
 * Temporay setting, update is needed.
 */

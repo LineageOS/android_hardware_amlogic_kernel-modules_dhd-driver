@@ -338,18 +338,23 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 			if (dev_ingress_queue(ifp->net)) {
 				qdisc = dev_ingress_queue(ifp->net)->qdisc_sleeping;
 				if (qdisc != NULL && (qdisc->flags & TCQ_F_INGRESS)) {
-#ifdef CONFIG_NET_CLS_ACT
+					if (
+#if defined(CONFIG_NET_XGRESS)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+						(ifp->net->tcx_ingress != NULL) ||
+#endif /* LINUX_VERSION >= 6.6.0 */
+#elif defined(CONFIG_NET_CLS_ACT)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0))
-					if (ifp->net->miniq_ingress != NULL)
+						(ifp->net->miniq_ingress != NULL) ||
 #elif (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0))
-					if (ifp->net->ingress_cl_list != NULL)
+						(ifp->net->ingress_cl_list != NULL) ||
 #endif /* LINUX_VERSION >= 4.2.0 */
-					{
+#endif /* CONFIG_NET_CLS_ACT */
+						0 ) {
 						dhd_gro_enable = FALSE;
 						DHD_TRACE(("%s: disable sw gro because of"
 						" qdisc rx traffic control\n", __FUNCTION__));
 					}
-#endif /* CONFIG_NET_CLS_ACT */
 				}
 			}
 		}
@@ -686,7 +691,7 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 #endif /* PCIE_FULL_DONGLE */
 #endif /* BCM_ROUTER_DHD */
 #ifdef DHD_POST_EAPOL_M1_AFTER_ROAM_EVT
-		if (IS_STA_IFACE(ndev_to_wdev(ifp->net)) &&
+		if ((IS_STA_IFACE(ndev_to_wdev(ifp->net)) || (IS_P2P_GC(ndev_to_wdev(ifp->net)))) &&
 			(ifp->recv_reassoc_evt == TRUE) && (ifp->post_roam_evt == FALSE) &&
 			(dhd_is_4way_msg((char *)(skb->data)) == EAPOL_4WAY_M1)) {
 				DHD_ERROR(("%s: Reassoc is in progress. "

@@ -294,4 +294,6 @@ int wl_cfg80211_set_softap_bw(struct bcm_cfg80211 *cfg, uint32 band, uint32 limi
 extern int wl_chspec_chandef(chanspec_t chanspec,
 	struct cfg80211_chan_def *chandef, struct wiphy *wiphy);
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION (3, 8, 0))) */
+extern chanspec_t
+wl_channel_to_chanspec(struct wiphy *wiphy, struct net_device *dev, u32 channel, u32 bw_cap);
 #endif /* _wl_cfgvif_h_ */

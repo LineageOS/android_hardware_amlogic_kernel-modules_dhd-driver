@@ -40,12 +40,14 @@
 #define VENDOR_TI		0x104c		/* Texas Instruments */
 #define VENDOR_RICOH		0x1180		/* Ricoh */
 #define VENDOR_JMICRON		0x197b
+#define VENDOR_SYNAPTICS	0x1e01
 
 /* PCMCIA vendor IDs */
 #define	VENDOR_BROADCOM_PCMCIA	0x02d0
 
 /* SDIO vendor IDs */
 #define	VENDOR_BROADCOM_SDIO	0x00BF
+#define	VENDOR_SYNAPTICS_SDIO	0x06CB
 
 /* DONGLE VID/PIDs */
 #define BCM_DNGL_VID		0x0a5c
@@ -151,9 +153,9 @@
 
 #define BCM43756_D11AX_ID	0x44a0		/* 43756 802.11ax dualband device */
 
-#define BCM43756E_D11AX6E_ID    0x44a3          /* 43756E 802.11ax 6E device */
-#define BCM43756E_D11AC_ID      0x44a4          /* 43756E 802.11ac dualband device */
-#define BCM43756E_D11AX_ID      0x44a5          /* 43756E 802.11ax dualband device */
+#define BCM43756E_D11AX6E_ID	0x44a3		/* 43756E 802.11ax 6E device */
+#define BCM43756E_D11AC_ID	0x44a4		/* 43756E 802.11ac dualband device */
+#define BCM43756E_D11AX_ID	0x44a5		/* 43756E 802.11ax dualband device */
 
 #define BCM43711_D11AX6E_ID	0x44b0          /* 43711 802.11ax dualband device */
 #define BCM43711_D11AC_ID	0x44b1          /* 43711 802.11ax 2.4G device */
@@ -238,6 +240,9 @@
 				case BCM43751_CHIP_ID: \
 				case BCM43752_CHIP_ID: \
 				case BCM43756_CHIP_ID
+
+#define BCM43711_CHIP(chipid)	(CHIPID(chipid) == BCM43711_CHIP_ID)
+#define BCM43711_CHIP_GRPID	BCM43711_CHIP_ID
 
 #define BCM4369_CHIP(chipid)	((CHIPID(chipid) == BCM4369_CHIP_ID) || \
 				(CHIPID(chipid) == BCM4377_CHIP_ID) || \

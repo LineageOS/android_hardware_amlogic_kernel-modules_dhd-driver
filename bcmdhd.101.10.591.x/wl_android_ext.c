@@ -2861,7 +2861,17 @@ wl_ext_conf_iovar(struct net_device *dev, char *command, int total_len)
 			bytes_written = snprintf(command, total_len, "%d", dhd->conf->pm);
 			ret = bytes_written;
 		}
-	} else {
+	}
+	else if (!strcmp(name, "tput_monitor_ms")) {
+		if (data) {
+			dhd->conf->tput_monitor_ms = simple_strtol(data, NULL, 0);
+			ret = 0;
+		} else {
+			bytes_written = snprintf(command, total_len, "%d", dhd->conf->tput_monitor_ms);
+			ret = bytes_written;
+		}
+	}
+	else {
 		AEXT_ERROR(dev->name, "no config parameter found\n");
 	}
 

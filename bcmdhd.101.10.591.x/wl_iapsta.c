@@ -2480,6 +2480,9 @@ wl_ext_iapsta_enable_master_if(struct net_device *dev, bool post)
 				wl_ext_if_down(apsta_params, cur_if);
 			OSL_SLEEP(100);
 			wl_ext_if_up(apsta_params, cur_if, TRUE, 0);
+#ifdef RESTART_AP_WAR
+			wl_timer_mod(dhd, &cur_if->restart_ap_timer, AP_RESTART_TIMEOUT);
+#endif
 			memset(&cur_if->prev_chan_info, 0, sizeof(struct wl_chan_info));
 			memset(&cur_if->post_chan_info, 0, sizeof(struct wl_chan_info));
 		}
@@ -4176,6 +4179,7 @@ wl_ext_in4way_sync_sta(dhd_pub_t *dhd, struct wl_if_info *cur_if,
 			wl_timer_mod(dhd, &cur_if->reconnect_timer, 0);
 #endif /* WL_EXT_RECONNECT && WL_CFG80211 */
 #ifdef KEY_INSTALL_CHECK
+			wl_ext_iovar_getint(dev, "wpa_auth", &wpa_auth);
 			if (wpa_auth != WPA_AUTH_DISABLED && wpa_auth != WPA_AUTH_PSK) {
 				key_installed = wl_key_installed(cur_if);
 			}
@@ -4261,6 +4265,14 @@ wl_ext_in4way_sync_ap(dhd_pub_t *dhd, struct wl_if_info *cur_if,
 				} else if (cur_if->ifmode == IGO_MODE &&
 						cur_if->conn_state == CONN_STATE_WSC_DONE &&
 						memcmp(&ether_bcast, mac_addr, ETHER_ADDR_LEN)) {
+					int auth, wpa_auth = 0;
+					wl_ext_iovar_getint(dev, "auth", &auth);
+					wl_ext_iovar_getint(dev, "wpa_auth", &wpa_auth);
+					if (auth == WL_AUTH_SAE_KEY || wpa_auth&(WPA3_AUTH_SAE_PSK|0x20)) {
+						IAPSTA_INFO(dev->name, "skip delete STA %pM\n", mac_addr);
+						ret = -1;
+						break;
+					}
 					wait = TRUE;
 				}
 				if (wait) {
@@ -5130,7 +5142,7 @@ wl_ext_restart_ap_handler(struct wl_if_info *cur_if,
 			if (!wl_ext_associated(cur_if->dev)) {
 				WL_MSG(cur_if->ifname, "restart AP\n");
 				wl_ext_if_down(apsta_params, cur_if);
-				wl_ext_if_up(apsta_params, cur_if, FALSE, 1);
+				wl_ext_if_up(apsta_params, cur_if, TRUE, 500);
 				wl_timer_mod(dhd, &cur_if->restart_ap_timer, AP_RESTART_TIMEOUT);
 			} else {
 				WL_MSG(cur_if->ifname, "skip restart AP\n");
@@ -6803,7 +6815,8 @@ wl_ext_iapsta_get_rsdb(struct net_device *net, struct dhd_pub *dhd)
 	wl_config_t *rsdb_p;
 	int ret = 0, rsdb = 0;
 
-	if (dhd->conf->chip == BCM4359_CHIP_ID || dhd->conf->chip == BCM4375_CHIP_ID) {
+	if (dhd->conf->chip == BCM4359_CHIP_ID || dhd->conf->chip == BCM4375_CHIP_ID ||
+			dhd->conf->chip == BCM4382_CHIP_ID) {
 		ret = wldev_iovar_getbuf(net, "rsdb_mode", NULL, 0,
 			iovar_buf, WLC_IOCTL_SMLEN, NULL);
 		if (!ret) {

@@ -991,6 +991,7 @@ typedef struct wl_dpsta_intf_event {
 } wl_dpsta_intf_event_t;
 
 /*  **********  NAN protocol events/subevents  ********** */
+/* Secured NDP Data Request Indicator is 592 bytes */
 #ifndef NAN_EVENT_BUFFER_SIZE
 #define NAN_EVENT_BUFFER_SIZE 1600 /* max size */
 #endif /* NAN_EVENT_BUFFER_SIZE */

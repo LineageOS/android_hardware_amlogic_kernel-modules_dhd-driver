@@ -2829,6 +2829,10 @@ dhd_pktid_map_reset_ioctl(dhd_pub_t *dhd, dhd_pktid_map_handle_t *handle)
 	uint32 map_items;
 	unsigned long flags;
 
+	if (handle == NULL) {
+		return;
+	}
+
 	map = (dhd_pktid_map_t *)handle;
 	DHD_PKTID_LOCK(map->pktid_lock, flags);
 
@@ -3321,6 +3325,10 @@ static void
 dhd_pktid_map_reset(dhd_pub_t *dhd, pktlists_t *handle)
 {
 	osl_t *osh = dhd->osh;
+
+	if (handle == NULL) {
+		return;
+	}
 
 	if (handle->ctrl_pkt_list) {
 		PKTLIST_FINI(handle->ctrl_pkt_list);
@@ -6757,6 +6765,11 @@ BCMFASTPATH(dhd_prot_process_msgbuf_rxcpl)(dhd_pub_t *dhd, int ringtype, uint32 
 					DHD_ERROR(("Received non 802.11 packet, "
 						"when monitor mode is enabled\n"));
 				}
+			} else if (dhd->op_mode == DHD_FLAG_MFG_MODE &&
+					msg->flags & BCMPCIE_PKT_FLAGS_FRAME_802_11) {
+				DHD_TRACE(("Monitor disable, PKTFREE\n"));
+				PKTFREE(dhd->osh, pkt, TRUE);
+				continue;
 #ifdef DBG_PKT_MON
 			} else {
 				if (msg->flags & BCMPCIE_PKT_FLAGS_FRAME_802_11) {
@@ -9469,10 +9482,16 @@ dhd_msgbuf_iovar_timeout_dump(dhd_pub_t *dhd)
 			g_assert_type = 2;
 			/* use ASSERT() to trigger panic */
 			ASSERT(0);
+			return;
 		}
 #endif /* DHD_KERNEL_SCHED_DEBUG && DHD_FW_COREDUMP */
 
 	/* Check the PCIe link status by reading intstatus register */
+	if (!dhd || !dhd->bus || !dhd->bus->sih) {
+		DHD_ERROR(("%s: skip due to invalid parameter\n", __FUNCTION__));
+		ASSERT(0);
+		return;
+	}
 	intstatus = si_corereg(dhd->bus->sih,
 		dhd->bus->sih->buscoreidx, dhd->bus->pcie_mailbox_int, 0, 0);
 	if (intstatus == (uint32)-1) {

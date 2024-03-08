@@ -454,10 +454,6 @@ dhd_dbg_msgtrace_msg_parser(void *event_data)
 #ifdef SHOW_LOGTRACE
 #define DATA_UNIT_FOR_LOG_CNT 4
 
-#if defined(STRICT_GCC_WARNINGS) && defined(__GNUC__)
-#pragma GCC diagnostic pop
-#endif
-
 int
 replace_percent_p_to_x(char *fmt)
 {
@@ -583,8 +579,19 @@ done:
 #define LOG_PRINT_CNT_MAX	16u
 #define EL_MSEC_PER_SEC	1000
 #ifdef DHD_LOG_PRINT_RATE_LIMIT
-#define MAX_LOG_PRINT_COUNT 100u
-#define LOG_PRINT_THRESH (1u * USEC_PER_SEC)
+#ifdef DHD_DEBUG
+#undef MAX_LOG_PRINT_COUNT
+#define MAX_LOG_PRINT_COUNT   50000u
+#undef LOG_PRINT_THRESH
+#define LOG_PRINT_THRESH      (1u * USEC_PER_SEC)
+#else /* DHD_DEBUG */
+#ifndef MAX_LOG_PRINT_COUNT
+#define MAX_LOG_PRINT_COUNT   5000u
+#endif /* MAX_LOG_PRINT_COUNT */
+#ifndef LOG_PRINT_THRESH
+#define LOG_PRINT_THRESH      (1u * USEC_PER_SEC)
+#endif /* LOG_PRINT_THRESH */
+#endif /* DHD_DEBUG */
 #endif
 #define EL_PARSE_VER	"V02"
 static uint64 verboselog_ts_saved = 0;

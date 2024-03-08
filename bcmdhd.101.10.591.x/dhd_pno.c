@@ -1021,13 +1021,13 @@ _dhd_pno_cfg(dhd_pub_t *dhd, uint16 *channel_list, int nchan)
 	int i = 0;
 	wl_pfn_cfg_t pfncfg_param;
 	bool use_chanspec = FALSE;
+	struct bcm_cfg80211 *cfg = wl_get_cfg(dhd_linux_get_primary_netdev(dhd));
 
-#if defined(WL_6G_BAND) || defined(CFG80211_6G_SUPPORT)
 	/* When enable 6G, force to use chanspec list */
-	if (FW_SUPPORTED((dhd), 6g)) {
+	if (FW_SUPPORTED((dhd), 6g) ||
+		(cfg && FW_MAJOR_VER_PNO_CHSPEC_BACK_PORTED(cfg->wlc_ver))) {
 		use_chanspec = TRUE;
 	}
-#endif /* WL_6G_BAND || CFG80211_6G_SUPPORT */
 
 	NULL_CHECK(dhd, "dhd is NULL", err);
 	if (nchan) {
