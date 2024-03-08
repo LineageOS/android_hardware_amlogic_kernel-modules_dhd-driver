@@ -497,8 +497,10 @@ const bcm_iovar_t dhd_iovars[] = {
 	/* name         varid                   flags   flags2 type     minlen */
 	{"version",	IOV_VERSION,		0,	0, IOVT_BUFFER,	0},
 	{"wlmsglevel",	IOV_WLMSGLEVEL,	0,	0,	IOVT_UINT32,	0 },
-#ifdef DHD_DEBUG
+#if defined(DHD_DEBUG) || defined(DHD_MSG_LEVEL_SUPPORT)
 	{"msglevel",	IOV_MSGLEVEL,		0,	0, IOVT_UINT32,	0},
+#endif /* DHD_DEBUG || DHD_MSG_LEVEL_SUPPORT */
+#ifdef DHD_DEBUG
 	{"mem_debug",   IOV_MEM_DEBUG,  0,      0,      IOVT_BUFFER,    0 },
 #ifdef BCMPCIE
 	{"flow_ring_debug", IOV_FLOW_RING_DEBUG, 0, 0, IOVT_BUFFER, 0 },
@@ -2808,9 +2810,9 @@ int dhd_sar_init_parameter(dhd_pub_t *dhd, eCountry_flag_type type, int advance_
 
 #ifdef VSDB
 	if (FW_SUPPORTED(dhd, 6g)) {
-		sarctrl->ver = SAR_PARAM_6G_V3_VSDB;
+		sarctrl->ver = SAR_PARAM_6G_V3_VSDB | (idx << SAR_PARAM_NUM_OFFSET);
 	} else {
-		sarctrl->ver = SAR_PARAM_V1_VSDB;
+		sarctrl->ver = SAR_PARAM_V1_VSDB | (idx << SAR_PARAM_NUM_OFFSET);
 	}
 	if (CONST_SARCTRL_SINGLE_SET_QTY != idx) {
 		DHD_ERROR(("%s: *Waring, idx=%d mismatch VSDB expect=%d\n",
@@ -2818,9 +2820,9 @@ int dhd_sar_init_parameter(dhd_pub_t *dhd, eCountry_flag_type type, int advance_
 	}
 #else /* VSDB */
 	if (FW_SUPPORTED(dhd, 6g)) {
-		sarctrl->ver = SAR_PARAM_6G_V4_RSDB;
+		sarctrl->ver = SAR_PARAM_6G_V4_RSDB | (idx << SAR_PARAM_NUM_OFFSET);
 	} else {
-		sarctrl->ver = SAR_PARAM_V2_RSDB;
+		sarctrl->ver = SAR_PARAM_V2_RSDB | (idx << SAR_PARAM_NUM_OFFSET);
 	}
 	if (CONST_SARCTRL_SET_QTY != idx) {
 		DHD_ERROR(("%s: *Waring, idx=%d mismatch RSDB expect=%d\n",
@@ -2845,6 +2847,7 @@ int dhd_sar_set_parameter(dhd_pub_t *dhd_pub, int advance_mode)
 	wl_country_t       *cspec = NULL;
 	sarctrl_set         sarctrl_iov = { 0 }, *sarctrl = NULL;
 	eCountry_flag_type  type = SYNA_COUNTRY_TYPE_INVALID;
+	int sar_ver = 0, sar_param_num = 0;
 
 	if (dhd_pub == NULL) {
 		DHD_ERROR(("%s: bcm_mkiovar failed.", __FUNCTION__));
@@ -2900,12 +2903,39 @@ int dhd_sar_set_parameter(dhd_pub_t *dhd_pub, int advance_mode)
 	}
 	DHD_TRACE(("%s: country='%s', type=%d, advance_mode=%d\n",
 	           __FUNCTION__, cspec->ccode, type, advance_mode));
+	/* Try to get sar version from FW */
+	err = dhd_iovar(dhd_pub, 0, "sar_params", NULL, 0,
+		(char *)&sarctrl_iov, sizeof(sarctrl_iov), FALSE);
+	if (err) {
+		/* Not support sar_params read */
+	} else {
+		sar_ver = sarctrl_iov.ver & SAR_PARAM_VER_MASK;
+		sar_param_num = (sarctrl_iov.ver & SAR_PARAM_NUM_MASK) >> SAR_PARAM_NUM_OFFSET;
+	}
 
-	/* prepare IOVAR */
-	sarctrl_iov.ver   = sarctrl->ver;
-	sarctrl_iov.basic = sarctrl->basic;
-	sarctrl_iov.rsdb  = sarctrl->rsdb;
-	DHD_TRACE(("%s: sarctrl_iov=0x%p, ver=%d, sarctrl_2g=0x%X, sarctrl_2g_2=0x%X\n",
+	memset(&sarctrl_iov, 0, sizeof(sarctrl_iov));
+	if (sar_ver == SAR_PARAM_DYN) {
+		int file_sar_num = (sarctrl->ver & SAR_PARAM_NUM_MASK) >> SAR_PARAM_NUM_OFFSET;
+		if (file_sar_num  != sar_param_num) {
+			DHD_ERROR(("%s: Need confirm SAR PARAMETERS configuration based on FW\n",
+				__FUNCTION__));
+			return BCME_BADARG;
+		}
+		sarctrl_iov.ver = sarctrl->ver;
+		err = memcpy_s(sarctrl_iov.sarctrl, MAX_SAR_PARAMS_NUM * sizeof(u32),
+			sarctrl->sarctrl, file_sar_num * sizeof(u32));
+		if (err) {
+			DHD_ERROR(("%s: memcpy error num = %d\n",
+				__FUNCTION__, file_sar_num));
+			return BCME_BADARG;
+		}
+	} else {
+		/* prepare IOVAR for old version*/
+		sarctrl_iov.ver   = sarctrl->ver & SAR_PARAM_VER_MASK;
+		sarctrl_iov.basic = sarctrl->basic;
+		sarctrl_iov.rsdb  = sarctrl->rsdb;
+	}
+	DHD_TRACE(("%s: sarctrl_iov=0x%p, ver=%x, sarctrl_2g=0x%X, sarctrl_2g_2=0x%X\n",
 	           __FUNCTION__, &sarctrl_iov, sarctrl_iov.ver,
 	           sarctrl_iov.basic.sarctrl_2g,
 	           sarctrl_iov.basic.sarctrl_2g_2));
@@ -6179,7 +6209,7 @@ wl_process_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata, uint pktlen
 		{
 			uint8* ea = pvt_data->eth.ether_dhost;
 			WLFC_DBGMESG(("WLC_E_IF: idx:%d, action:%s, iftype:%s, ["MACDBG"]\n"
-						  ifevent->ifidx,
+						  ,ifevent->ifidx,
 						  ((ifevent->opcode == WLC_E_IF_ADD) ? "ADD":"DEL"),
 						  ((ifevent->role == 0) ? "STA":"AP "),
 						  MAC2STRDBG(ea)));
@@ -6330,11 +6360,12 @@ wl_process_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata, uint pktlen
 		if (!ifp)
 			break;
 
-		/* Consider STA role only since roam is disabled on P2P GC.
-		 * Drop EAPOL M1 frame only if roam is done to same BSS.
+		/* Consider both STA and GC due to CSA.
+		 * Drop EAPOL M1 frame only if roam is done to the same BSSID.
+		 * wpa_supplicant only handles different BSSID case.
 		 */
 		if ((status == WLC_E_STATUS_SUCCESS) &&
-			IS_STA_IFACE(ndev_to_wdev(ifp->net)) &&
+			(IS_STA_IFACE(ndev_to_wdev(ifp->net)) || IS_P2P_GC(ndev_to_wdev(ifp->net))) &&
 			wl_cfg80211_is_event_from_connected_bssid(ifp->net, event, event->ifidx)) {
 			ifp->recv_reassoc_evt = TRUE;
 		}
@@ -7822,7 +7853,7 @@ int dhd_keep_alive_onoff(dhd_pub_t *dhd)
 {
 	char				buf[32] = {0};
 	const char			*str;
-	wl_mkeep_alive_pkt_v1_t	mkeep_alive_pkt = {0, 0, 0, 0, 0, {0}};
+	wl_mkeep_alive_pkt_v1_t mkeep_alive_pkt;
 	wl_mkeep_alive_pkt_v1_t	*mkeep_alive_pktp;
 	int					buf_len;
 	int					str_len;
@@ -7837,6 +7868,7 @@ int dhd_keep_alive_onoff(dhd_pub_t *dhd)
 	str_len = strlen(str);
 	strlcpy(buf, str, sizeof(buf));
 	mkeep_alive_pktp = (wl_mkeep_alive_pkt_v1_t *) (buf + str_len + 1);
+	bzero(&mkeep_alive_pkt, sizeof(mkeep_alive_pkt));
 	mkeep_alive_pkt.period_msec = dhd->conf->keep_alive_period;
 	buf_len = str_len + 1;
 	mkeep_alive_pkt.version = htod16(WL_MKEEP_ALIVE_VERSION_1);
@@ -7845,7 +7877,6 @@ int dhd_keep_alive_onoff(dhd_pub_t *dhd)
 	mkeep_alive_pkt.keep_alive_id = 0;
 	mkeep_alive_pkt.len_bytes = 0;
 	buf_len += WL_MKEEP_ALIVE_FIXED_LEN;
-	bzero(mkeep_alive_pkt.data, sizeof(mkeep_alive_pkt.data));
 	/* Keep-alive attributes are set in local	variable (mkeep_alive_pkt), and
 	 * then memcpy'ed into buffer (mkeep_alive_pktp) since there is no
 	 * guarantee that the buffer is properly aligned.

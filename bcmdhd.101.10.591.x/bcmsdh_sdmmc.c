@@ -1158,17 +1158,6 @@ sdioh_request_byte(sdioh_info_t *sd, uint rw, uint func, uint regaddr, uint8 *by
 	return ((err_ret == 0) ? SDIOH_API_RC_SUCCESS : SDIOH_API_RC_FAIL);
 }
 
-uint
-sdioh_set_mode(sdioh_info_t *sd, uint mode)
-{
-	if (mode == SDPCM_TXGLOM_CPY)
-		sd->txglom_mode = mode;
-	else if (mode == SDPCM_TXGLOM_MDESC)
-		sd->txglom_mode = mode;
-
-	return (sd->txglom_mode);
-}
-
 #ifdef PKT_STATICS
 uint32
 sdioh_get_spend_time(sdioh_info_t *sd)
@@ -1270,7 +1259,7 @@ sdioh_request_packet_chain(sdioh_info_t *sd, uint fix_inc, uint write, uint func
 	bool fifo = (fix_inc == SDIOH_DATA_FIX);
 	int err_ret = 0;
 	void *pnext;
-	uint ttl_len, pkt_offset;
+	uint ttl_len = 0, pkt_offset;
 	uint blk_num;
 	uint blk_size;
 	uint max_blk_count;
@@ -1278,7 +1267,7 @@ sdioh_request_packet_chain(sdioh_info_t *sd, uint fix_inc, uint write, uint func
 	struct mmc_request mmc_req;
 	struct mmc_command mmc_cmd;
 	struct mmc_data mmc_dat;
-	uint32 sg_count;
+	uint32 sg_count = 0;
 	struct sdio_func *sdio_func = sd->func[func];
 	struct mmc_host *host = sdio_func->card->host;
 	uint8 *localbuf = NULL;
@@ -1306,96 +1295,96 @@ sdioh_request_packet_chain(sdioh_info_t *sd, uint fix_inc, uint write, uint func
 	ttl_len = 0;
 	sg_count = 0;
 	if(sd->txglom_mode == SDPCM_TXGLOM_MDESC) {
-	while (pnext != NULL) {
-		ttl_len = 0;
-		sg_count = 0;
-		memset(&mmc_req, 0, sizeof(struct mmc_request));
-		memset(&mmc_cmd, 0, sizeof(struct mmc_command));
-		memset(&mmc_dat, 0, sizeof(struct mmc_data));
-		sg_init_table(sd->sg_list, ARRAYSIZE(sd->sg_list));
+		while (pnext != NULL) {
+			ttl_len = 0;
+			sg_count = 0;
+			memset(&mmc_req, 0, sizeof(struct mmc_request));
+			memset(&mmc_cmd, 0, sizeof(struct mmc_command));
+			memset(&mmc_dat, 0, sizeof(struct mmc_data));
+			sg_init_table(sd->sg_list, ARRAYSIZE(sd->sg_list));
 
-		/* Set up scatter-gather DMA descriptors. this loop is to find out the max
-		 * data we can transfer with one command 53. blocks per command is limited by
-		 * host max_req_size and 9-bit max block number. when the total length of this
-		 * packet chain is bigger than max_req_size, use multiple SD_IO_RW_EXTENDED
-		 * commands (each transfer is still block aligned)
-		 */
-		while (pnext != NULL && ttl_len < max_req_size) {
-			int pkt_len;
-			int sg_data_size;
-			uint8 *pdata = (uint8*)PKTDATA(sd->osh, pnext);
-
-			ASSERT(pdata != NULL);
-			pkt_len = PKTLEN(sd->osh, pnext);
-			sd_trace(("%s[%d] data=%p, len=%d\n", __FUNCTION__, write, pdata, pkt_len));
-			/* sg_count is unlikely larger than the array size, and this is
-			 * NOT something we can handle here, but in case it happens, PLEASE put
-			 * a restriction on max tx/glom count (based on host->max_segs).
+			/* Set up scatter-gather DMA descriptors. this loop is to find out the max
+			 * data we can transfer with one command 53. blocks per command is limited by
+			 * host max_req_size and 9-bit max block number. when the total length of this
+			 * packet chain is bigger than max_req_size, use multiple SD_IO_RW_EXTENDED
+			 * commands (each transfer is still block aligned)
 			 */
-			if (sg_count >= ARRAYSIZE(sd->sg_list)) {
-				sd_err(("%s: sg list entries(%u) exceed limit(%zu),"
-					" sd blk_size=%u\n",
-					__FUNCTION__, sg_count, (size_t)ARRAYSIZE(sd->sg_list), blk_size));
-				return (SDIOH_API_RC_FAIL);
-			}
-			pdata += pkt_offset;
+			while (pnext != NULL && ttl_len < max_req_size) {
+				int pkt_len;
+				int sg_data_size;
+				uint8 *pdata = (uint8*)PKTDATA(sd->osh, pnext);
 
-			sg_data_size = pkt_len - pkt_offset;
-			if (sg_data_size > max_req_size - ttl_len)
-				sg_data_size = max_req_size - ttl_len;
-			/* some platforms put a restriction on the data size of each scatter-gather
-			 * DMA descriptor, use multiple sg buffers when xfer_size is bigger than
-			 * max_seg_size
-			 */
-			if (sg_data_size > host->max_seg_size) {
-				sg_data_size = host->max_seg_size;
-			}
-			sg_set_buf(&sd->sg_list[sg_count++], pdata, sg_data_size);
+				ASSERT(pdata != NULL);
+				pkt_len = PKTLEN(sd->osh, pnext);
+				sd_trace(("%s[%d] data=%p, len=%d\n", __FUNCTION__, write, pdata, pkt_len));
+				/* sg_count is unlikely larger than the array size, and this is
+				 * NOT something we can handle here, but in case it happens, PLEASE put
+				 * a restriction on max tx/glom count (based on host->max_segs).
+				 */
+				if (sg_count >= ARRAYSIZE(sd->sg_list)) {
+					sd_err(("%s: sg list entries(%u) exceed limit(%zu),"
+						" sd blk_size=%u\n",
+						__FUNCTION__, sg_count, (size_t)ARRAYSIZE(sd->sg_list), blk_size));
+					return (SDIOH_API_RC_FAIL);
+				}
+				pdata += pkt_offset;
 
-			ttl_len += sg_data_size;
-			pkt_offset += sg_data_size;
-			if (pkt_offset == pkt_len) {
-				pnext = PKTNEXT(sd->osh, pnext);
-				pkt_offset = 0;
+				sg_data_size = pkt_len - pkt_offset;
+				if (sg_data_size > max_req_size - ttl_len)
+					sg_data_size = max_req_size - ttl_len;
+				/* some platforms put a restriction on the data size of each scatter-gather
+				 * DMA descriptor, use multiple sg buffers when xfer_size is bigger than
+				 * max_seg_size
+				 */
+				if (sg_data_size > host->max_seg_size) {
+					sg_data_size = host->max_seg_size;
+				}
+				sg_set_buf(&sd->sg_list[sg_count++], pdata, sg_data_size);
+
+				ttl_len += sg_data_size;
+				pkt_offset += sg_data_size;
+				if (pkt_offset == pkt_len) {
+					pnext = PKTNEXT(sd->osh, pnext);
+					pkt_offset = 0;
+				}
+			}
+
+			if (ttl_len % blk_size != 0) {
+				sd_err(("%s, data length %d not aligned to block size %d\n",
+					__FUNCTION__,  ttl_len, blk_size));
+				return SDIOH_API_RC_FAIL;
+			}
+			blk_num = ttl_len / blk_size;
+			mmc_dat.sg = sd->sg_list;
+			mmc_dat.sg_len = sg_count;
+			mmc_dat.blksz = blk_size;
+			mmc_dat.blocks = blk_num;
+			mmc_dat.flags = write ? MMC_DATA_WRITE : MMC_DATA_READ;
+			mmc_cmd.opcode = 53; /* SD_IO_RW_EXTENDED */
+			mmc_cmd.arg = write ? 1<<31 : 0;
+			mmc_cmd.arg |= (func & 0x7) << 28;
+			mmc_cmd.arg |= 1<<27;
+			mmc_cmd.arg |= fifo ? 0 : 1<<26;
+			mmc_cmd.arg |= (addr & 0x1FFFF) << 9;
+			mmc_cmd.arg |= blk_num & 0x1FF;
+			mmc_cmd.flags = MMC_RSP_SPI_R5 | MMC_RSP_R5 | MMC_CMD_ADTC;
+			mmc_req.cmd = &mmc_cmd;
+			mmc_req.data = &mmc_dat;
+			if (!fifo)
+				addr += ttl_len;
+
+			sdio_claim_host(sdio_func);
+			mmc_set_data_timeout(&mmc_dat, sdio_func->card);
+			mmc_wait_for_req(host, &mmc_req);
+			sdio_release_host(sdio_func);
+
+			err_ret = mmc_cmd.error? mmc_cmd.error : mmc_dat.error;
+			if (0 != err_ret) {
+				sd_err(("%s:CMD53 %s failed with code %d\n",
+					__FUNCTION__, write ? "write" : "read", err_ret));
+				return SDIOH_API_RC_FAIL;
 			}
 		}
-
-		if (ttl_len % blk_size != 0) {
-			sd_err(("%s, data length %d not aligned to block size %d\n",
-				__FUNCTION__,  ttl_len, blk_size));
-			return SDIOH_API_RC_FAIL;
-		}
-		blk_num = ttl_len / blk_size;
-		mmc_dat.sg = sd->sg_list;
-		mmc_dat.sg_len = sg_count;
-		mmc_dat.blksz = blk_size;
-		mmc_dat.blocks = blk_num;
-		mmc_dat.flags = write ? MMC_DATA_WRITE : MMC_DATA_READ;
-		mmc_cmd.opcode = 53; /* SD_IO_RW_EXTENDED */
-		mmc_cmd.arg = write ? 1<<31 : 0;
-		mmc_cmd.arg |= (func & 0x7) << 28;
-		mmc_cmd.arg |= 1<<27;
-		mmc_cmd.arg |= fifo ? 0 : 1<<26;
-		mmc_cmd.arg |= (addr & 0x1FFFF) << 9;
-		mmc_cmd.arg |= blk_num & 0x1FF;
-		mmc_cmd.flags = MMC_RSP_SPI_R5 | MMC_RSP_R5 | MMC_CMD_ADTC;
-		mmc_req.cmd = &mmc_cmd;
-		mmc_req.data = &mmc_dat;
-		if (!fifo)
-			addr += ttl_len;
-
-		sdio_claim_host(sdio_func);
-		mmc_set_data_timeout(&mmc_dat, sdio_func->card);
-		mmc_wait_for_req(host, &mmc_req);
-		sdio_release_host(sdio_func);
-
-		err_ret = mmc_cmd.error? mmc_cmd.error : mmc_dat.error;
-		if (0 != err_ret) {
-			sd_err(("%s:CMD53 %s failed with code %d\n",
-				__FUNCTION__, write ? "write" : "read", err_ret));
-			return SDIOH_API_RC_FAIL;
-		}
-	}
 	}
 	else if(sd->txglom_mode == SDPCM_TXGLOM_CPY) {
 		for (pnext = pkt; pnext; pnext = PKTNEXT(sd->osh, pnext)) {
@@ -1844,7 +1833,7 @@ int
 sdioh_start(sdioh_info_t *sd, int stage)
 {
 #if defined(OEM_ANDROID)
-	int ret;
+	int ret = 0;
 
 	if (!sd) {
 		sd_err(("%s Failed, sd is NULL\n", __FUNCTION__));
@@ -1930,7 +1919,7 @@ sdioh_start(sdioh_info_t *sd, int stage)
 		sd_err(("%s Failed\n", __FUNCTION__));
 #endif /* defined(OEM_ANDROID) */
 
-	return (0);
+	return (ret);
 }
 
 int
@@ -2084,4 +2073,15 @@ sdmmc_set_clock_divisor(sdioh_info_t *sd, uint sd_div)
 
 	hz = sd->sd_clk_rate / sd_div;
 	sdmmc_set_clock_rate(sd, hz);
+}
+
+uint
+sdioh_set_mode(sdioh_info_t *sd, uint mode)
+{
+	if (mode == SDPCM_TXGLOM_CPY)
+		sd->txglom_mode = mode;
+	else if (mode == SDPCM_TXGLOM_MDESC)
+		sd->txglom_mode = mode;
+
+	return (sd->txglom_mode);
 }

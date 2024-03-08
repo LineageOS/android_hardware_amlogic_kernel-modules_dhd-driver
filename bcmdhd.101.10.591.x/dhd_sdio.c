@@ -162,9 +162,15 @@ static int dhdsdio_resume(void *context);
 
 #define MAX_RX_DATASZ	2048	/* XXX Should be based on PKTGET limits? */
 
+/* Maximum milliseconds to wait for firmware to come up */
+#ifdef BCMQT
+#define DHD_WAIT_READSHARED  30000
+#endif /* BCMQT */
+
 /* Maximum milliseconds to wait for F2 to come up */
 #ifdef BCMQT
 #define DHD_WAIT_F2RDY  30000
+#define CONS_ADDR_SIGNATURE  0xac0ffee
 #else
 #define DHD_WAIT_F2RDY	3000
 #endif /* BCMQT */
@@ -558,6 +564,12 @@ extern uint *dhd_spi_lockcount;
 
 extern void dhd_os_wd_timer(void *bus, uint wdtick);
 int dhd_enableOOB(dhd_pub_t *dhd, bool sleep);
+#ifdef DHD_DEBUG
+static int dhdsdio_readconsole(dhd_bus_t *bus);
+#ifdef BCMQT
+static bool dhdsdio_force_console_dump(dhd_bus_t *bus);
+#endif /* BCMQT */
+#endif /* DHD_DEBUG */
 
 #ifdef DHD_PM_CONTROL_FROM_FILE
 extern bool g_pm_control;
@@ -1031,6 +1043,7 @@ dhdsdio_sr_cap(dhd_bus_t *bus)
 		(bus->sih->chip == BCM4339_CHIP_ID) ||
 		BCM4345_CHIP(bus->sih->chip) ||
 		(bus->sih->chip == BCM4354_CHIP_ID) ||
+		(bus->sih->chip == BCM4356_CHIP_ID) ||
 		(bus->sih->chip == BCM4358_CHIP_ID) ||
 		(bus->sih->chip == BCM43569_CHIP_ID) ||
 		(bus->sih->chip == BCM4371_CHIP_ID) ||
@@ -1062,6 +1075,7 @@ dhdsdio_sr_cap(dhd_bus_t *bus)
 		(bus->sih->chip == BCM4339_CHIP_ID) ||
 		BCM4345_CHIP(bus->sih->chip) ||
 		(bus->sih->chip == BCM4354_CHIP_ID) ||
+		(bus->sih->chip == BCM4356_CHIP_ID) ||
 		(bus->sih->chip == BCM4358_CHIP_ID) ||
 		(bus->sih->chip == BCM43569_CHIP_ID) ||
 		(bus->sih->chip == BCM4371_CHIP_ID) ||
@@ -1080,6 +1094,7 @@ dhdsdio_sr_cap(dhd_bus_t *bus)
 		if ((bus->sih->chip == BCM4350_CHIP_ID) ||
 			BCM4345_CHIP(bus->sih->chip) ||
 			(bus->sih->chip == BCM4354_CHIP_ID) ||
+			(bus->sih->chip == BCM4356_CHIP_ID) ||
 			(bus->sih->chip == BCM4358_CHIP_ID) ||
 			(bus->sih->chip == BCM43569_CHIP_ID) ||
 			(bus->sih->chip == BCM4371_CHIP_ID))
@@ -1972,9 +1987,6 @@ dhdsdio_clkctl(dhd_bus_t *bus, uint target, bool pendok)
 			ret = dhdsdio_htclk(bus, FALSE, FALSE);
 		/* Now remove the SD clock */
 		ret = dhdsdio_sdclk(bus, FALSE);
-#ifdef DHD_DEBUG
-		if (bus->dhd->dhd_console_ms == 0)
-#endif /* DHD_DEBUG */
 		if (bus->poll == 0)
 			dhd_os_wd_timer(bus->dhd, 0);
 		break;
@@ -3158,6 +3170,23 @@ dhd_bus_txctl(struct dhd_bus *bus, uchar *msg, uint msglen)
 
 	BUS_WAKE(bus);
 
+#ifdef BCMQT
+	/* Make sure firmware is ready before request HT clock for PMU maximum resource setting */
+	dhd_timeout_start(&tmo, DHD_WAIT_READSHARED * 1000);
+	ready = 0;
+	while (!ready && !dhd_timeout_expired(&tmo)) {
+		sdpcm_shared_t shared;
+		ready = (dhdsdio_readshared(bus, &shared) == 0);
+	}
+
+	/* Readshared fail, shared memory wasn't update by firmware initialization */
+	if (!ready) {
+		DHD_ERROR(("%s: Readshared timeout, firmware up fail.\n", __FUNCTION__));
+		ret = -1;
+		goto exit;
+	}
+#endif /* BCMQT */
+
 	/* Make sure backplane clock is on */
 	dhdsdio_clkctl(bus, CLK_AVAIL, FALSE);
 
@@ -3932,6 +3961,17 @@ dhdsdio_readshared(dhd_bus_t *bus, sdpcm_shared_t *sh)
 		CHIPID(bus->sih->chip) == BCM43018_CHIP_ID) && !dhdsdio_sr_cap(bus))
 		bus->srmemsize = 0;
 
+	/* Fix first time get console address failed issue */
+	if ((CHIPID(bus->sih->chip) == BCM43430_CHIP_ID) && dhdsdio_sr_cap(bus) &&
+		(bus->srmemsize == 0)) {
+		if (dhd_srmem) {
+			bus->srmemsize = dhd_srmem;
+		} else {
+			/* 43436/8 default sr size is 64K */
+			bus->srmemsize = 0x10000;
+		}
+	}
+
 	shaddr = bus->dongle_ram_base + bus->ramsize - 4;
 	i = 0;
 	do {
@@ -3951,6 +3991,15 @@ dhdsdio_readshared(dhd_bus_t *bus, sdpcm_shared_t *sh)
 			if ((bus->srmemsize > 0) && (i++ == 0)) {
 				shaddr -= bus->srmemsize;
 			} else {
+#ifdef BCMQT
+				if (bus->console_addr) {
+					dhdsdio_readconsole(bus);
+				} else {
+					if (dhdsdio_force_console_dump(bus))
+						DHD_ERROR(("%s: FW console has been initialized\n",
+							__func__));
+				}
+#endif /* BCMQT */
 				DHD_ERROR(("%s: address (0x%08x) of sdpcm_shared invalid\n",
 					__FUNCTION__, addr));
 				return BCME_ERROR;
@@ -4031,9 +4080,19 @@ dhdsdio_readshared(dhd_bus_t *bus, sdpcm_shared_t *sh)
 void
 dhd_bus_check_srmemsize(dhd_pub_t *dhdp)
 {
-	dhd_bus_t *dhd = dhdp->bus;
+	dhd_bus_t *bus = dhdp->bus;
 	uint32 srmem_size = 0;
 	int err = BCME_OK;
+
+	if ((CHIPID(bus->sih->chip) == BCM43430_CHIP_ID) && dhdsdio_sr_cap(bus)) {
+		if (dhd_srmem) {
+			bus->srmemsize = dhd_srmem;
+		} else {
+			/* 43436/8 default sr size is 64K */
+			bus->srmemsize = 0x10000;
+		}
+		DHD_ERROR(("%s srmem size is set %x\n", __func__, bus->srmemsize));
+	}
 
 	err = dhd_iovar(dhdp, 0, "bus:srmem_size", NULL, 0,
 		(char *)&srmem_size, sizeof(srmem_size), FALSE);
@@ -4042,11 +4101,14 @@ dhd_bus_check_srmemsize(dhd_pub_t *dhdp)
 		return;
 	}
 
-	if (srmem_size != dhd->srmemsize) {
+	if (srmem_size != bus->srmemsize) {
 		sdpcm_shared_t shared;
-		dhd->srmemsize = srmem_size;
-		if (dhdsdio_readshared(dhd, &shared) == 0)
-			dhd->console_addr = shared.console_addr;
+		if (err == BCME_OK)
+			bus->srmemsize = srmem_size;
+		dhd_os_sdlock(dhdp);
+		if (dhdsdio_readshared(bus, &shared) == 0)
+			bus->console_addr = shared.console_addr;
+		dhd_os_sdunlock(dhdp);
 	}
 
 	return;
@@ -4055,6 +4117,49 @@ dhd_bus_check_srmemsize(dhd_pub_t *dhdp)
 #define CONSOLE_LINE_MAX	192
 
 #ifdef DHD_DEBUG
+#ifdef BCMQT
+static bool dhdsdio_force_console_dump(dhd_bus_t *bus)
+{
+	uint32 cons_sign = 0;
+	uint32 cons_addr = 0;
+	uint32 val = 0;
+
+	cons_sign = bus->dongle_ram_base + bus->ramsize - 12;
+
+	/* Read last word in memory to determine address of sdpcm_shared structure */
+	if (dhdsdio_membytes(bus, FALSE, cons_sign, (uint8 *)&val, 4) < 0)
+		return FALSE;
+
+	val = ltoh32(val);
+
+	/* try again if srmemsize is set */
+	if (val != CONS_ADDR_SIGNATURE) {
+		if (bus->srmemsize > 0) {
+			cons_sign -= bus->srmemsize;
+			if (dhdsdio_membytes(bus, FALSE, cons_sign, (uint8 *)&val, 4) < 0) {
+				return FALSE;
+			}
+			val = ltoh32(val);
+		}
+	}
+
+	if (val == CONS_ADDR_SIGNATURE) {
+		cons_addr = cons_sign + 4;
+		DHD_ERROR(("%s: Got correct console address signature\n", __func__));
+
+		/* Read last word in memory to determine address of sdpcm_shared structure */
+		if (dhdsdio_membytes(bus, FALSE, cons_addr, (uint8 *)&val, 4) < 0)
+			return FALSE;
+
+		bus->console_addr = ltoh32(val);
+		dhd_msg_level |= DHD_FWLOG_VAL;
+		dhdsdio_readconsole(bus);
+		return TRUE;
+	}
+	return FALSE;
+}
+#endif /* BCMQT */
+
 static int
 dhdsdio_readconsole(dhd_bus_t *bus)
 {
@@ -6191,28 +6296,36 @@ dhd_bus_stop(struct dhd_bus *bus, bool enforce_mutex)
 	} else {
 
 		BUS_WAKE(bus);
-
 		if (KSO_ENAB(bus)) {
 
 		/* Enable clock for device interrupts */
 		dhdsdio_clkctl(bus, CLK_AVAIL, FALSE);
 
 		/* Disable and clear interrupts at the chip level also */
-		W_SDREG(0, &bus->regs->hostintmask, retries);
+#ifdef DHD_SI_WD_RESET
+		if (!bus->dhd->si_wd)
+#endif
+			W_SDREG(0, &bus->regs->hostintmask, retries);
+
 		local_hostintmask = bus->hostintmask;
 		bus->hostintmask = 0;
 
 		/* Force clocks on backplane to be sure F2 interrupt propagates */
-		saveclk = bcmsdh_cfg_read(bus->sdh, SDIO_FUNC_1, SBSDIO_FUNC1_CHIPCLKCSR, &err);
-		if (!err) {
-			bcmsdh_cfg_write(bus->sdh, SDIO_FUNC_1, SBSDIO_FUNC1_CHIPCLKCSR,
-			                 (saveclk | SBSDIO_FORCE_HT), &err);
+#ifdef DHD_SI_WD_RESET
+		if (!bus->dhd->si_wd) {
+#else
+		if (1) {
+#endif
+			saveclk = bcmsdh_cfg_read(bus->sdh, SDIO_FUNC_1, SBSDIO_FUNC1_CHIPCLKCSR, &err);
+			if (!err) {
+				bcmsdh_cfg_write(bus->sdh, SDIO_FUNC_1, SBSDIO_FUNC1_CHIPCLKCSR,
+						(saveclk | SBSDIO_FORCE_HT), &err);
+			}
+			if (err) {
+				DHD_ERROR(("%s: Failed to force clock for F2: err %d\n",
+						__FUNCTION__, err));
+			}
 		}
-		if (err) {
-			DHD_ERROR(("%s: Failed to force clock for F2: err %d\n",
-			            __FUNCTION__, err));
-		}
-
 		/* Turn off the bus (F2), free any pending packets */
 		/* XXX How to wake up any waiting processes? */
 		/* XXX New API: bcmsdh_fn_set(bus->sdh, SDIO_FUNC_2, FALSE); */
@@ -6221,15 +6334,23 @@ dhd_bus_stop(struct dhd_bus *bus, bool enforce_mutex)
 		bcmsdh_intr_disable(bus->sdh); /* XXX bcmsdh_intr_mask(bus->sdh); */
 #endif /* !defined(NDIS) */
 #ifndef BCMSPI
-		bcmsdh_cfg_write(bus->sdh, SDIO_FUNC_0, SDIOD_CCCR_IOEN, SDIO_FUNC_ENABLE_1, NULL);
+#ifdef DHD_SI_WD_RESET
+		if (!bus->dhd->si_wd)
+#endif
+			bcmsdh_cfg_write(bus->sdh, SDIO_FUNC_0, SDIOD_CCCR_IOEN, SDIO_FUNC_ENABLE_1, NULL);
 #endif /* !BCMSPI */
 
 		/* Clear any pending interrupts now that F2 is disabled */
-		W_SDREG(local_hostintmask, &bus->regs->intstatus, retries);
+#ifdef DHD_SI_WD_RESET
+		if (!bus->dhd->si_wd)
+#endif
+			W_SDREG(local_hostintmask, &bus->regs->intstatus, retries);
 		}
-
 		/* Turn off the backplane clock (only) */
-		dhdsdio_clkctl(bus, CLK_SDONLY, FALSE);
+#ifdef DHD_SI_WD_RESET
+		if (!bus->dhd->si_wd)
+#endif
+			dhdsdio_clkctl(bus, CLK_SDONLY, FALSE);
 
 		/* Change our idea of bus state */
 		DHD_LINUX_GENERAL_LOCK(bus->dhd, flags);
@@ -8615,7 +8736,7 @@ dhdsdio_isr(void *arg)
 		dhd_sched_dpc(bus->dhd);
 	}
 	DHD_OS_WAKE_UNLOCK(bus->dhd);
-#else
+#else // SDIO_ISR_THREAD
 #if !defined(NDIS)
 	bus->dpc_sched = TRUE;
 	dhd_sched_dpc(bus->dhd);
@@ -9462,6 +9583,8 @@ dhdsdio_chipmatch(uint16 chipid)
 		return TRUE;
 	if (chipid == BCM4354_CHIP_ID)
 		return TRUE;
+	if (chipid == BCM4356_CHIP_ID)
+		return TRUE;
 	if (chipid == BCM4358_CHIP_ID)
 		return TRUE;
 	if (chipid == BCM43569_CHIP_ID)
@@ -9892,6 +10015,7 @@ dhdsdio_probe_attach(struct dhd_bus *bus, osl_t *osh, void *sdh, void *regsva,
 				break;
 			case BCM4350_CHIP_ID:
 			case BCM4354_CHIP_ID:
+			case BCM4356_CHIP_ID:
 			case BCM4358_CHIP_ID:
 			case BCM43569_CHIP_ID:
 			case BCM4371_CHIP_ID:
@@ -9953,16 +10077,6 @@ dhdsdio_probe_attach(struct dhd_bus *bus, osl_t *osh, void *sdh, void *regsva,
 		           bus->ramsize, bus->orig_ramsize, bus->dongle_ram_base));
 
 		bus->srmemsize = si_socram_srmem_size(bus->sih);
-	}
-
-	if ((CHIPID(bus->sih->chip) == BCM43430_CHIP_ID) && dhdsdio_sr_cap(bus)) {
-		if (dhd_srmem) {
-			bus->srmemsize = dhd_srmem;
-		} else {
-			/* 43436/8 default sr size is 64K */
-			bus->srmemsize = 0x10000;
-		}
-		DHD_ERROR(("%s srmem size is set %x\n", __func__, bus->srmemsize));
 	}
 
 	/* ...but normally deal with the SDPCMDEV core */
@@ -10383,20 +10497,31 @@ dhdsdio_release_dongle(dhd_bus_t *bus, osl_t *osh, bool dongle_isolation, bool r
 	if (bus->sih) {
 		/* In Win10, system will be BSOD if using "sysprep" to do OS image */
 		/* Skip this will not cause the BSOD. */
-#if !defined(BCMLXSDMMC) && !defined(NDIS)
-		/* XXX - Using the watchdog to reset the chip does not allow
-		 * further SDIO communication.  For the SDMMC Driver, this
-		 * causes interrupt to not be de-registered properly.
-		 */
-		/* XXX: dongle isolation mode is on don't reset the chip */
-		if (bus->dhd) {
-			dhdsdio_clkctl(bus, CLK_AVAIL, FALSE);
+#if defined(DHD_SI_WD_RESET) || (!defined(BCMLXSDMMC) && !defined(NDIS))
+		if (CHIPID(bus->sih->chip) == BCM4381_CHIP_GRPID) {
+			/* XXX - Using the watchdog to reset the chip does not allow
+			 * further SDIO communication.  For the SDMMC Driver, this
+			 * causes interrupt to not be de-registered properly.
+			 */
+			/* XXX: dongle isolation mode is on don't reset the chip */
+			if (bus->dhd) {
+				dhdsdio_clkctl(bus, CLK_AVAIL, FALSE);
+			}
+			if (KSO_ENAB(bus) && (dongle_isolation == FALSE)) {
+				si_watchdog(bus->sih, 4);
+				DHD_ERROR(("%s: after si_watchdog, dongle is going to be released\n", __FUNCTION__));
+#if defined(DHD_SI_WD_RESET)
+				DHD_ERROR(("%s: set si_wd TRUE\n", __FUNCTION__));
+				bus->dhd->si_wd = TRUE;
+#endif
+			}
 		}
-		if (KSO_ENAB(bus) && (dongle_isolation == FALSE))
-			si_watchdog(bus->sih, 4);
 #endif /* !defined(BCMLXSDMMC) */
 		if (bus->dhd) {
-			dhdsdio_clkctl(bus, CLK_NONE, FALSE);
+#ifdef DHD_SI_WD_RESET
+			if (!bus->dhd->si_wd)
+#endif
+				dhdsdio_clkctl(bus, CLK_NONE, FALSE);
 		}
 		si_detach(bus->sih);
 		bus->sih = NULL;
@@ -11233,10 +11358,6 @@ _dhdsdio_download_firmware(struct dhd_bus *bus)
 		goto err;
 	}
 
-	if (CHIPID(bus->sih->chip) == BCM43711_CHIP_ID) {
-		si_pmu_43711a0_pll_war(bus->sih);
-	}
-
 	/* Take arm out of reset */
 	if (dhdsdio_download_state(bus, FALSE)) {
 		DHD_ERROR(("%s: error getting out of ARM core reset\n", __FUNCTION__));
@@ -11440,6 +11561,13 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 	if (flag == TRUE) {
 		if (!bus->dhd->dongle_reset) {
 			DHD_ERROR(("%s: == Power OFF ==\n", __FUNCTION__));
+#ifdef DHD_SI_WD_RESET
+			if (CHIPID(bus->sih->chip) == BCM4381_CHIP_GRPID) {
+				DHD_ERROR(("%s: RESET PMU status\n", __FUNCTION__));
+				bcmsdh_reg_write(bus->sdh, 0x18012618, 4, 0x64fffff);
+				OSL_DELAY(100);
+			}
+#endif
 			dhdsdio_advertise_bus_cleanup(bus->dhd);
 			dhd_os_sdlock(dhdp);
 			dhd_os_wd_timer(dhdp, 0);
@@ -11461,8 +11589,11 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 #endif /* defined(OOB_INTR_ONLY) || defined(BCMSPI_ANDROID) */
 
 			/* Clean tx/rx buffer pointers, detach from the dongle */
+#ifdef DHD_SI_WD_RESET
+			dhdsdio_release_dongle(bus, bus->dhd->osh, FALSE, TRUE);
+#else
 			dhdsdio_release_dongle(bus, bus->dhd->osh, TRUE, TRUE);
-
+#endif
 			bus->dhd->dongle_reset = TRUE;
 			DHD_ERROR(("%s: making dhdpub up FALSE\n", __FUNCTION__));
 			bus->dhd->up = FALSE;
@@ -11483,6 +11614,10 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 
 		printf("%s: == Power ON ==\n", __FUNCTION__);
 
+#ifdef DHD_SI_WD_RESET
+		DHD_ERROR(("%s: set si_wd FALSE\n", __FUNCTION__));
+		bus->dhd->si_wd = FALSE;
+#endif
 		if (bus->dhd->dongle_reset) {
 			/* Turn on WLAN */
 			dhd_os_sdlock(dhdp);
@@ -11547,7 +11682,9 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 				__FUNCTION__));
 #if defined(OEM_ANDROID)
 			DHD_INFO(("Will call dhd_bus_start instead\n"));
-			dhd_bus_resume(dhdp, 1);
+			bcmerror = dhd_bus_resume(dhdp, 1);
+			if (bcmerror)
+				return bcmerror;
 #if defined(HW_OOB) || defined(FORCE_WOWLAN)
 			dhd_conf_set_hw_oob_intr(bus->sdh, bus->sih); // terence 20120615: fix for OOB initial issue
 #endif

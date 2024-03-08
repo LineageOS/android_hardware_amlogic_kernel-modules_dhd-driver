@@ -184,6 +184,7 @@ extern int host_edl_support;
 extern int qt_dngl_timeout;
 #endif /* BCMQT_HW */
 
+#define CONS_ADDR_SIGNATURE	0xac0ffee
 /* This can be overwritten by module parameter(dma_ring_indices) defined in dhd_linux.c */
 uint dma_ring_indices = 0;
 /* This can be overwritten by module parameter(h2d_phase) defined in dhd_linux.c */
@@ -314,7 +315,8 @@ int dbushost_initvars_flash(si_t *sih, osl_t *osh, char **base, uint len);
 static void dhdpci_bus_rte_log_time_sync_poll(dhd_bus_t *bus);
 #endif /* DHD_H2D_LOG_TIME_SYNC */
 
-#define     PCI_VENDOR_ID_BROADCOM          0x14e4
+#define PCI_VENDOR_ID_BROADCOM          0x14e4
+#define PCI_VENDOR_ID_SYNAPTICS         0x1e01
 
 #ifdef DHD_PCIE_NATIVE_RUNTIMEPM
 #define MAX_D3_ACK_TIMEOUT	100
@@ -1524,18 +1526,17 @@ skip_intstatus_read:
 		}
 #endif /* DHD_FLOW_RING_STATUS_TRACE */
 #if defined(PCIE_ISR_THREAD)
-
 		DHD_TRACE(("Calling dhd_bus_dpc() from %s\n", __FUNCTION__));
 		DHD_OS_WAKE_LOCK(bus->dhd);
 		while (dhd_bus_dpc(bus));
 		DHD_OS_WAKE_UNLOCK(bus->dhd);
-#else
+#else // defined(PCIE_ISR_THREAD)
 		bus->dpc_sched = TRUE;
 		bus->isr_sched_dpc_time = OSL_LOCALTIME_NS();
 #ifndef NDIS
 		dhd_sched_dpc(bus->dhd);     /* queue DPC now!! */
 #endif /* !NDIS */
-#endif /* defined(SDIO_ISR_THREAD) */
+#endif /* defined(PCIE_ISR_THREAD) */
 
 		DHD_INTR(("%s: Exit Success DPC Queued\n", __FUNCTION__));
 		return TRUE;
@@ -1610,7 +1611,7 @@ dhdpcie_config_check(dhd_bus_t *bus)
 
 	for (i = 0; i < DHDPCIE_CONFIG_CHECK_RETRY_COUNT; i++) {
 		val = OSL_PCI_READ_CONFIG(bus->osh, PCI_CFG_VID, sizeof(uint32));
-		if ((val & 0xFFFF) == VENDOR_BROADCOM) {
+		if (((val & 0xFFFF) == VENDOR_BROADCOM) || ((val & 0xFFFF) == VENDOR_SYNAPTICS)) {
 			ret = BCME_OK;
 			break;
 		}
@@ -2151,7 +2152,7 @@ dhdpcie_dongle_attach(dhd_bus_t *bus)
 
 	/* Checking PCIe bus status with reading configuration space */
 	val = OSL_PCI_READ_CONFIG(osh, PCI_CFG_VID, sizeof(uint32));
-	if ((val & 0xFFFF) != VENDOR_BROADCOM) {
+	if (((val & 0xFFFF) != VENDOR_BROADCOM) && ((val & 0xFFFF) != VENDOR_SYNAPTICS)) {
 		DHD_ERROR(("%s : failed to read PCI configuration space!\n", __FUNCTION__));
 		goto fail;
 	}
@@ -2380,6 +2381,7 @@ dhdpcie_dongle_attach(dhd_bus_t *bus)
 			break;
 		case BCM4358_CHIP_ID:
 		case BCM4354_CHIP_ID:
+		case BCM4356_CHIP_ID:
 		case BCM43567_CHIP_ID:
 		case BCM43569_CHIP_ID:
 		case BCM4350_CHIP_ID:
@@ -4279,6 +4281,78 @@ dhdpcie_download_code_file(struct dhd_bus *bus, char *pfw_path)
 			break;
 		}
 	}
+#if defined(DHD_DEBUG) && defined(DHD_FW_MEM_CORRUPTION)
+	/* Upload and compare the downloaded code */
+	{
+		unsigned char *ulblock = NULL;
+		unsigned int uploded_len;
+		read_len = 0;
+		uploded_len = 0;
+		bcmerror = BCME_ERROR;
+		ulblock = MALLOC(bus->dhd->osh, MEMBLOCK);
+		if (ulblock == NULL)
+			goto upload_err;
+		/* Close and re-open the image file to reset the file pointer.
+		*/
+		dhd_os_close_image1(bus->dhd, imgbuf);
+		imgbuf = dhd_os_open_image1(bus->dhd, pfw_path);
+		if (imgbuf == NULL) {
+			goto upload_err;
+		}
+		/* Upload image to verify downloaded contents. */
+		offset = bus->dongle_ram_base;
+		offset_end = offset + bus->ramsize;
+		/* Upload image with MEMBLOCK size */
+		while ((len = dhd_os_get_image_block((char*)memptr, MEMBLOCK, imgbuf))) {
+			if (len < 0) {
+				DHD_ERROR(("%s: dhd_os_get_image_block failed (%d)\n", __FUNCTION__, len));
+				bcmerror = BCME_ERROR;
+				goto upload_err;
+			}
+
+			read_len += len;
+			if (read_len > file_size) {
+				DHD_ERROR(("%s: WARNING! reading beyond EOF, len=%d; read_len=%u;"
+					" file_size=%u truncating len to %d \n", __FUNCTION__,
+					len, read_len, file_size, (len - (read_len - file_size))));
+				len -= (read_len - file_size);
+			}
+			memset(ulblock, 0xaa, MEMBLOCK);
+			bcmerror = dhdpcie_bus_membytes(bus, FALSE, offset,
+				(uint8 *)ulblock, len);
+			if (bcmerror) {
+				DHD_ERROR(("%s: error %d on reading %d membytes at 0x%08x\n",
+					__FUNCTION__, bcmerror, len, offset));
+				goto upload_err;
+			}
+			if (memcmp(memptr, ulblock, len)) {
+				DHD_ERROR(("%s: Downloaded image is corrupted! \n",
+					__FUNCTION__));
+				bcmerror = BCME_ERROR;
+				goto upload_err;
+			}
+
+			uploded_len += len;
+			offset += MEMBLOCK;
+
+			if (offset >= offset_end) {
+				DHD_ERROR(("%s: invalid address access to %x (offset end: %x)\n",
+					__FUNCTION__, offset, offset_end));
+				bcmerror = BCME_ERROR;
+				goto upload_err;
+			}
+
+			if (read_len >= file_size) {
+				break;
+			}
+		}
+		DHD_ERROR(("%s: Download, Upload and compare succeeded.\n", __FUNCTION__));
+
+upload_err:
+		if (ulblock)
+			MFREE(bus->dhd->osh, ulblock, MEMBLOCK);
+	}
+#endif /* DHD_DEBUG && DHD_FW_MEM_CORRUPTION */
 err:
 	if (memblock) {
 		MFREE(bus->dhd->osh, memblock, MEMBLOCK + DHD_SDALIGN);
@@ -4811,10 +4885,6 @@ _dhdpcie_download_firmware(struct dhd_bus *bus)
 		goto err;
 	}
 
-	if (CHIPID(bus->sih->chip) == BCM43711_CHIP_ID) {
-		si_pmu_43711a0_pll_war(bus->sih);
-	}
-
 	/* Take arm out of reset */
 	if (dhdpcie_bus_download_state(bus, FALSE)) {
 		DHD_ERROR(("%s: error getting out of ARM core reset\n", __FUNCTION__));
@@ -5001,6 +5071,26 @@ dhd_bus_dump_console_buffer(dhd_bus_t *bus)
 exit:
 	if (console_buffer)
 		MFREE(bus->dhd->osh, console_buffer, console_size);
+	return;
+}
+
+static void dhdpcie_force_console_dump(dhd_bus_t *bus)
+{
+	uint32 cons_sign = 0;
+	uint32 cons_addr = 0;
+	uint32 val = 0;
+
+	cons_sign = bus->dongle_ram_base + bus->ramsize - 12;
+
+	val = LTOH32(dhdpcie_bus_rtcm32(bus, cons_sign));
+
+	if (val == CONS_ADDR_SIGNATURE) {
+		cons_addr = bus->dongle_ram_base + bus->ramsize - 8;
+		val = LTOH32(dhdpcie_bus_rtcm32(bus, cons_addr));
+		bus->console_addr = val;
+		dhd_msg_level |= DHD_FWLOG_VAL;
+		dhdpcie_bus_readconsole(bus);
+	}
 	return;
 }
 
@@ -14555,6 +14645,7 @@ int dhd_bus_init(dhd_pub_t *dhdp, bool enforce_mutex)
 	ret = dhdpcie_readshared(bus);
 	if (ret < 0) {
 		DHD_ERROR(("%s :Shared area read failed \n", __FUNCTION__));
+		dhdpcie_force_console_dump(bus);
 		goto exit;
 	}
 
@@ -14632,7 +14723,7 @@ dhdpcie_init_shared_addr(dhd_bus_t *bus)
 bool
 dhdpcie_chipmatch(uint16 vendor, uint16 device)
 {
-	if (vendor != PCI_VENDOR_ID_BROADCOM) {
+	if ((vendor != PCI_VENDOR_ID_BROADCOM) && (vendor != PCI_VENDOR_ID_SYNAPTICS))  {
 		DHD_ERROR(("%s: Unsupported vendor %x device %x\n", __FUNCTION__,
 			vendor, device));
 		return (-ENODEV);
@@ -14756,6 +14847,8 @@ dhdpcie_chipmatch(uint16 vendor, uint16 device)
 		case BCM43756E_D11AC_ID:
 		case BCM43756E_D11AX_ID:
 		case BCM43711_CHIP_ID:
+		case BCM43711_D11AX6E_ID:
+		case BCM43711_D11AC_ID:
 		case BCM43711_D11AX_ID:
 		case BCM4381_CHIP_ID:
 		case BCM4381_D11AX_ID:
@@ -17799,6 +17892,12 @@ dhd_pcie_dma_info_dump(dhd_pub_t *dhd)
 		si_corereg(dhd->bus->sih, dhd->bus->sih->buscoreidx, 0x274, 0, 0)));
 
 	return 0;
+}
+
+bool
+dhd_pcie_check_lps_d3_acked(dhd_pub_t *dhd)
+{
+	return DHD_CHK_BUS_LPS_D3_ACKED(dhd->bus);
 }
 
 bool

@@ -185,7 +185,9 @@ enum {
 s32 wl_genl_send_msg(struct net_device *ndev, u32 event_type,
 	const u8 *string, u16 len, u8 *hdr, u16 hdrlen);
 #endif /* WL_GENL */
+#ifdef WL_NETLINK
 s32 wl_netlink_send_msg(int pid, int type, int seq, const void *data, size_t size);
+#endif /* WL_NETLINK */
 
 /* hostap mac mode */
 #define MACLIST_MODE_DISABLED   0

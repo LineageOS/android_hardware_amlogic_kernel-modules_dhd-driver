@@ -124,7 +124,7 @@ static DEFINE_SPINLOCK(noti_list_lock);
  * Parallel RTT Sessions are supported
  * with this major and minor verion onwards
  */
-#define RTT_PARALLEL_SSNS_SUPPORTED_MAJ_VER	14
+#define RTT_PARALLEL_SSNS_SUPPORTED_MAJ_VER	12
 #define RTT_PARALLEL_SSNS_SUPPORTED_MIN_VER	2
 
 /* PROXD TIMEOUT */
@@ -4970,6 +4970,7 @@ dhd_rtt_event_handler(dhd_pub_t *dhd, wl_event_msg_t *event, void *event_data)
 				MFREE(dhd->osh, buffer, tlvs_len);
 				goto exit;
 			}
+#ifdef WL_CFG80211
 			if (event_type == WL_PROXD_EVENT_LCI_MEAS_REP) {
 				/* free previous one and update it */
 				if (target->LCI) {
@@ -4987,6 +4988,7 @@ dhd_rtt_event_handler(dhd_pub_t *dhd, wl_event_msg_t *event, void *event_data)
 				DHD_RTT(("WL_PROXD_EVENT_CIVIC_MEAS_REP: cache the LCR tlv\n"));
 				target->LCR = (bcm_xtlv_t *)buffer;
 			}
+#endif /* WL_CFG80211 */
 		}
 		break;
 #endif /* WL_RTT_LCI */

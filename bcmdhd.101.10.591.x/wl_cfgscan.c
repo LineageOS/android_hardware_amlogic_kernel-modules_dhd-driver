@@ -717,17 +717,18 @@ wl_cfg80211_find_interworking_ie(const u8 *parse, u32 len)
 s32
 wl_cfg80211_clear_iw_ie(struct bcm_cfg80211 *cfg, struct net_device *ndev, s32 bssidx)
 {
-	ie_setbuf_t ie_setbuf;
+	ie_setbuf_t *ie_setbuf;
+	u8 buf[IE_SET_ONE_BUF_LEN];
 
 	WL_DBG(("clear interworking IE\n"));
 
-	bzero(&ie_setbuf, sizeof(ie_setbuf_t));
+	ie_setbuf = (ie_setbuf_t *)buf;
+	bzero(ie_setbuf, sizeof(ie_setbuf_t));
 
-	ie_setbuf.ie_buffer.iecount = htod32(1);
-	ie_setbuf.ie_buffer.ie_list[0].ie_data.id = DOT11_MNG_INTERWORKING_ID;
-	ie_setbuf.ie_buffer.ie_list[0].ie_data.len = 0;
-
-	return wldev_iovar_setbuf_bsscfg(ndev, "ie", &ie_setbuf, sizeof(ie_setbuf),
+	ie_setbuf->ie_buffer.iecount = htod32(1);
+	ie_setbuf->ie_buffer.ie_list[0].ie_data.id = DOT11_MNG_INTERWORKING_ID;
+	ie_setbuf->ie_buffer.ie_list[0].ie_data.len = 0;
+	return wldev_iovar_setbuf_bsscfg(ndev, "ie", ie_setbuf, IE_SET_ONE_BUF_LEN,
 		cfg->ioctl_buf, WLC_IOCTL_MAXLEN, bssidx, &cfg->ioctl_buf_sync);
 }
 
@@ -796,13 +797,8 @@ wl_cfg80211_add_iw_ie(struct bcm_cfg80211 *cfg, struct net_device *ndev, s32 bss
 	ie_setbuf->ie_buffer.ie_list[0].ie_data.id = DOT11_MNG_INTERWORKING_ID;
 	ie_setbuf->ie_buffer.ie_list[0].ie_data.len = data_len;
 	/* Returning void here as max data_len can be 8 */
-	if (wl_get_mode_by_netdev(cfg, ndev) != WL_MODE_AP) {
-		(void)memcpy_s((uchar *)&ie_setbuf->ie_buffer.ie_list[0].ie_data.data[0], sizeof(uint8),
-			data, data_len);
-	} else {
-		(void)memcpy_s((uchar *)&ie_setbuf->ie_buffer.ie_list[0].ie_data.data[0], data_len,
-			data, data_len);
-	}
+	(void)memcpy_s((uchar *)&ie_setbuf->ie_buffer.ie_list[0].ie_data.data[0], data_len,
+		data, data_len);
 
 	if ((err = wldev_iovar_setbuf_bsscfg(ndev, "ie", ie_setbuf, buf_len,
 			cfg->ioctl_buf, WLC_IOCTL_MAXLEN, bssidx, &cfg->ioctl_buf_sync))
@@ -1355,7 +1351,7 @@ wl_escan_handler(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev,
 				goto exit;
 			}
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
-			if (p2p_scan(cfg) && cfg->scan_request &&
+			if (p2p_is_on(cfg) && p2p_scan(cfg) && cfg->scan_request &&
 				(cfg->scan_request->flags & NL80211_SCAN_FLAG_FLUSH)) {
 				WL_ERR(("scan list is changed"));
 				cfg->bss_list = wl_escan_get_buf(cfg, FALSE);
@@ -1514,8 +1510,10 @@ wl_cfgscan_notify_pfn_complete(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgd
 	BCM_REFERENCE(dhdp);
 
 #ifdef GSCAN_SUPPORT
+#ifndef DISABLE_ANDROID_GSCAN
 	err = wl_notify_gscan_event(cfg, cfgdev, e, data);
 	return err;
+#endif /* DISABLE_ANDROID_GSCAN */
 #endif
 	mutex_lock(&cfg->scan_sync);
 
@@ -1795,6 +1793,7 @@ wl_cfgscan_populate_scan_channels(struct bcm_cfg80211 *cfg,
 #ifdef P2P_SKIP_DFS
 	int is_printed = false;
 #endif /* P2P_SKIP_DFS */
+	u32 support_chanspec = 0;
 	u32 channel;
 
 	if (!channels || !n_channels) {
@@ -1818,6 +1817,11 @@ wl_cfgscan_populate_scan_channels(struct bcm_cfg80211 *cfg,
 			WL_ERR(("Invalid chanspec! Skipping channel\n"));
 			continue;
 		}
+
+		support_chanspec = wl_channel_to_chanspec(cfg->wdev->wiphy,
+			bcmcfg_to_prmry_ndev(cfg), CHSPEC_CHANNEL(chanspec), WL_CHANSPEC_BW_80);
+		if (!support_chanspec)
+			continue;
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0))
 		if (channels[i]->band == IEEE80211_BAND_60GHZ) {
@@ -2512,7 +2516,7 @@ wl_get_scan_timeout_val(struct bcm_cfg80211 *cfg)
 static s32
 wl_cfgscan_handle_scanbusy(struct bcm_cfg80211 *cfg, struct net_device *ndev, s32 err)
 {
-	s32	scanbusy_err = 0;
+	s32 scanbusy_err = 0;
 	static u32 busy_count = 0;
 
 	if (!err) {
@@ -2520,13 +2524,14 @@ wl_cfgscan_handle_scanbusy(struct bcm_cfg80211 *cfg, struct net_device *ndev, s3
 		return scanbusy_err;
 	}
 
-	if (!p2p_scan(cfg) && wl_get_drv_status_all(cfg, REMAINING_ON_CHANNEL)) {
+	if (!(cfg->p2p && p2p_scan(cfg)) &&
+		wl_get_drv_status_all(cfg, REMAINING_ON_CHANNEL)) {
 		WL_ERR(("Scan err = (%d) due to p2p scan, nothing to do\n", err));
 		busy_count = 0;
 	}
 
 	if (err == BCME_BUSY || err == BCME_NOTREADY) {
-		WL_ERR(("Scan err = (%d), busy?%d\n", err, -EBUSY));
+		WL_ERR(("Scan err = (%d), busy? %d\n", err, -EBUSY));
 		scanbusy_err = -EBUSY;
 	} else if ((err == BCME_EPERM) && cfg->scan_suppressed) {
 		WL_ERR(("Scan not permitted due to scan suppress\n"));
@@ -2997,13 +3002,18 @@ wl_cfg80211_scan(struct wiphy *wiphy, struct net_device *ndev,
 
 	err = __wl_cfg80211_scan(wiphy, ndev, request, NULL);
 	if (unlikely(err)) {
-		WL_ERR(("scan error (%d)\n", err));
-#ifdef WL_CFGVENDOR_SEND_ALERT_EVENT
 		if (err == -EBUSY) {
+			WL_DBG(("scan busy (%d)\n", err));
+#ifdef WL_CFGVENDOR_SEND_ALERT_EVENT
 			dhdp->alert_reason = ALERT_SCAN_BUSY;
+#endif /* WL_CFGVENDOR_SEND_ALERT_EVENT */
 		} else {
+			WL_ERR(("scan error (%d)\n", err));
+#ifdef WL_CFGVENDOR_SEND_ALERT_EVENT
 			dhdp->alert_reason = ALERT_SCAN_ERR;
+#endif /* WL_CFGVENDOR_SEND_ALERT_EVENT */
 		}
+#ifdef WL_CFGVENDOR_SEND_ALERT_EVENT
 		dhd_os_send_alert_message(dhdp);
 #endif /* WL_CFGVENDOR_SEND_ALERT_EVENT */
 	}
@@ -4127,7 +4137,9 @@ wl_cfg80211_sched_scan_start(struct wiphy *wiphy,
 		/* get channel list. Note PNO uses channels and not chanspecs */
 		wl_cfgscan_populate_scan_channels(cfg,
 				request->channels, request->n_channels,
-				chan_list, &num_channels, true, false);
+				chan_list, &num_channels,
+				FW_MAJOR_VER_PFN_CHSPEC_SUPPORTED(cfg->wlc_ver) ? true : false,
+				false);
 	}
 
 	if (DBG_RING_ACTIVE(dhdp, DHD_EVENT_RING_ID)) {
@@ -4416,6 +4428,21 @@ static void wl_scan_timeout(unsigned long data)
 		return;
 	}
 
+#ifdef BCMPCIE
+	/* Defer timer if D3 ACKed */
+	if (dhd_pcie_check_lps_d3_acked(dhdp)) {
+		WL_ERR(("D3 acked, defer the timer\n"));
+		mutex_lock(&cfg->scan_sync);
+		/* Defer the timer 100ms */
+		mod_timer(&cfg->scan_timeout,
+			jiffies + msecs_to_jiffies(100));
+		mutex_unlock(&cfg->scan_sync);
+		return;
+	}
+#endif /* BCMPCIE */
+	/* Wake lock 300ms to avoid suspending */
+	DHD_OS_SCAN_WAKE_LOCK_TIMEOUT(dhdp, 300);
+
 #if defined(DHD_KERNEL_SCHED_DEBUG) && defined(DHD_FW_COREDUMP)
 	if (dhdp->memdump_enabled) {
 		dhdp->hang_reason = HANG_REASON_SCAN_TIMEOUT;
@@ -4529,6 +4556,10 @@ static void wl_scan_timeout(unsigned long data)
 #if 0
 	if (!dhd_bus_get_linkdown(dhdp) && dhdp->memdump_enabled) {
 		dhdp->memdump_type = DUMP_TYPE_SCAN_TIMEOUT;
+#ifdef DHD_SSSR_DUMP
+		WL_ERR(("Set collect_sssr as TRUE\n"));
+		dhdp->collect_sssr = TRUE;
+#endif /* DHD_SSSR_DUMP */
 #ifdef BCMPCIE
 		dhd_bus_mem_dump(dhdp);
 #else

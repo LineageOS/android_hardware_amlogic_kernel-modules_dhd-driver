@@ -104,6 +104,10 @@ unsigned char gpio_direction = 0;
 #define BCMPCI_DEV_ID PCI_ANY_ID
 #endif
 
+#ifndef SYNAPCI_DEV_ID
+#define SYNAPCI_DEV_ID PCI_ANY_ID
+#endif
+
 #ifdef FORCE_TPOWERON
 extern uint32 tpoweron_scale;
 #endif /* FORCE_TPOWERON */
@@ -214,6 +218,17 @@ dhdpcie_access_cap(struct pci_dev *pdev, int cap, uint offset, bool is_ext, bool
 
 static struct pci_device_id dhdpcie_pci_devid[] __devinitdata = {
 	{ vendor: VENDOR_BROADCOM,
+	device: BCMPCI_DEV_ID,
+	subvendor: PCI_ANY_ID,
+	subdevice: PCI_ANY_ID,
+	class: PCI_CLASS_NETWORK_OTHER << 8,
+	class_mask: 0xffff00,
+	driver_data: 0,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0))
+	override_only: 0,
+#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)) */
+	},
+	{ vendor: VENDOR_SYNAPTICS,
 	device: BCMPCI_DEV_ID,
 	subvendor: PCI_ANY_ID,
 	subdevice: PCI_ANY_ID,
@@ -1412,13 +1427,13 @@ static int dhdpcie_device_scan(struct device *dev, void *data)
 	pcidev = container_of(dev, struct pci_dev, dev);
 	GCC_DIAGNOSTIC_POP();
 
-	if (pcidev->vendor != 0x14e4)
+	if ((pcidev->vendor != VENDOR_BROADCOM) && (pcidev->vendor != VENDOR_SYNAPTICS))
 		return 0;
 
-	DHD_INFO(("Found Broadcom PCI device 0x%04x\n", pcidev->device));
+	DHD_INFO(("Found Broadcom or Synaptics PCI device 0x%04x\n", pcidev->device));
 	*cnt += 1;
 	if (pcidev->driver && strcmp(pcidev->driver->name, dhdpcie_driver.name))
-		DHD_ERROR(("Broadcom PCI Device 0x%04x has allocated with driver %s\n",
+		DHD_ERROR(("Broadcom or Synaptics PCI Device 0x%04x has allocated with driver %s\n",
 			pcidev->device, pcidev->driver->name));
 
 	return 0;
@@ -1432,7 +1447,7 @@ dhdpcie_bus_register(void)
 	if (!(error = pci_register_driver(&dhdpcie_driver))) {
 		bus_for_each_dev(dhdpcie_driver.driver.bus, NULL, &error, dhdpcie_device_scan);
 		if (!error) {
-			DHD_ERROR(("No Broadcom PCI device enumerated!\n"));
+			DHD_ERROR(("No Broadcom or Synaptics PCI device enumerated!\n"));
 #ifdef DHD_PRELOAD
 			return 0;
 #endif
