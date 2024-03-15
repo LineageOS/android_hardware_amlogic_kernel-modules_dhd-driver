@@ -7615,6 +7615,8 @@ wl_cfgvendor_get_radio_stats_compat(struct bcm_cfg80211 *cfg, struct net_device 
 				radio_h_v2.num_channels = num_channels;
 			}
 
+#if 0
+//Keep the printout but do not delete it for debugging purposes
 			WL_ERR(("v2  VERSION_2\n"));
 			WL_ERR(("v2  radio_stat v1 size is = %d\n", sizeof(wifi_radio_stat_v1_t)));
 			WL_ERR(("v2  radio_stat v2 size is = %d\n", sizeof(wifi_radio_stat_h_v2)));
@@ -7629,7 +7631,7 @@ wl_cfgvendor_get_radio_stats_compat(struct bcm_cfg80211 *cfg, struct net_device 
 			WL_ERR(("v2  on_time_roam_scan = %d\n", radio_h_v2.on_time_roam_scan));
 			WL_ERR(("v2  on_time_pno_scan = %d\n", radio_h_v2.on_time_pno_scan));
 			WL_ERR(("v2  on_time_hs20 = %d\n", radio_h_v2.on_time_hs20));
-
+#endif
 
 			err = memcpy_s(out_radio_stat, avail_radio_stat_len,
 					&radio_h_v2, offsetof(compat_wifi_radio_stat, channels));
@@ -7667,7 +7669,8 @@ wl_cfgvendor_get_radio_stats_compat(struct bcm_cfg80211 *cfg, struct net_device 
 			radio_h_v2.on_time_roam_scan = radio_v1->on_time_roam_scan;
 			radio_h_v2.on_time_pno_scan = radio_v1->on_time_pno_scan;
 			radio_h_v2.on_time_hs20 = radio_v1->on_time_hs20;
-
+#if 0
+//Keep the printout but do not delete it for debugging purposes
 			WL_ERR(("v2  But Retry the VERSION_1\n"));
 			WL_ERR(("v2  radio_stat v1 size is = %d\n", sizeof(wifi_radio_stat_v1_t)));
 			WL_ERR(("v2  radio_stat v2 size is = %d\n", sizeof(wifi_radio_stat_h_v2)));
@@ -7682,7 +7685,7 @@ wl_cfgvendor_get_radio_stats_compat(struct bcm_cfg80211 *cfg, struct net_device 
 			WL_ERR(("v2  on_time_roam_scan = %d\n", radio_h_v2.on_time_roam_scan));
 			WL_ERR(("v2  on_time_pno_scan = %d\n", radio_h_v2.on_time_pno_scan));
 			WL_ERR(("v2  on_time_hs20 = %d\n", radio_h_v2.on_time_hs20));
-
+#endif
 			if (i == WL_RADIOSTAT_SLICE_INDEX_MAIN) {
 				radio_h_v2.num_channels = 0;
 			} else if (i == WL_RADIOSTAT_SLICE_INDEX_AUX) {
@@ -7710,7 +7713,8 @@ wl_cfgvendor_get_radio_stats_compat(struct bcm_cfg80211 *cfg, struct net_device 
 			radio_h.on_time_nbd = radio_v1->on_time_nbd;
 			radio_h.on_time_gscan = radio_v1->on_time_gscan;
 			radio_h.on_time_hs20 = radio_v1->on_time_hs20;
-
+#if 0
+//Keep the printout but do not delete it for debugging purposes
 			WL_ERR(("v1  VERSION_1\n"));
 			WL_ERR(("v1  radio_stat v1 size is = %d\n", sizeof(wifi_radio_stat_v1_t)));
 			WL_ERR(("v1  radio_stat v1 size is = %d\n", sizeof(wifi_radio_stat_h_v1)));
@@ -7725,7 +7729,7 @@ wl_cfgvendor_get_radio_stats_compat(struct bcm_cfg80211 *cfg, struct net_device 
 			WL_ERR(("v1  on_time_roam_scan = %d\n", radio_h.on_time_roam_scan));
 			WL_ERR(("v1  on_time_pno_scan = %d\n", radio_h.on_time_pno_scan));
 			WL_ERR(("v1  on_time_hs20 = %d\n", radio_h.on_time_hs20));
-
+#endif
 
 			err = memcpy_s(out_radio_stat, avail_radio_stat_len,
 					&radio_h, sizeof(wifi_radio_stat_h));
@@ -7860,7 +7864,8 @@ wl_cfgvendor_get_radio_stats(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 			} else {
 				radio_h_v2.num_channels = num_channels;
 			}
-
+#if 0
+//Keep the printout but do not delete it for debugging purposes
 			WL_ERR(("v2  VERSION_2\n"));
 			WL_ERR(("v2  radio_stat v1 size is = %d\n", sizeof(wifi_radio_stat_v1_t)));
 			WL_ERR(("v2  radio_stat v2 size is = %d\n", sizeof(wifi_radio_stat_h_v2)));
@@ -7875,7 +7880,7 @@ wl_cfgvendor_get_radio_stats(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 			WL_ERR(("v2  on_time_roam_scan = %d\n", radio_h_v2.on_time_roam_scan));
 			WL_ERR(("v2  on_time_pno_scan = %d\n", radio_h_v2.on_time_pno_scan));
 			WL_ERR(("v2  on_time_hs20 = %d\n", radio_h_v2.on_time_hs20));
-
+#endif
 			err = memcpy_s(out_radio_stat, avail_radio_stat_len,
 					&radio_h_v2, offsetof(wifi_radio_stat, channels));
 			if (err) {
@@ -7912,7 +7917,8 @@ wl_cfgvendor_get_radio_stats(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 			radio_h_v2.on_time_roam_scan = radio_v1->on_time_roam_scan;
 			radio_h_v2.on_time_pno_scan = radio_v1->on_time_pno_scan;
 			radio_h_v2.on_time_hs20 = radio_v1->on_time_hs20;
-
+#if 0
+//Keep the printout but do not delete it for debugging purposes
 			WL_ERR(("v2  But Retry the VERSION_1\n"));
 			WL_ERR(("v2  radio_stat v1 size is = %d\n", sizeof(wifi_radio_stat_v1_t)));
 			WL_ERR(("v2  radio_stat v2 size is = %d\n", sizeof(wifi_radio_stat_h_v2)));
@@ -7927,7 +7933,7 @@ wl_cfgvendor_get_radio_stats(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 			WL_ERR(("v2  on_time_roam_scan = %d\n", radio_h_v2.on_time_roam_scan));
 			WL_ERR(("v2  on_time_pno_scan = %d\n", radio_h_v2.on_time_pno_scan));
 			WL_ERR(("v2  on_time_hs20 = %d\n", radio_h_v2.on_time_hs20));
-
+#endif
 
 			if (i == WL_RADIOSTAT_SLICE_INDEX_MAIN) {
 				radio_h_v2.num_channels = 0;
@@ -7956,7 +7962,8 @@ wl_cfgvendor_get_radio_stats(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 			radio_h.on_time_nbd = radio_v1->on_time_nbd;
 			radio_h.on_time_gscan = radio_v1->on_time_gscan;
 			radio_h.on_time_hs20 = radio_v1->on_time_hs20;
-
+#if 0
+//Keep the printout but do not delete it for debugging purposes
 			WL_ERR(("v1  VERSION_1\n"));
 			WL_ERR(("v1  radio_stat v1 size is = %d\n", sizeof(wifi_radio_stat_v1_t)));
 			WL_ERR(("v1  radio_stat v1 size is = %d\n", sizeof(wifi_radio_stat_h_v1)));
@@ -7971,7 +7978,7 @@ wl_cfgvendor_get_radio_stats(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 			WL_ERR(("v1  on_time_roam_scan = %d\n", radio_h.on_time_roam_scan));
 			WL_ERR(("v1  on_time_pno_scan = %d\n", radio_h.on_time_pno_scan));
 			WL_ERR(("v1  on_time_hs20 = %d\n", radio_h.on_time_hs20));
-
+#endif
 			err = memcpy_s(out_radio_stat, avail_radio_stat_len,
 					&radio_h, sizeof(wifi_radio_stat_h));
 			if (err) {
