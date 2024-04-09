@@ -481,11 +481,13 @@ static void dhd_debug_uart_exec_rd(void *handle, void *event_info, u8 event);
 static void dhd_debug_uart_exec(dhd_pub_t *dhdp, char *cmd);
 #endif	/* DHD_DEBUG_UART */
 
+#ifndef CONFIG_HIBERNATION
 static int dhd_reboot_callback(struct notifier_block *this, unsigned long code, void *unused);
 static struct notifier_block dhd_reboot_notifier = {
 	.notifier_call = dhd_reboot_callback,
 	.priority = 1,
 };
+#endif
 
 #ifdef OEM_ANDROID
 #ifdef BCMPCIE
@@ -17833,7 +17835,9 @@ dhd_module_exit(void)
 	dhd_buzzz_detach();
 #endif /* DHD_BUZZZ_LOG_ENABLED */
 	dhd_module_cleanup();
+#ifndef CONFIG_HIBERNATION
 	unregister_reboot_notifier(&dhd_reboot_notifier);
+#endif
 	dhd_destroy_to_notifier_skt();
 #ifdef DHD_PKTTS
 	dhd_destroy_to_notifier_ts();
@@ -17899,7 +17903,9 @@ _dhd_module_init(void)
 	do {
 		err = dhd_wifi_platform_register_drv();
 		if (!err) {
+#ifndef CONFIG_HIBERNATION
 			register_reboot_notifier(&dhd_reboot_notifier);
+#endif
 			break;
 		} else {
 			DHD_ERROR(("%s: Failed to load the driver, try cnt %d\n",
@@ -17981,6 +17987,7 @@ dhd_module_init_hdm(void)
 }
 #endif /* DHD_SUPPORT_HDM */
 
+#ifndef CONFIG_HIBERNATION
 static int
 dhd_reboot_callback(struct notifier_block *this, unsigned long code, void *unused)
 {
@@ -17996,6 +18003,7 @@ dhd_reboot_callback(struct notifier_block *this, unsigned long code, void *unuse
 	}
 	return NOTIFY_DONE;
 }
+#endif
 
 #if defined(CONFIG_DEFERRED_INITCALLS) && !defined(EXYNOS_PCIE_MODULE_PATCH)
 /* XXX To decrease the device boot time, deferred_module_init() macro can be

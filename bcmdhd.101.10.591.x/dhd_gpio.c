@@ -76,9 +76,14 @@ dhd_wlan_set_power(int on, wifi_adapter_info_t *adapter)
 		}
 #ifdef CUSTOMER_HW_AMLOGIC
 #ifdef BCMSDIO
+		printf("###extern_wifi_set_enable(1)\n");
 		extern_wifi_set_enable(1);
-//		mdelay(200);
-//		sdio_reinit();
+#ifdef CONFIG_HIBERNATION
+		printf("###mdelay(200)\n");
+		mdelay(200);
+		printf("###sdio_reinit()\n");
+		sdio_reinit();
+#endif
 #endif
 #ifdef BCMDBUS
 		if (dhd_pwr_ctrl) {
