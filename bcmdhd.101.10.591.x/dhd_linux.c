@@ -424,11 +424,13 @@ static void dhd_debug_uart_exec_rd(void *handle, void *event_info, u8 event);
 static void dhd_debug_uart_exec(dhd_pub_t *dhdp, char *cmd);
 #endif	/* DHD_DEBUG_UART */
 
+#ifndef CONFIG_HIBERNATION
 static int dhd_reboot_callback(struct notifier_block *this, unsigned long code, void *unused);
 static struct notifier_block dhd_reboot_notifier = {
 	.notifier_call = dhd_reboot_callback,
 	.priority = 1,
 };
+#endif
 
 dhd_pub_t	*g_dhd_pub = NULL;
 
@@ -14792,7 +14794,9 @@ dhd_module_exit(void)
 	dhd_buzzz_detach();
 #endif /* DHD_BUZZZ_LOG_ENABLED */
 	dhd_module_cleanup();
+#ifndef CONFIG_HIBERNATION
 	unregister_reboot_notifier(&dhd_reboot_notifier);
+#endif
 	dhd_destroy_to_notifier_skt();
 }
 
@@ -14859,7 +14863,9 @@ _dhd_module_init(void)
 	do {
 		err = dhd_wifi_platform_register_drv();
 		if (!err) {
+#ifndef CONFIG_HIBERNATION
 			register_reboot_notifier(&dhd_reboot_notifier);
+#endif
 			dhd_create_to_notifier_skt();
 			break;
 		} else {
