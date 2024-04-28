@@ -49,12 +49,8 @@ CONFIG_BCMDHD_PROPTXSTATUS := y
 CONFIG_DHD_USE_STATIC_BUF := y
 #CONFIG_BCMDHD_STATIC_BUF_IN_DHD := y
 
-ifeq ($(CONFIG_ANDROID_14),y)
 CONFIG_BCMDHD_ANDROID_VERSION := 14
 CONFIG_BCMDHD_REQUEST_FW := y
-else
-CONFIG_BCMDHD_ANDROID_VERSION := 11
-endif
 
 CONFIG_BCMDHD_AUTO_SELECT := y
 CONFIG_BCMDHD_DEBUG := y
@@ -78,6 +74,7 @@ ifndef CONFIG_KASAN
 endif
 
 DHDCFLAGS = -Wall -Wstrict-prototypes -Wno-date-time                      \
+	-Wno-unused-but-set-variable                                          \
 	-Wno-maybe-uninitialized -Wno-error -Wno-format-security              \
 	-Wno-unknown-warning-option -Wno-sometimes-uninitialized              \
 	-Wno-parentheses-equality -Wno-implicit-fallthrough                   \
@@ -522,7 +519,7 @@ modules_install:
 
 bcmdhd_sdio:
 	$(warning "building BCMDHD_SDIO..........")
-	$(MAKE) -C $(KERNEL_SRC) M=$(M) CONFIG_DHD_USE_STATIC_BUF=y modules
+	$(MAKE) -C $(KERNEL_SRC) M=$(M) CONFIG_DHD_USE_STATIC_BUF=y CONFIG_BCMDHD_SDIO=y modules
 
 bcmdhd_usb:
 	$(warning "building BCMDHD_USB..........")
