@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2021-2023 The LineageOS Project
+# Copyright (C) 2021-2024 The LineageOS Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 LOCAL_PATH := $(call my-dir)
 
 ifeq ($(TARGET_PREBUILT_KERNEL),)
-TARGET_DHD_VERSION ?= bcmdhd.101.10.361.x
+TARGET_DHD_VERSION ?= bcmdhd.101.10.591.x
 DHD_PATH := $(abspath $(call my-dir))/$(TARGET_DHD_VERSION)
 
 include $(CLEAR_VARS)
