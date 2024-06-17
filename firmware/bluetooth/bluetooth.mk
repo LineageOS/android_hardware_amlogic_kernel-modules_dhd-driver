@@ -45,7 +45,7 @@ PRODUCT_COPY_FILES += \
     $(BLUETOOTH_FIRMWARE_PATH)/bcm4356a2/BCM4354.hcd:$(TARGET_COPY_OUT_VENDOR)/etc/bluetooth/BCM4354.hcd
 
 # bcm4359c0
-ifeq ($(TARGET_DEVICE), sabrina)
+ifneq ($(filter %sabrina,$(TARGET_PRODUCT)),)
 PRODUCT_COPY_FILES += \
     $(BLUETOOTH_FIRMWARE_PATH)/bcm4359c0/sabrina/BCM4359C0.hcd:$(TARGET_COPY_OUT_VENDOR)/etc/bluetooth/BCM4359C0.hcd
 else
