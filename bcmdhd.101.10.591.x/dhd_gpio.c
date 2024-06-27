@@ -76,7 +76,8 @@ dhd_wlan_set_power(int on, wifi_adapter_info_t *adapter)
 		}
 #ifdef CUSTOMER_HW_AMLOGIC
 #ifdef BCMSDIO
-		printf("###extern_wifi_set_enable(1)\n");
+		extern_wifi_set_enable(0);
+		mdelay(200);
 		extern_wifi_set_enable(1);
 #ifdef CONFIG_HIBERNATION
 		printf("###mdelay(200)\n");
@@ -383,6 +384,7 @@ dhd_wlan_init_gpio(wifi_adapter_info_t *adapter)
 	adapter->gpio_wl_reg_on = gpio_wl_reg_on;
 
 #ifdef CUSTOMER_OOB
+	adapter->gpio_wl_host_wake = -1;
 	if (gpio_wl_host_wake >= 0) {
 		err = gpio_request(gpio_wl_host_wake, "bcmdhd");
 		if (err < 0) {

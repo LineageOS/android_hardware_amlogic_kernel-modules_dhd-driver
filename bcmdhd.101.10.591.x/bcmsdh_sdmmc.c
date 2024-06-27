@@ -1,7 +1,26 @@
 /*
  * BCMSDH Function Driver for the native SDIO/MMC driver in the Linux Kernel
  *
- * Copyright (C) 2022, Broadcom.
+ * Copyright (C) 2024 Synaptics Incorporated. All rights reserved.
+ *
+ * This software is licensed to you under the terms of the
+ * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
+ *
+ * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND SYNAPTICS
+ * EXPRESSLY DISCLAIMS ALL EXPRESS AND IMPLIED WARRANTIES, INCLUDING ANY
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE,
+ * AND ANY WARRANTIES OF NON-INFRINGEMENT OF ANY INTELLECTUAL PROPERTY RIGHTS.
+ * IN NO EVENT SHALL SYNAPTICS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, PUNITIVE, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION
+ * WITH THE USE OF THE INFORMATION CONTAINED IN THIS DOCUMENT, HOWEVER CAUSED
+ * AND BASED ON ANY THEORY OF LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF SYNAPTICS WAS ADVISED OF
+ * THE POSSIBILITY OF SUCH DAMAGE. IF A TRIBUNAL OF COMPETENT JURISDICTION
+ * DOES NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES,
+ * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
+ * EXCEED ONE HUNDRED U.S. DOLLARS
+ *
+ * Copyright (C) 2024, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -312,9 +331,6 @@ sdioh_attach(osl_t *osh, struct sdio_func *func)
 	}
 
 	sdio_claim_host(sd->func[2]);
-	if ((func->device == BCM43362_CHIP_ID || func->device == BCM4330_CHIP_ID) &&
-			sd_f2_blocksize > 128)
-		sd_f2_blocksize = 128;
 	sd->client_block_size[2] = sd_f2_blocksize;
 	printf("%s: set sd_f2_blocksize %d\n", __FUNCTION__, sd_f2_blocksize);
 	err_ret = sdio_set_block_size(sd->func[2], sd_f2_blocksize);
@@ -861,9 +877,11 @@ sdioh_enable_hw_oob_intr(sdioh_info_t *sd, bool enable)
 	uint8 data;
 
 	if (enable) {
+#ifdef CUSTOMER_HW_AMLOGIC
 		if (wifi_irq_trigger_level() == GPIO_IRQ_LOW)
 			data = SDIO_SEPINT_MASK | SDIO_SEPINT_OE;
 		else
+#endif
 			data = SDIO_SEPINT_MASK | SDIO_SEPINT_OE | SDIO_SEPINT_ACT_HI;
 	}
 	else
@@ -1819,6 +1837,7 @@ LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32) && LINUX_VERSION_CODE < KERNEL_VE
 	mmc_power_restore_host(card->host);
 #else
 	/* sdio_reset_comm */
+	printf("%s: call sdio_reset_comm\n", __FUNCTION__);
 	err = sdio_reset_comm(card);
 #endif
 

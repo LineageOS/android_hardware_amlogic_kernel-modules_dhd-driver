@@ -1,7 +1,26 @@
 /*
  * DHD debugability support
  *
- * Copyright (C) 2022, Broadcom.
+ * Copyright (C) 2024 Synaptics Incorporated. All rights reserved.
+ *
+ * This software is licensed to you under the terms of the
+ * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
+ *
+ * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND SYNAPTICS
+ * EXPRESSLY DISCLAIMS ALL EXPRESS AND IMPLIED WARRANTIES, INCLUDING ANY
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE,
+ * AND ANY WARRANTIES OF NON-INFRINGEMENT OF ANY INTELLECTUAL PROPERTY RIGHTS.
+ * IN NO EVENT SHALL SYNAPTICS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, PUNITIVE, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION
+ * WITH THE USE OF THE INFORMATION CONTAINED IN THIS DOCUMENT, HOWEVER CAUSED
+ * AND BASED ON ANY THEORY OF LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF SYNAPTICS WAS ADVISED OF
+ * THE POSSIBILITY OF SUCH DAMAGE. IF A TRIBUNAL OF COMPETENT JURISDICTION
+ * DOES NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES,
+ * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
+ * EXCEED ONE HUNDRED U.S. DOLLARS
+ *
+ * Copyright (C) 2024, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -2497,6 +2516,7 @@ dhd_dbg_monitor_get_rx_pkts(dhd_pub_t *dhdp, void __user *user_buf,
 	if ((ret = memcpy_s(tmp_rx_pkt, alloc_len, ori_rx_pkt, alloc_len))) {
 		DHD_PKT_MON_UNLOCK(dhdp->dbg->pkt_mon_lock, flags);
 		DHD_ERROR(("%s: failed to copy tmp_rx_pkt ret:%d", __FUNCTION__, ret));
+		ret = -EINVAL;
 		goto exit;
 	}
 	for (i = 0; i < pkt_count; i++) {
@@ -2505,6 +2525,7 @@ dhd_dbg_monitor_get_rx_pkts(dhd_pub_t *dhdp, void __user *user_buf,
 		if (!tmp_rx_pkt[i].info.pkt) {
 			DHD_PKT_MON_UNLOCK(dhdp->dbg->pkt_mon_lock, flags);
 			DHD_ERROR(("%s: failed to copy skb", __FUNCTION__));
+			ret = -ENOMEM;
 			goto exit;
 		}
 	}
@@ -3381,22 +3402,14 @@ void
 dhd_dbg_detach(dhd_pub_t *dhdp)
 {
 	dhd_dbg_t *dbg;
-#if defined(DHD_DEBUGABILITY_LOG_DUMP_RING) || defined(DHD_DEBUGABILITY_EVENT_RING) || \
-	defined(DHD_PKT_LOGGING_DBGRING)
 	int ring_id;
 	dhd_dbg_ring_t *ring = NULL;
-#endif /* DHD_DEBUGABILITY_LOG_DUMP_RING || BTLOG ||
-	* DHD_DEBUGABILITY_EVENT_RING || DHD_PKT_LOGGING_DBGRING ||
-	* (DEBUGABILITY && CUSTOMER_HW6)
-	*/
 
 	dbg = dhdp->dbg;
 	if (!dbg) {
 		return;
 	}
 
-#if defined(DHD_DEBUGABILITY_LOG_DUMP_RING) || defined(DHD_DEBUGABILITY_EVENT_RING) || \
-	defined(DHD_PKT_LOGGING_DBGRING)
 	for (ring_id = DEBUG_RING_ID_INVALID + 1; ring_id < DEBUG_RING_ID_MAX; ring_id++) {
 		if (VALID_RING(dbg->dbg_rings[ring_id].id)) {
 			ring = &dbg->dbg_rings[ring_id];
@@ -3415,12 +3428,7 @@ dhd_dbg_detach(dhd_pub_t *dhdp)
 			ring->ring_size = 0;
 		}
 	}
-
 	VMFREE(dhdp->osh, dbg, sizeof(dhd_dbg_t));
-#endif /* DHD_DEBUGABILITY_LOG_DUMP_RING || BTLOG ||
-	* DHD_DEBUGABILITY_EVENT_RING || DHD_PKT_LOGGING_DBGRING ||
-	* (DEBUGABILITY && CUSTOMER_HW6)
-	*/
 #ifdef DHD_DEBUGABILITY_LOG_DUMP_RING
 	g_ring_buf.dhd_pub = NULL;
 #endif /* DHD_DEBUGABILITY_LOG_DUMP_RING */

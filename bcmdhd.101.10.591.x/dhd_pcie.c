@@ -1,7 +1,26 @@
 /*
  * DHD Bus Module for PCIE
  *
- * Copyright (C) 2022, Broadcom.
+ * Copyright (C) 2024 Synaptics Incorporated. All rights reserved.
+ *
+ * This software is licensed to you under the terms of the
+ * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
+ *
+ * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND SYNAPTICS
+ * EXPRESSLY DISCLAIMS ALL EXPRESS AND IMPLIED WARRANTIES, INCLUDING ANY
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE,
+ * AND ANY WARRANTIES OF NON-INFRINGEMENT OF ANY INTELLECTUAL PROPERTY RIGHTS.
+ * IN NO EVENT SHALL SYNAPTICS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, PUNITIVE, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION
+ * WITH THE USE OF THE INFORMATION CONTAINED IN THIS DOCUMENT, HOWEVER CAUSED
+ * AND BASED ON ANY THEORY OF LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF SYNAPTICS WAS ADVISED OF
+ * THE POSSIBILITY OF SUCH DAMAGE. IF A TRIBUNAL OF COMPETENT JURISDICTION
+ * DOES NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES,
+ * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
+ * EXCEED ONE HUNDRED U.S. DOLLARS
+ *
+ * Copyright (C) 2024, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -1000,9 +1019,6 @@ int dhdpcie_bus_attach(osl_t *osh, dhd_bus_t **bus_ptr,
 			ret = BCME_NORESOURCE;
 			break;
 		}
-#if defined(GET_OTP_MAC_ENABLE) || defined(GET_OTP_MODULE_NAME)
-		dhd_conf_get_otp(bus->dhd, bus->sih);
-#endif
 		DHD_ERROR(("%s: making DHD_BUS_DOWN\n", __FUNCTION__));
 		bus->dhd->busstate = DHD_BUS_DOWN;
 		bus->dhd->hostrdy_after_init = TRUE;
@@ -5951,9 +5967,6 @@ BCMFASTPATH(dhd_bus_schedule_queue)(struct dhd_bus  *bus, uint16 flow_id, bool t
 		unsigned long flags;
 		void *txp = NULL;
 		flow_queue_t *queue;
-#ifdef TPUT_MONITOR
-		int pktlen;
-#endif
 
 		queue = &flow_ring_node->queue; /* queue associated with flow ring */
 
@@ -5998,12 +6011,6 @@ BCMFASTPATH(dhd_bus_schedule_queue)(struct dhd_bus  *bus, uint16 flow_id, bool t
 			/* Attempt to transfer packet over flow ring */
 			/* XXX: ifidx is wrong */
 			++cnt;
-#ifdef TPUT_MONITOR
-			pktlen  = PKTLEN(OSH_NULL, txp);
-			if ((bus->dhd->conf->data_drop_mode == TXPKT_DROP) && (pktlen > 500))
-				ret = BCME_OK;
-			else
-#endif
 			ret = dhd_prot_txdata(bus->dhd, txp, flow_ring_node->flow_info.ifindex);
 			if (ret != BCME_OK) { /* may not have resources in flow ring */
 				DHD_INFO(("%s: Reinserrt %d\n", __FUNCTION__, ret));
@@ -13193,7 +13200,8 @@ BCMFASTPATH(dhd_bus_dpc)(struct dhd_bus *bus)
 INTR_ON:
 #endif /* DHD_READ_INTSTATUS_IN_DPC */
 		bus->dpc_exit_time = OSL_LOCALTIME_NS();
-		bus->dpc_time_usec = DIV_U64_BY_U64((bus->dpc_exit_time - bus->dpc_entry_time), NSEC_PER_USEC);
+		bus->dpc_time_usec = DIV_U64_BY_U64((bus->dpc_exit_time - bus->dpc_entry_time),
+			NSEC_PER_USEC);
 		if (!dhd_query_bus_erros(bus->dhd)) {
 			/* Due to irq mismatch WARNING in linux, currently keeping it disabled and
 			 * using dongle intmask to control INTR enable/disable
@@ -13209,7 +13217,8 @@ INTR_ON:
 		}
 	} else {
 		bus->resched_dpc_time = OSL_LOCALTIME_NS();
-		bus->dpc_time_usec = DIV_U64_BY_U64((bus->resched_dpc_time - bus->dpc_entry_time), NSEC_PER_USEC);
+		bus->dpc_time_usec = DIV_U64_BY_U64((bus->resched_dpc_time - bus->dpc_entry_time),
+			NSEC_PER_USEC);
 	}
 	dhd_histo_update(bus->dhd, bus->dpc_time_histo, (uint32)bus->dpc_time_usec);
 

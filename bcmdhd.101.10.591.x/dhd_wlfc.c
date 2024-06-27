@@ -1,7 +1,26 @@
 /*
  * DHD PROP_TXSTATUS Module.
  *
- * Copyright (C) 2022, Broadcom.
+ * Copyright (C) 2024 Synaptics Incorporated. All rights reserved.
+ *
+ * This software is licensed to you under the terms of the
+ * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
+ *
+ * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND SYNAPTICS
+ * EXPRESSLY DISCLAIMS ALL EXPRESS AND IMPLIED WARRANTIES, INCLUDING ANY
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE,
+ * AND ANY WARRANTIES OF NON-INFRINGEMENT OF ANY INTELLECTUAL PROPERTY RIGHTS.
+ * IN NO EVENT SHALL SYNAPTICS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, PUNITIVE, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION
+ * WITH THE USE OF THE INFORMATION CONTAINED IN THIS DOCUMENT, HOWEVER CAUSED
+ * AND BASED ON ANY THEORY OF LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF SYNAPTICS WAS ADVISED OF
+ * THE POSSIBILITY OF SUCH DAMAGE. IF A TRIBUNAL OF COMPETENT JURISDICTION
+ * DOES NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES,
+ * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
+ * EXCEED ONE HUNDRED U.S. DOLLARS
+ *
+ * Copyright (C) 2024, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -470,9 +489,9 @@ _dhd_wlfc_deque_afq(athost_wl_status_info_t* ctx, uint16 hslot, uint8 hcnt, uint
 	if (p == NULL) {
 		/* none is matched */
 		if (b) {
-			DHD_ERROR(("%s: can't find matching seq(%d)\n", __FUNCTION__, hcnt));
+			DHD_INFO(("%s: can't find matching seq(%d)\n", __FUNCTION__, hcnt));
 		} else {
-			DHD_ERROR(("%s: queue is empty\n", __FUNCTION__));
+			DHD_INFO(("%s: queue is empty\n", __FUNCTION__));
 		}
 
 		return BCME_ERROR;
@@ -506,6 +525,35 @@ _dhd_wlfc_deque_afq(athost_wl_status_info_t* ctx, uint16 hslot, uint8 hcnt, uint
 	PKTSETLINK(p, NULL);
 
 	if (pktout) {
+#ifdef DHD_HWTSTAMP
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30))
+		uint8 freeruncnt;
+
+		freeruncnt = WL_TXSTATUS_GET_FREERUNCTR(DHD_PKTTAG_H2DTAG(PKTTAG(p)));
+		DHD_INFO(("%s: htod_tag:%x, hslot:%x, entry:%p freeruncnt:%d, tsf:%08x%08x\n",
+			__func__, DHD_PKTTAG_H2DTAG(PKTTAG(p)), hslot, entry,
+			freeruncnt, entry->tsf[freeruncnt][0], entry->tsf[freeruncnt][1]));
+
+		if (dhd_hwtstamp_txtype((dhd_pub_t *)ctx->dhdp) &&
+			(skb_shinfo((struct sk_buff*)p)->tx_flags & SKBTX_HW_TSTAMP)) {
+			ktime_t tsf;
+			struct skb_shared_hwtstamps timestamp;
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
+			tsf = (s64)entry->tsf[freeruncnt][0];
+			tsf = tsf << 32 | entry->tsf[freeruncnt][1];
+			/* Convert micro sec tsf to nano sec kernel hw timestamp */
+			timestamp.hwtstamp = tsf * 1000;
+#else
+			tsf.tv64 = (s64)entry->tsf[freeruncnt][0];
+			tsf.tv64 = tsf.tv64 << 32 | entry->tsf[freeruncnt][1];
+			/* Convert micro sec tsf to nano sec kernel hw timestamp */
+			timestamp.hwtstamp.tv64 = tsf.tv64 * 1000;
+#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)) */
+			skb_tstamp_tx((struct sk_buff*)p, &timestamp);
+		}
+#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) */
+#endif /* DHD_HWTSTAMP */
 		*pktout = p;
 	}
 
@@ -946,7 +994,8 @@ _dhd_wlfc_flow_control_check(athost_wl_status_info_t* ctx, struct pktq* pq, uint
 
 	/* Return for the bc/mc and unknown destinations configured by
 	 * &wlfc->destination_entries.other to prevent from out-of-boundary access
-	 * in array (BRK exception) kernel panic issue. */
+	 * in array (BRK exception) kernel panic issue.
+	 */
 	if (if_id >= WLFC_MAX_IFNUM)
 		return;
 
@@ -1905,7 +1954,6 @@ _dhd_wlfc_mac_entry_update(athost_wl_status_info_t* ctx, wlfc_mac_descriptor_t* 
 			entry->transit_maxcount = wl_ext_get_wlfc_maxcount(ctx->dhdp, ifid);
 #endif /* PROPTX_MAXCOUNT */
 			entry->suppr_transit_count = 0;
-			entry->onbus_pkts_count = 0;
 		}
 
 		if (action == eWLFC_MAC_ENTRY_ACTION_ADD) {
@@ -3113,6 +3161,12 @@ dhd_wlfc_parse_header_info(dhd_pub_t *dhd, void* pktbuf, int tlv_hdr_len, uchar 
 	uint16 processed = 0;
 	athost_wl_status_info_t* wlfc = NULL;
 	void* entry;
+#ifdef DHD_HWTSTAMP
+	uint16 hslot;
+	uint8 freeruncnt;
+	uint32 pktdata = 0;
+	wlfc_mac_descriptor_t *node;
+#endif /* DHD_HWTSTAMP */
 
 	if ((dhd == NULL) || (pktbuf == NULL)) {
 		DHD_ERROR(("Error: %s():%d\n", __FUNCTION__, __LINE__));
@@ -3152,6 +3206,26 @@ dhd_wlfc_parse_header_info(dhd_pub_t *dhd, void* pktbuf, int tlv_hdr_len, uchar 
 
 			DHD_INFO(("%s():%d type %d remainder %d processed %d\n",
 				__FUNCTION__, __LINE__, type, remainder, processed));
+#ifdef DHD_HWTSTAMP
+			if (type == WLFC_CTL_TYPE_TX_ENTRY_STAMP) {
+				memcpy(&pktdata, value, sizeof(uint32));
+				hslot = WL_TXSTATUS_GET_HSLOT(pktdata);
+				freeruncnt = WL_TXSTATUS_GET_FREERUNCTR(pktdata);
+				if (hslot < WLFC_MAC_DESC_TABLE_SIZE) {
+					node  = &wlfc->destination_entries.nodes[hslot];
+				} else if (hslot < (WLFC_MAC_DESC_TABLE_SIZE + WLFC_MAX_IFNUM)) {
+					hslot = hslot - WLFC_MAC_DESC_TABLE_SIZE;
+					node = &wlfc->destination_entries.interfaces[hslot];
+				} else {
+					node = &wlfc->destination_entries.other;
+				}
+				memcpy(&node->tsf[freeruncnt][0], (value+4), sizeof(uint32));
+				memcpy(&node->tsf[freeruncnt][1], (value+8), sizeof(uint32));
+				DHD_INFO(("%s():%d, freeruncnt:%d, tsf:%08x%08x\n",
+					__func__, __LINE__, freeruncnt, node->tsf[freeruncnt][0],
+					node->tsf[freeruncnt][1]));
+			}
+#endif /* DHD_HWTSTAMP */
 
 			if (type == WLFC_CTL_TYPE_HOST_REORDER_RXPKTS)
 				_dhd_wlfc_reorderinfo_indicate(value, len, reorder_info_buf,
@@ -4469,14 +4543,12 @@ bool dhd_wlfc_is_header_only_pkt(dhd_pub_t * dhd, void *pktbuf)
 	dhd_os_wlfc_block(dhd);
 
 	// process for both wlfc or hostreorder case
-	if (0 == PKTLEN(dhd->osh, pktbuf)) {
+	if (PKTLEN(dhd->osh, pktbuf) == 0) {
 		rc = TRUE;
 
-		if (   (dhd->wlfc_state)
-		    && (   (WLFC_FCMODE_IMPLIED_CREDIT == dhd->proptxstatus_mode)
-		        || (WLFC_FCMODE_EXPLICIT_CREDIT == dhd->proptxstatus_mode)
-		       )
-		   ) {
+		if ((dhd->wlfc_state) &&
+			((WLFC_FCMODE_IMPLIED_CREDIT == dhd->proptxstatus_mode) ||
+			(WLFC_FCMODE_EXPLICIT_CREDIT == dhd->proptxstatus_mode))) {
 			athost_wl_status_info_t* wlfc;
 
 			wlfc = (athost_wl_status_info_t*)dhd->wlfc_state;

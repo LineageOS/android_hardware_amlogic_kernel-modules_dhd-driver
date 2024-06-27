@@ -1,7 +1,26 @@
 /*
  * DHD Bus Module for SDIO
  *
- * Copyright (C) 2022, Broadcom.
+ * Copyright (C) 2024 Synaptics Incorporated. All rights reserved.
+ *
+ * This software is licensed to you under the terms of the
+ * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
+ *
+ * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND SYNAPTICS
+ * EXPRESSLY DISCLAIMS ALL EXPRESS AND IMPLIED WARRANTIES, INCLUDING ANY
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE,
+ * AND ANY WARRANTIES OF NON-INFRINGEMENT OF ANY INTELLECTUAL PROPERTY RIGHTS.
+ * IN NO EVENT SHALL SYNAPTICS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, PUNITIVE, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION
+ * WITH THE USE OF THE INFORMATION CONTAINED IN THIS DOCUMENT, HOWEVER CAUSED
+ * AND BASED ON ANY THEORY OF LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF SYNAPTICS WAS ADVISED OF
+ * THE POSSIBILITY OF SUCH DAMAGE. IF A TRIBUNAL OF COMPETENT JURISDICTION
+ * DOES NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES,
+ * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
+ * EXCEED ONE HUNDRED U.S. DOLLARS
+ *
+ * Copyright (C) 2024, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -661,27 +680,10 @@ static const uint max_roundup = 512;
 /* Try doing readahead */
 static bool dhd_readahead;
 
-#if defined(BCMSDIOH_TXGLOM_EXT)
-bool
-dhdsdio_is_dataok(dhd_bus_t *bus) {
-	return (((uint8)(bus->tx_max - bus->tx_seq) - bus->dhd->conf->tx_max_offset > 1) && \
-	(((uint8)(bus->tx_max - bus->tx_seq) & 0x80) == 0));
-}
-
-uint8
-dhdsdio_get_databufcnt(dhd_bus_t *bus) {
-	return ((uint8)(bus->tx_max - bus->tx_seq) - 1 - bus->dhd->conf->tx_max_offset);
-}
-#endif
-
 /* To check if there's window offered */
-#if defined(BCMSDIOH_TXGLOM_EXT)
-#define DATAOK(bus) dhdsdio_is_dataok(bus)
-#else
 #define DATAOK(bus) \
 	(((uint8)(bus->tx_max - bus->tx_seq) > 1) && \
 	(((uint8)(bus->tx_max - bus->tx_seq) & 0x80) == 0))
-#endif
 
 /* To check if there's window offered for ctrl frame */
 #define TXCTLOK(bus) \
@@ -689,12 +691,8 @@ dhdsdio_get_databufcnt(dhd_bus_t *bus) {
 	(((uint8)(bus->tx_max - bus->tx_seq) & 0x80) == 0))
 
 /* Number of pkts available in dongle for data RX */
-#if defined(BCMSDIOH_TXGLOM_EXT)
-#define DATABUFCNT(bus) dhdsdio_get_databufcnt(bus)
-#else
 #define DATABUFCNT(bus) \
 	((uint8)(bus->tx_max - bus->tx_seq) - 1)
-#endif
 
 /* Macros to get register read/write status */
 /* NOTE: these assume a local dhdsdio_bus_t *bus! */
@@ -836,11 +834,7 @@ static int dhd_bcmsdh_send_buf(dhd_bus_t *bus, uint32 addr, uint fn, uint flags,
 static int dhdsdio_txpkt(dhd_bus_t *bus, uint chan, void** pkts, int num_pkt, bool free_pkt);
 static int dhdsdio_txpkt_preprocess(dhd_bus_t *bus, void *pkt, int chan, int txseq,
 	int prev_chain_total_len, bool last_chained_pkt,
-	int *pad_pkt_len, void **new_pkt
-#if defined(BCMSDIOH_TXGLOM_EXT)
-	, int first_frame
-#endif
-);
+	int *pad_pkt_len, void **new_pkt);
 static int dhdsdio_txpkt_postprocess(dhd_bus_t *bus, void *pkt);
 
 static int dhdsdio_download_firmware(dhd_bus_t *bus, osl_t *osh, void *sdh);
@@ -1035,10 +1029,6 @@ dhdsdio_sr_cap(dhd_bus_t *bus)
 	if (
 		0) {
 			core_capext = FALSE;
-	} else if ((bus->sih->chip == BCM4330_CHIP_ID) ||
-		(bus->sih->chip == BCM43362_CHIP_ID) ||
-		(BCM4347_CHIP(bus->sih->chip))) {
-			core_capext = FALSE;
 	} else if ((bus->sih->chip == BCM4335_CHIP_ID) ||
 		(bus->sih->chip == BCM4339_CHIP_ID) ||
 		BCM4345_CHIP(bus->sih->chip) ||
@@ -1046,7 +1036,6 @@ dhdsdio_sr_cap(dhd_bus_t *bus)
 		(bus->sih->chip == BCM4356_CHIP_ID) ||
 		(bus->sih->chip == BCM4358_CHIP_ID) ||
 		(bus->sih->chip == BCM43569_CHIP_ID) ||
-		(bus->sih->chip == BCM4371_CHIP_ID) ||
 		(BCM4349_CHIP(bus->sih->chip))		||
 		(bus->sih->chip == BCM4350_CHIP_ID) ||
 		(bus->sih->chip == BCM4362_CHIP_ID) ||
@@ -1078,7 +1067,6 @@ dhdsdio_sr_cap(dhd_bus_t *bus)
 		(bus->sih->chip == BCM4356_CHIP_ID) ||
 		(bus->sih->chip == BCM4358_CHIP_ID) ||
 		(bus->sih->chip == BCM43569_CHIP_ID) ||
-		(bus->sih->chip == BCM4371_CHIP_ID) ||
 		(bus->sih->chip == BCM4350_CHIP_ID)) {
 		uint32 enabval = 0;
 		addr = SI_ENUM_BASE(bus->sih) + OFFSETOF(chipcregs_t, chipcontrol_addr);
@@ -1096,8 +1084,7 @@ dhdsdio_sr_cap(dhd_bus_t *bus)
 			(bus->sih->chip == BCM4354_CHIP_ID) ||
 			(bus->sih->chip == BCM4356_CHIP_ID) ||
 			(bus->sih->chip == BCM4358_CHIP_ID) ||
-			(bus->sih->chip == BCM43569_CHIP_ID) ||
-			(bus->sih->chip == BCM4371_CHIP_ID))
+			(bus->sih->chip == BCM43569_CHIP_ID))
 			enabval &= CC_CHIPCTRL3_SR_ENG_ENABLE;
 
 		/* XXX: not checking the CC_PMUCC3_SRCC_SR_ENG_ENAB bit [val 4], but
@@ -2484,11 +2471,7 @@ dhd_bus_txdata(struct dhd_bus *bus, void *pkt)
  */
 static int dhdsdio_txpkt_preprocess(dhd_bus_t *bus, void *pkt, int chan, int txseq,
 	int prev_chain_total_len, bool last_chained_pkt,
-	int *pad_pkt_len, void **new_pkt
-#if defined(BCMSDIOH_TXGLOM_EXT)
-	, int first_frame
-#endif
-)
+	int *pad_pkt_len, void **new_pkt)
 {
 	osl_t *osh;
 	uint8 *frame;
@@ -2689,10 +2672,6 @@ static int dhdsdio_txpkt_preprocess(dhd_bus_t *bus, void *pkt, int chan, int txs
 	 * referred to in sdioh_request_buffer(). The tail length will be excluded in
 	 * dhdsdio_txpkt_postprocess().
 	 */
-#if defined(BCMSDIOH_TXGLOM_EXT)
-	if (bus->dhd->conf->txglom_bucket_size)
-		tail_padding = 0;
-#endif
 	*(uint16*)frame = (uint16)htol16(pkt_len);
 	*(((uint16*)frame) + 1) = (uint16)htol16(~pkt_len);
 	pkt_len += tail_padding;
@@ -2701,43 +2680,13 @@ static int dhdsdio_txpkt_preprocess(dhd_bus_t *bus, void *pkt, int chan, int txs
 	if (bus->txglom_enable) {
 		uint32 hwheader1;
 		uint32 hwheader2;
-#ifdef BCMSDIOH_TXGLOM_EXT
-		uint32 act_len = pkt_len - tail_padding;
-		uint32 real_pad = 0;
-		if(bus->dhd->conf->txglom_ext && !last_chained_pkt) {
-			tail_padding = 0;
-			if(first_frame == 0) {
-				// first pkt, add pad to bucket size - recv offset
-				pkt_len = bus->dhd->conf->txglom_bucket_size - TXGLOM_RECV_OFFSET;
-			} else {
-				// add pad to bucket size
-				pkt_len = bus->dhd->conf->txglom_bucket_size;
-			}
-			swhdr_offset += SDPCM_HWEXT_LEN;
-			hwheader1 = (act_len - SDPCM_FRAMETAG_LEN) | (last_chained_pkt << 24);
-			hwheader2 = (pkt_len - act_len) << 16;
-			htol32_ua_store(hwheader1, frame + SDPCM_FRAMETAG_LEN);
-			htol32_ua_store(hwheader2, frame + SDPCM_FRAMETAG_LEN + 4);
-			real_pad = pkt_len - act_len;
 
-			if (PKTTAILROOM(osh, pkt) < real_pad) {
-				DHD_INFO(("%s : insufficient tailroom %d for %d real_pad\n",
-					__func__, (int)PKTTAILROOM(osh, pkt), real_pad));
-				if (PKTPADTAILROOM(osh, pkt, real_pad)) {
-					DHD_ERROR(("CHK1: padding error size %d\n", real_pad));
-				} else
-					frame = (uint8 *)PKTDATA(osh, pkt);
-			}
-		} else
-#endif
-		{
-			swhdr_offset += SDPCM_HWEXT_LEN;
-			hwheader1 = (pkt_len - SDPCM_FRAMETAG_LEN - tail_padding) |
-				(last_chained_pkt << 24);
-			hwheader2 = (tail_padding) << 16;
-			htol32_ua_store(hwheader1, frame + SDPCM_FRAMETAG_LEN);
-			htol32_ua_store(hwheader2, frame + SDPCM_FRAMETAG_LEN + 4);
-		}
+		swhdr_offset += SDPCM_HWEXT_LEN;
+		hwheader1 = (pkt_len - SDPCM_FRAMETAG_LEN - tail_padding) |
+			(last_chained_pkt << 24);
+		hwheader2 = (tail_padding) << 16;
+		htol32_ua_store(hwheader1, frame + SDPCM_FRAMETAG_LEN);
+		htol32_ua_store(hwheader2, frame + SDPCM_FRAMETAG_LEN + 4);
 	}
 	PKTSETLEN((osh), (pkt), (pkt_len));
 
@@ -2834,11 +2783,7 @@ static int dhdsdio_txpkt(dhd_bus_t *bus, uint chan, void** pkts, int num_pkt, bo
 		ASSERT(pkt);
 		last_pkt = (i == num_pkt - 1);
 		pkt_len = dhdsdio_txpkt_preprocess(bus, pkt, chan, bus->tx_seq + i,
-			total_len, last_pkt, &pad_pkt_len, &new_pkt
-#if defined(BCMSDIOH_TXGLOM_EXT)
-			, i
-#endif
-		);
+			total_len, last_pkt, &pad_pkt_len, &new_pkt);
 		if (pkt_len <= 0) {
 			if (new_pkt)
 				PKTFREE(osh, new_pkt, TRUE);
@@ -2881,11 +2826,6 @@ static int dhdsdio_txpkt(dhd_bus_t *bus, uint chan, void** pkts, int num_pkt, bo
 	 * so it will take the aligned length and buffer pointer.
 	 */
 	pkt_chain = PKTNEXT(osh, head_pkt) ? head_pkt : NULL;
-#ifdef TPUT_MONITOR
-	if ((bus->dhd->conf->data_drop_mode == TXPKT_DROP) && (total_len > 500))
-		ret = BCME_OK;
-	else
-#endif
 	ret = dhd_bcmsdh_send_buf(bus, bcmsdh_cur_sbwad(sdh), SDIO_FUNC_2, F2SYNC,
 		PKTDATA(osh, head_pkt), total_len, pkt_chain, NULL, NULL, TXRETRIES);
 	if (ret == BCME_OK)
@@ -4713,7 +4653,7 @@ dhdsdio_doiovar(dhd_bus_t *bus, const bcm_iovar_t *vi, uint32 actionid, const ch
 		if (bus->dhd->up) {
 			if (bus->intr) {
 				DHD_INTR(("%s: enable SDIO device interrupts\n", __FUNCTION__));
-				// terence 20141207: enbale intdis
+				// terence 20141207: enable intdis
 				bus->intdis = TRUE;
 				bcmsdh_intr_enable(bus->sdh);
 			} else {
@@ -5296,13 +5236,6 @@ dhdsdio_write_vars(dhd_bus_t *bus)
 	/* Even if there are no vars are to be written, we still need to set the ramsize. */
 	varsize = bus->varsz ? ROUNDUP(bus->varsz, 4) : 0;
 	varaddr = (bus->ramsize - 4) - varsize;
-
-	// terence 20150412: fix for nvram failed to download
-	if (bus->dhd->conf->chip == BCM43340_CHIP_ID ||
-			bus->dhd->conf->chip == BCM43341_CHIP_ID) {
-		varsize = varsize ? ROUNDUP(varsize, 64) : 0;
-		varaddr = (bus->ramsize - 64) - varsize;
-	}
 
 	varaddr += bus->dongle_ram_base;
 	bus->ramtop_addr = varaddr;
@@ -6312,11 +6245,13 @@ dhd_bus_stop(struct dhd_bus *bus, bool enforce_mutex)
 
 		/* Force clocks on backplane to be sure F2 interrupt propagates */
 #ifdef DHD_SI_WD_RESET
-		if (!bus->dhd->si_wd) {
+		if (!bus->dhd->si_wd)
 #else
-		if (1) {
+		if (1)
 #endif
-			saveclk = bcmsdh_cfg_read(bus->sdh, SDIO_FUNC_1, SBSDIO_FUNC1_CHIPCLKCSR, &err);
+		{
+			saveclk = bcmsdh_cfg_read(bus->sdh, SDIO_FUNC_1,
+					SBSDIO_FUNC1_CHIPCLKCSR, &err);
 			if (!err) {
 				bcmsdh_cfg_write(bus->sdh, SDIO_FUNC_1, SBSDIO_FUNC1_CHIPCLKCSR,
 						(saveclk | SBSDIO_FORCE_HT), &err);
@@ -6337,7 +6272,8 @@ dhd_bus_stop(struct dhd_bus *bus, bool enforce_mutex)
 #ifdef DHD_SI_WD_RESET
 		if (!bus->dhd->si_wd)
 #endif
-			bcmsdh_cfg_write(bus->sdh, SDIO_FUNC_0, SDIOD_CCCR_IOEN, SDIO_FUNC_ENABLE_1, NULL);
+			bcmsdh_cfg_write(bus->sdh, SDIO_FUNC_0, SDIOD_CCCR_IOEN,
+					SDIO_FUNC_ENABLE_1, NULL);
 #endif /* !BCMSPI */
 
 		/* Clear any pending interrupts now that F2 is disabled */
@@ -6472,11 +6408,6 @@ dhd_bus_init(dhd_pub_t *dhdp, bool enforce_mutex)
 
 	if (enforce_mutex)
 		dhd_os_sdlock(bus->dhd);
-
-	if (bus->sih->chip == BCM43362_CHIP_ID) {
-		printf("%s: delay 100ms for BCM43362\n", __FUNCTION__);
-		OSL_DELAY(100000); // terence 20131209: delay for 43362
-	}
 
 	/* Make sure backplane clock is on, needed to generate F2 interrupt */
 	dhdsdio_clkctl(bus, CLK_AVAIL, FALSE);
@@ -8625,10 +8556,6 @@ exit:
 		}
 	}
 
-#ifdef TPUT_MONITOR
-	dhd_conf_tput_monitor(bus->dhd);
-#endif
-
 	if (bus->ctrl_wait && TXCTLOK(bus))
 		wake_up_interruptible(&bus->ctrl_tx_wait);
 	dhd_os_sdunlock(bus->dhd);
@@ -9561,18 +9488,6 @@ dhd_dump_cis(uint fn, uint8 *cis)
 static bool
 dhdsdio_chipmatch(uint16 chipid)
 {
-	if (chipid == BCM4330_CHIP_ID)
-		return TRUE;
-	if (chipid == BCM43362_CHIP_ID)
-		return TRUE;
-	if (chipid == BCM43340_CHIP_ID)
-		return TRUE;
-	if (chipid == BCM43341_CHIP_ID)
-		return TRUE;
-	if (chipid == BCM4334_CHIP_ID)
-		return TRUE;
-	if (chipid == BCM4324_CHIP_ID)
-		return TRUE;
 	if (chipid == BCM4335_CHIP_ID)
 		return TRUE;
 	if (chipid == BCM4339_CHIP_ID)
@@ -9588,8 +9503,6 @@ dhdsdio_chipmatch(uint16 chipid)
 	if (chipid == BCM4358_CHIP_ID)
 		return TRUE;
 	if (chipid == BCM43569_CHIP_ID)
-		return TRUE;
-	if (chipid == BCM4371_CHIP_ID)
 		return TRUE;
 	if (chipid == BCM43430_CHIP_ID)
 		return TRUE;
@@ -9960,6 +9873,10 @@ dhdsdio_probe_attach(struct dhd_bus *bus, osl_t *osh, void *sdh, void *regsva,
 #ifdef DHD_DEBUG
 	DHD_ERROR(("F1 signature OK, socitype:0x%x chip:0x%4x rev:0x%x pkg:0x%x\n",
 		bus->sih->socitype, bus->sih->chip, bus->sih->chiprev, bus->sih->chippkg));
+	if (CHIPID(bus->sih->chip) == BCM4381_CHIP_GRPID ||
+		CHIPID(bus->sih->chip) == BCM4382_CHIP_GRPID) {
+		bcmsdh_reg_write(bus->sdh, 0x18010040, 2, 0x7);
+	}
 #endif /* DHD_DEBUG */
 
 	/* XXX Let the layers below dhd know the chipid and chiprev for
@@ -10018,7 +9935,6 @@ dhdsdio_probe_attach(struct dhd_bus *bus, osl_t *osh, void *sdh, void *regsva,
 			case BCM4356_CHIP_ID:
 			case BCM4358_CHIP_ID:
 			case BCM43569_CHIP_ID:
-			case BCM4371_CHIP_ID:
 				bus->dongle_ram_base = CR4_4350_RAM_BASE;
 				break;
 			case BCM4360_CHIP_ID:
@@ -10498,7 +10414,8 @@ dhdsdio_release_dongle(dhd_bus_t *bus, osl_t *osh, bool dongle_isolation, bool r
 		/* In Win10, system will be BSOD if using "sysprep" to do OS image */
 		/* Skip this will not cause the BSOD. */
 #if defined(DHD_SI_WD_RESET) || (!defined(BCMLXSDMMC) && !defined(NDIS))
-		if (CHIPID(bus->sih->chip) == BCM4381_CHIP_GRPID) {
+		if (CHIPID(bus->sih->chip) == BCM4381_CHIP_GRPID ||
+			CHIPID(bus->sih->chip) == BCM4382_CHIP_GRPID) {
 			/* XXX - Using the watchdog to reset the chip does not allow
 			 * further SDIO communication.  For the SDMMC Driver, this
 			 * causes interrupt to not be de-registered properly.
@@ -10509,7 +10426,9 @@ dhdsdio_release_dongle(dhd_bus_t *bus, osl_t *osh, bool dongle_isolation, bool r
 			}
 			if (KSO_ENAB(bus) && (dongle_isolation == FALSE)) {
 				si_watchdog(bus->sih, 4);
-				DHD_ERROR(("%s: after si_watchdog, dongle is going to be released\n", __FUNCTION__));
+				DHD_ERROR(("%s: after si_watchdog, "
+					"dongle is going to be released\n",
+					__FUNCTION__));
 #if defined(DHD_SI_WD_RESET)
 				DHD_ERROR(("%s: set si_wd TRUE\n", __FUNCTION__));
 				bus->dhd->si_wd = TRUE;
@@ -10518,10 +10437,7 @@ dhdsdio_release_dongle(dhd_bus_t *bus, osl_t *osh, bool dongle_isolation, bool r
 		}
 #endif /* !defined(BCMLXSDMMC) */
 		if (bus->dhd) {
-#ifdef DHD_SI_WD_RESET
-			if (!bus->dhd->si_wd)
-#endif
-				dhdsdio_clkctl(bus, CLK_NONE, FALSE);
+			dhdsdio_clkctl(bus, CLK_NONE, FALSE);
 		}
 		si_detach(bus->sih);
 		bus->sih = NULL;
@@ -10682,6 +10598,32 @@ dhdsdio_resume(void *context)
 	return 0;
 }
 
+#ifdef DEVICE_PM_CALLBACK
+static int
+dhdsdio_prepare(void *context)
+{
+	int err = 0;
+#if defined(LINUX)
+	dhd_bus_t *bus = (dhd_bus_t*)context;
+	err = dhd_pm_callback(bus->dhd, 1, NULL);
+#endif /* LINUX */
+
+	return err;
+}
+
+static int
+dhdsdio_complete(void *context)
+{
+	int err = 0;
+#if defined(LINUX)
+	dhd_bus_t *bus = (dhd_bus_t*)context;
+	err = dhd_pm_callback(bus->dhd, 0, NULL);
+#endif /* LINUX */
+
+	return err;
+}
+#endif /* DEVICE_PM_CALLBACK */
+
 /* Register/Unregister functions are called by the main DHD entry
  * point (e.g. module insertion) to link with the bus driver, in
  * order to look for or await the device.
@@ -10691,7 +10633,11 @@ static bcmsdh_driver_t dhd_sdio = {
 	dhdsdio_probe,
 	dhdsdio_disconnect,
 	dhdsdio_suspend,
-	dhdsdio_resume
+	dhdsdio_resume,
+#ifdef DEVICE_PM_CALLBACK
+	dhdsdio_prepare,
+	dhdsdio_complete,
+#endif /* DEVICE_PM_CALLBACK */
 };
 
 int
@@ -11036,14 +10982,6 @@ dhdsdio_download_code_file(struct dhd_bus *bus, char *pfw_path)
 
 	/* Download image */
 	while ((len = dhd_os_get_image_block((char*)memptr, memblock_size, image))) {
-		// terence 20150412: fix for firmware failed to download
-		if (bus->dhd->conf->chip == BCM43340_CHIP_ID ||
-				bus->dhd->conf->chip == BCM43341_CHIP_ID) {
-			if (len % 64 != 0) {
-				memset(memptr+len, 0, len%64);
-				len += (64 - len%64);
-			}
-		}
 		if (len < 0) {
 			DHD_ERROR(("%s: dhd_os_get_image_block failed (%d)\n", __FUNCTION__, len));
 			bcmerror = BCME_ERROR;
@@ -11562,7 +11500,8 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 		if (!bus->dhd->dongle_reset) {
 			DHD_ERROR(("%s: == Power OFF ==\n", __FUNCTION__));
 #ifdef DHD_SI_WD_RESET
-			if (CHIPID(bus->sih->chip) == BCM4381_CHIP_GRPID) {
+			if (CHIPID(bus->sih->chip) == BCM4381_CHIP_GRPID ||
+				CHIPID(bus->sih->chip) == BCM4382_CHIP_GRPID) {
 				DHD_ERROR(("%s: RESET PMU status\n", __FUNCTION__));
 				bcmsdh_reg_write(bus->sdh, 0x18012618, 4, 0x64fffff);
 				OSL_DELAY(100);
@@ -11685,9 +11624,6 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 			bcmerror = dhd_bus_resume(dhdp, 1);
 			if (bcmerror)
 				return bcmerror;
-#if defined(HW_OOB) || defined(FORCE_WOWLAN)
-			dhd_conf_set_hw_oob_intr(bus->sdh, bus->sih); // terence 20120615: fix for OOB initial issue
-#endif
 			if ((bcmerror = dhd_bus_start(dhdp)) != 0)
 				DHD_ERROR(("%s: dhd_bus_start fail with %d\n",
 					__FUNCTION__, bcmerror));

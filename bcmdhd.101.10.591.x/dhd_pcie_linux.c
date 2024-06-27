@@ -1,7 +1,26 @@
 /*
  * Linux DHD Bus Module for PCIE
  *
- * Copyright (C) 2022, Broadcom.
+ * Copyright (C) 2024 Synaptics Incorporated. All rights reserved.
+ *
+ * This software is licensed to you under the terms of the
+ * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
+ *
+ * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND SYNAPTICS
+ * EXPRESSLY DISCLAIMS ALL EXPRESS AND IMPLIED WARRANTIES, INCLUDING ANY
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE,
+ * AND ANY WARRANTIES OF NON-INFRINGEMENT OF ANY INTELLECTUAL PROPERTY RIGHTS.
+ * IN NO EVENT SHALL SYNAPTICS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, PUNITIVE, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION
+ * WITH THE USE OF THE INFORMATION CONTAINED IN THIS DOCUMENT, HOWEVER CAUSED
+ * AND BASED ON ANY THEORY OF LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF SYNAPTICS WAS ADVISED OF
+ * THE POSSIBILITY OF SUCH DAMAGE. IF A TRIBUNAL OF COMPETENT JURISDICTION
+ * DOES NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES,
+ * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
+ * EXCEED ONE HUNDRED U.S. DOLLARS
+ *
+ * Copyright (C) 2024, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -277,7 +296,9 @@ static const struct dev_pm_ops dhd_pcie_pm_ops = {
 #endif
 
 static struct pci_driver dhdpcie_driver = {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 8, 0))
 	node:		{&dhdpcie_driver.node, &dhdpcie_driver.node},
+#endif /* LINUX_VERSION_CODE < 6.8.0 */
 	name:		"pcieh"BUS_TYPE,
 	id_table:	dhdpcie_pci_devid,
 	probe:		dhdpcie_pci_probe,
@@ -750,7 +771,8 @@ static int dhdpcie_pci_suspend(struct device *dev)
 		if ((timeleft == 0) || (timeleft == 1)) {
 			DHD_ERROR(("%s: Timed out dhd_bus_busy_state=0x%x\n",
 				__FUNCTION__, bus->dhd->dhd_bus_busy_state));
-			return -EBUSY;
+			ret = -EBUSY;
+			goto exit;
 		}
 	} else {
 		DHD_BUS_BUSY_SET_SUSPEND_IN_PROGRESS(bus->dhd);
@@ -764,6 +786,7 @@ static int dhdpcie_pci_suspend(struct device *dev)
 	if (!bus->dhd->dongle_reset)
 		ret = dhdpcie_set_suspend_resume(bus, TRUE);
 
+exit:
 	DHD_GENERAL_LOCK(bus->dhd, flags);
 	DHD_BUS_BUSY_CLEAR_SUSPEND_IN_PROGRESS(bus->dhd);
 	dhd_os_busbusy_wake(bus->dhd);
