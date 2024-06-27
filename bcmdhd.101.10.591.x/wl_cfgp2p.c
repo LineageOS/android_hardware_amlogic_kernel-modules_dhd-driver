@@ -1,7 +1,26 @@
 /*
  * Linux cfgp2p driver
  *
- * Copyright (C) 2022, Broadcom.
+ * Copyright (C) 2024 Synaptics Incorporated. All rights reserved.
+ *
+ * This software is licensed to you under the terms of the
+ * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
+ *
+ * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND SYNAPTICS
+ * EXPRESSLY DISCLAIMS ALL EXPRESS AND IMPLIED WARRANTIES, INCLUDING ANY
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE,
+ * AND ANY WARRANTIES OF NON-INFRINGEMENT OF ANY INTELLECTUAL PROPERTY RIGHTS.
+ * IN NO EVENT SHALL SYNAPTICS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, PUNITIVE, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION
+ * WITH THE USE OF THE INFORMATION CONTAINED IN THIS DOCUMENT, HOWEVER CAUSED
+ * AND BASED ON ANY THEORY OF LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF SYNAPTICS WAS ADVISED OF
+ * THE POSSIBILITY OF SUCH DAMAGE. IF A TRIBUNAL OF COMPETENT JURISDICTION
+ * DOES NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES,
+ * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
+ * EXCEED ONE HUNDRED U.S. DOLLARS
+ *
+ * Copyright (C) 2024, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -1349,7 +1368,7 @@ u32
 wl_cfgp2p_vndr_ie(struct bcm_cfg80211 *cfg, u8 *iebuf, s32 pktflag,
             s8 *oui, s32 ie_id, const s8 *data, s32 datalen, const s8* add_del_cmd)
 {
-	vndr_ie_setbuf_t *hdr;  /* aligned temporary vndr_ie buffer header */
+	vndr_ie_setbuf_t *hdr;	/* aligned temporary vndr_ie buffer header */
 	s32 iecount;
 	u32 data_offset;
 	u8 buf[VNDR_IE_SET_ONE_BUF_LEN];
@@ -1371,7 +1390,7 @@ wl_cfgp2p_vndr_ie(struct bcm_cfg80211 *cfg, u8 *iebuf, s32 pktflag,
 
 	/* Set the IE count - the buffer contains only 1 IE */
 	iecount = htod32(1);
-	memcpy((void *)&hdr->vndr_ie_buffer.iecount, &iecount, sizeof(s32));
+	hdr->vndr_ie_buffer.iecount = iecount;
 
 	/* For vendor ID DOT11_MNG_ID_EXT_ID, need to set pkt flag to VNDR_IE_CUSTOM_FLAG */
 	if (ie_id == DOT11_MNG_ID_EXT_ID) {
@@ -1380,7 +1399,9 @@ wl_cfgp2p_vndr_ie(struct bcm_cfg80211 *cfg, u8 *iebuf, s32 pktflag,
 
 	/* Copy packet flags that indicate which packets will contain this IE */
 	pktflag = htod32(pktflag);
+
 	hdr->vndr_ie_buffer.vndr_ie_list[0].pktflag = pktflag;
+
 	/* Add the IE ID to the buffer */
 	hdr->vndr_ie_buffer.vndr_ie_list[0].vndr_ie_data.id = ie_id;
 
@@ -1398,11 +1419,10 @@ wl_cfgp2p_vndr_ie(struct bcm_cfg80211 *cfg, u8 *iebuf, s32 pktflag,
 
 	/* Copy the IE data to the IE buffer */
 	data_offset =
-		(u8*)&hdr->vndr_ie_buffer.vndr_ie_list[0].vndr_ie_data.data[0] -
+		(u8*)&(hdr->vndr_ie_buffer.vndr_ie_list[0].vndr_ie_data.data[0]) -
 		(u8*)hdr;
 	memcpy(iebuf + data_offset, data, datalen);
 	return data_offset + datalen;
-
 }
 
 struct net_device *
@@ -2904,7 +2924,7 @@ wl_cfgp2p_stop_p2p_device(struct wiphy *wiphy, struct wireless_dev *wdev)
 
 	p2p_on(cfg) = false;
 
-	printf("Exit. P2P interface stopped\n");
+	printf("P2P interface stopped\n");
 
 	return;
 }
@@ -2953,7 +2973,7 @@ wl_cfgp2p_del_p2p_disc_if(struct wireless_dev *wdev, struct bcm_cfg80211 *cfg)
 
 	cfg->p2p_wdev = NULL;
 
-	CFGP2P_ERR(("P2P interface unregistered\n"));
+	printf("P2P interface unregistered\n");
 
 	return 0;
 }

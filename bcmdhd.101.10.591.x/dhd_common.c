@@ -1,7 +1,26 @@
 /*
  * Broadcom Dongle Host Driver (DHD), common DHD core.
  *
- * Copyright (C) 2022, Broadcom.
+ * Copyright (C) 2024 Synaptics Incorporated. All rights reserved.
+ *
+ * This software is licensed to you under the terms of the
+ * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
+ *
+ * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND SYNAPTICS
+ * EXPRESSLY DISCLAIMS ALL EXPRESS AND IMPLIED WARRANTIES, INCLUDING ANY
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE,
+ * AND ANY WARRANTIES OF NON-INFRINGEMENT OF ANY INTELLECTUAL PROPERTY RIGHTS.
+ * IN NO EVENT SHALL SYNAPTICS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, PUNITIVE, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION
+ * WITH THE USE OF THE INFORMATION CONTAINED IN THIS DOCUMENT, HOWEVER CAUSED
+ * AND BASED ON ANY THEORY OF LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF SYNAPTICS WAS ADVISED OF
+ * THE POSSIBILITY OF SUCH DAMAGE. IF A TRIBUNAL OF COMPETENT JURISDICTION
+ * DOES NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES,
+ * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
+ * EXCEED ONE HUNDRED U.S. DOLLARS
+ *
+ * Copyright (C) 2024, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -6580,6 +6599,22 @@ pattern_atoh_len(char *src, char *dst, int len)
 #endif /* PKT_FILTER_SUPPORT || DHD_PKT_LOGGING */
 
 #ifdef PKT_FILTER_SUPPORT
+
+int
+dhd_pktfilter_mode_change(dhd_pub_t * dhd, int enable)
+{
+	int   rc = 0;
+    uint  operation_mode = PKT_FILTER_MODE_DISABLE;
+
+    operation_mode =  dhd_master_mode
+                       | ((enable)?(0):(PKT_FILTER_MODE_DISABLE));
+
+    /* Contorl the master mode */
+    rc = dhd_wl_ioctl_set_intiovar(dhd, "pkt_filter_mode", operation_mode, WLC_SET_VAR, TRUE, 0);
+
+	return rc;
+}
+
 void
 dhd_pktfilter_offload_enable(dhd_pub_t * dhd, char *arg, int enable, int master_mode)
 {
@@ -7023,6 +7058,14 @@ void
 dhd_arp_offload_enable(dhd_pub_t * dhd, int arp_enable)
 {
 	int retcode;
+
+#ifdef DISABLE_ARP_OFFLOAD_ON_SOFTAP
+	/* IF SoftAP is enabled, do NOT enable ARP Offload */
+	if (dhd->pfaoe_enab && (dhd->op_mode & DHD_FLAG_HOSTAP_MODE) && arp_enable) {
+		DHD_ERROR(("%s: Skip enabling ARP offload when SoftAP is enabled\n", __FUNCTION__));
+		return;
+	}
+#endif /* DISABLE_ARP_OFFLOAD_ON_SOFTAP */
 
 	if (!dhd->arpol_configured) {
 		/* If arpol is not applied, apply it */
@@ -7853,7 +7896,7 @@ int dhd_keep_alive_onoff(dhd_pub_t *dhd)
 {
 	char				buf[32] = {0};
 	const char			*str;
-	wl_mkeep_alive_pkt_v1_t mkeep_alive_pkt;
+	wl_mkeep_alive_pkt_v1_t	mkeep_alive_pkt;
 	wl_mkeep_alive_pkt_v1_t	*mkeep_alive_pktp;
 	int					buf_len;
 	int					str_len;

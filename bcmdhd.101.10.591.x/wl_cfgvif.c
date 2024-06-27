@@ -1,7 +1,26 @@
 /*
  * Wifi Virtual Interface implementaion
  *
- * Copyright (C) 2022, Broadcom.
+ * Copyright (C) 2024 Synaptics Incorporated. All rights reserved.
+ *
+ * This software is licensed to you under the terms of the
+ * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
+ *
+ * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND SYNAPTICS
+ * EXPRESSLY DISCLAIMS ALL EXPRESS AND IMPLIED WARRANTIES, INCLUDING ANY
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE,
+ * AND ANY WARRANTIES OF NON-INFRINGEMENT OF ANY INTELLECTUAL PROPERTY RIGHTS.
+ * IN NO EVENT SHALL SYNAPTICS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, PUNITIVE, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION
+ * WITH THE USE OF THE INFORMATION CONTAINED IN THIS DOCUMENT, HOWEVER CAUSED
+ * AND BASED ON ANY THEORY OF LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF SYNAPTICS WAS ADVISED OF
+ * THE POSSIBILITY OF SUCH DAMAGE. IF A TRIBUNAL OF COMPETENT JURISDICTION
+ * DOES NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES,
+ * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
+ * EXCEED ONE HUNDRED U.S. DOLLARS
+ *
+ * Copyright (C) 2024, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -354,6 +373,34 @@ wl_cfg80211_check_vif_in_use(struct net_device *ndev)
 	return FALSE;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
+void
+wl_cfgvif_delayed_remove_iface_work(struct work_struct *work)
+{
+	struct bcm_cfg80211 *cfg = NULL;
+	struct net_device *ndev;
+
+	BCM_SET_CONTAINER_OF(cfg, work, struct bcm_cfg80211, remove_iface_work.work);
+
+	if (cfg->if_event_info.ifidx) {
+		ndev = bcmcfg_to_prmry_ndev(cfg);
+
+#ifdef BCMDONGLEHOST
+		dhd_net_if_lock(ndev);
+#endif /* BCMDONGLEHOST */
+		rtnl_lock();
+		/* Remove interface except for primary ifidx */
+		wl_cfg80211_remove_if(cfg, cfg->if_event_info.ifidx, ndev, FALSE);
+		rtnl_unlock();
+
+#ifdef BCMDONGLEHOST
+		dhd_net_if_unlock(ndev);
+#endif /* BCMDONGLEHOST */
+	}
+	return;
+}
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0) */
+
 #ifdef WL_IFACE_MGMT_CONF
 #ifdef WL_IFACE_MGMT
 static s32
@@ -501,9 +548,11 @@ wl_cfg80211_get_sec_iface(struct bcm_cfg80211 *cfg)
 	p2p_ndev = wl_to_p2p_bss_ndev(cfg,
 		P2PAPI_BSSCFG_CONNECTION1);
 
+#ifndef P2P_AP_CONCURRENT
 	if (dhd->op_mode & DHD_FLAG_HOSTAP_MODE) {
 		return WL_IF_TYPE_AP;
 	}
+#endif
 
 	if (p2p_ndev && p2p_ndev->ieee80211_ptr) {
 		if (p2p_ndev->ieee80211_ptr->iftype == NL80211_IFTYPE_P2P_GO) {
@@ -923,25 +972,38 @@ wl_release_vif_macaddr(struct bcm_cfg80211 *cfg, const u8 *mac_addr, u16 wl_ifty
 	}
 #endif /* SPECIFIC_MAC_GEN_SCHEME */
 
-	/* Fetch last two bytes of mac address */
-	org_toggle_bytes = ntoh16(*((u16 *)&ndev->dev_addr[4]));
-	cur_toggle_bytes = ntoh16(*((const u16 *)&mac_addr[4]));
+#ifdef WL_NAN
+	if (!((cfg->nancfg->mac_rand) && (wl_iftype == WL_IF_TYPE_NAN)) &&
+#if defined(WL_STATIC_IF) && (defined(DHD_USE_RANDMAC) || defined(WL_SOFTAP_RAND))
+		/* interface delete is invalid for static interface */
+		(!IS_CFG80211_STATIC_IF(cfg, ndev)) &&
+#endif /* WL_STATIC_IF && (DHD_USE_RANDMAC || WL_SOFTAP_RAND) */
+		(TRUE))
+#endif /* WL_NAN */
+	{
+		/* Fetch last two bytes of mac address */
+		org_toggle_bytes = (*((const u16 *)&ndev->dev_addr[4]));
+		org_toggle_bytes = ntoh16(org_toggle_bytes);
+		cur_toggle_bytes = *((const u16 *)&mac_addr[4]);
+		cur_toggle_bytes = ntoh16(cur_toggle_bytes);
 
-	toggled_bit = (org_toggle_bytes ^ cur_toggle_bytes);
-	WL_DBG(("org_toggle_bytes:%04X cur_toggle_bytes:%04X\n",
-		org_toggle_bytes, cur_toggle_bytes));
-	if (toggled_bit & cfg->vif_macaddr_mask) {
-		/* This toggled_bit is marked in the used mac addr
-		 * mask. Clear it.
-		 */
-		cfg->vif_macaddr_mask &= ~toggled_bit;
-		WL_INFORM(("MAC address - " MACDBG " released. toggled_bit:%04X vif_mask:%04X\n",
-			MAC2STRDBG(mac_addr), toggled_bit, cfg->vif_macaddr_mask));
-	} else {
-		WL_ERR(("MAC address - " MACDBG " not found in the used list."
-			" toggled_bit:%04x vif_mask:%04x\n", MAC2STRDBG(mac_addr),
-			toggled_bit, cfg->vif_macaddr_mask));
-		return -EINVAL;
+		toggled_bit = (org_toggle_bytes ^ cur_toggle_bytes);
+		WL_DBG(("org_toggle_bytes:%04X cur_toggle_bytes:%04X\n",
+			org_toggle_bytes, cur_toggle_bytes));
+		if (toggled_bit & cfg->vif_macaddr_mask) {
+			/* This toggled_bit is marked in the used mac addr
+			 * mask. Clear it.
+			 */
+			cfg->vif_macaddr_mask &= ~toggled_bit;
+			WL_INFORM(("MAC address - " MACDBG " released. toggled_bit:%04X"
+				" vif_mask:%04X\n",
+				MAC2STRDBG(mac_addr), toggled_bit, cfg->vif_macaddr_mask));
+		} else {
+			WL_ERR(("MAC address - " MACDBG " not found in the used list."
+				" toggled_bit:%04x vif_mask:%04x\n", MAC2STRDBG(mac_addr),
+				toggled_bit, cfg->vif_macaddr_mask));
+			return -EINVAL;
+		}
 	}
 
 	return BCME_OK;
@@ -959,10 +1021,40 @@ wl_get_vif_macaddr(struct bcm_cfg80211 *cfg, u16 wl_iftype, u8 *mac_addr)
 	u32 offset = 0;
 	/* Toggle mask starts from MSB of second last byte */
 	u16 mask = 0x8000;
+	int i = 0;
+	bool rand_mac = false;
+
+	BCM_REFERENCE(i);
+	BCM_REFERENCE(rand_mac);
 
 	if (!mac_addr) {
 		return -EINVAL;
 	}
+
+#ifdef WL_NAN
+	rand_mac = cfg->nancfg->mac_rand;
+	if (wl_iftype == WL_IF_TYPE_NAN && rand_mac) {
+		/* ensure nmi != ndi */
+		do {
+			RANDOM_BYTES(mac_addr, ETHER_ADDR_LEN);
+			/* restore mcast and local admin bits to 0 and 1 */
+			ETHER_SET_UNICAST(mac_addr);
+			ETHER_SET_LOCALADDR(mac_addr);
+			i++;
+			if (i == NAN_RAND_MAC_RETRIES) {
+				break;
+			}
+		} while (eacmp(cfg->nancfg->nan_nmi_mac, mac_addr) == 0);
+
+		if (i == NAN_RAND_MAC_RETRIES) {
+			if (eacmp(cfg->nancfg->nan_nmi_mac, mac_addr) == 0) {
+				WL_ERR(("\nCouldn't generate rand NDI which != NMI\n"));
+				return BCME_NORESOURCE;
+			}
+		}
+		return BCME_OK;
+	}
+#endif /* WL_NAN */
 
 	if (cfg->p2p) {
 		p2p_dev_addr = wl_to_p2p_bss_macaddr(cfg, P2PAPI_BSSCFG_DEVICE);
@@ -972,7 +1064,7 @@ wl_get_vif_macaddr(struct bcm_cfg80211 *cfg, u16 wl_iftype, u8 *mac_addr)
 		ETHER_IS_LOCALADDR(p2p_dev_addr)) {
 		/* If mac address is already generated return the mac */
 		(void)memcpy_s(mac_addr, ETH_ALEN, p2p_dev_addr->octet, ETH_ALEN);
-		return 0;
+		return BCME_OK;
 	}
 	(void)memcpy_s(mac_addr, ETH_ALEN, ndev->perm_addr, ETH_ALEN);
 /*
@@ -1030,7 +1122,7 @@ wl_get_vif_macaddr(struct bcm_cfg80211 *cfg, u16 wl_iftype, u8 *mac_addr)
 		} while (true);
 	}
 	WL_INFORM_MEM(("Get virtual I/F mac addr: "MACDBG"\n", MAC2STRDBG(mac_addr)));
-	return 0;
+	return BCME_OK;
 }
 
 bcm_struct_cfgdev *
@@ -1301,7 +1393,7 @@ wl_cfg80211_change_virtual_iface(struct wiphy *wiphy, struct net_device *ndev,
 	wl_cfg80211_iface_state_ops(ndev->ieee80211_ptr,
 		WL_IF_CHANGE_REQ, wl_iftype, wl_mode);
 
-#if defined(BCMDONGLEHOST)
+#if defined (BCMDONGLEHOST)
 	if (dhd_query_bus_erros(dhd)) {
 		WL_ERR(("bus error before changing role!\n"));
 		err = -EINVAL;
@@ -4582,8 +4674,16 @@ s32
 wl_cfg80211_change_beacon(
 	struct wiphy *wiphy,
 	struct net_device *dev,
-	struct cfg80211_beacon_data *info)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 7, 0))
+	struct cfg80211_ap_update *ap_info
+#else
+	struct cfg80211_beacon_data *info
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 7, 0) */
+)
 {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 7, 0))
+	struct cfg80211_beacon_data *info = &ap_info->beacon;
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 7, 0) */
 	s32 err = BCME_OK;
 	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
 	struct parsed_ies ies;
@@ -5977,7 +6077,9 @@ wl_cfg80211_ch_switch_notify(struct net_device *dev, uint16 chanspec, struct wip
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION (3, 8, 0))
 	freq = chandef.chan ? chandef.chan->center_freq : chandef.center_freq1;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0) || \
+	((ANDROID_VERSION >= 14) && (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 144))) || \
+	((ANDROID_VERSION == 13) && (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 94)))
 	cfg80211_ch_switch_notify(dev, &chandef, 0, 0);
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 2) || defined(CFG80211_BKPORT_MLO)
 	cfg80211_ch_switch_notify(dev, &chandef, 0);
@@ -6383,31 +6485,40 @@ static int
 _wl_update_ap_rps_params(struct net_device *dev)
 {
 	struct bcm_cfg80211 *cfg = NULL;
-	rpsnoa_iovar_params_t iovar;
+	rpsnoa_iovar_params_t *iovar = NULL;
 	u8 smbuf[WLC_IOCTL_SMLEN];
 
 	if (!dev)
 		return BCME_BADARG;
 
 	cfg = wl_get_cfg(dev);
+	iovar = (rpsnoa_iovar_params_t *)MALLOCZ(cfg->osh,
+		sizeof(rpsnoa_iovar_params_t) +
+		1 * sizeof(rpsnoa_param_t));
 
-	bzero(&iovar, sizeof(iovar));
+	if (iovar == NULL) {
+		return BCME_NOMEM;
+	}
 	bzero(smbuf, sizeof(smbuf));
 
-	iovar.hdr.ver = RADIO_PWRSAVE_VERSION;
-	iovar.hdr.subcmd = WL_RPSNOA_CMD_PARAMS;
-	iovar.hdr.len = sizeof(iovar);
-	iovar.param->band = WLC_BAND_ALL;
-	iovar.param->level = cfg->ap_rps_info.level;
-	iovar.param->stas_assoc_check = cfg->ap_rps_info.sta_assoc_check;
-	iovar.param->pps = cfg->ap_rps_info.pps;
-	iovar.param->quiet_time = cfg->ap_rps_info.quiet_time;
+	iovar->hdr.ver = RADIO_PWRSAVE_VERSION;
+	iovar->hdr.subcmd = WL_RPSNOA_CMD_PARAMS;
+	iovar->hdr.len = sizeof(iovar);
+	iovar->param->band = WLC_BAND_ALL;
+	iovar->param->level = cfg->ap_rps_info.level;
+	iovar->param->stas_assoc_check = cfg->ap_rps_info.sta_assoc_check;
+	iovar->param->pps = cfg->ap_rps_info.pps;
+	iovar->param->quiet_time = cfg->ap_rps_info.quiet_time;
 
 	if (wldev_iovar_setbuf(dev, "rpsnoa", &iovar, sizeof(iovar),
 		smbuf, sizeof(smbuf), NULL)) {
 		WL_ERR(("Failed to set rpsnoa params"));
 		return BCME_ERROR;
 	}
+
+	MFREE(cfg->osh, iovar,
+		sizeof(rpsnoa_iovar_params_t) +
+		1 * sizeof(rpsnoa_param_t));
 
 	return BCME_OK;
 }
@@ -8049,6 +8160,11 @@ wl_cfg80211_static_if_close(struct net_device *net)
 
 		if (unlikely(ret)) {
 			WL_ERR(("Del iface failed for static_if %d\n", ret));
+			/* on critical errors the cfg80211_del API would trigger hang event
+			 * for WiFi to reset. However, the driver need to return okay to allow the
+			 * kernel to clear the IFF_UP flags.
+			 */
+			ret = BCME_OK;
 		}
 	}
 

@@ -1,7 +1,26 @@
 /*
  * BCMSDH Function Driver for the native SDIO/MMC driver in the Linux Kernel
  *
- * Copyright (C) 2022, Broadcom.
+ * Copyright (C) 2024 Synaptics Incorporated. All rights reserved.
+ *
+ * This software is licensed to you under the terms of the
+ * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
+ *
+ * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND SYNAPTICS
+ * EXPRESSLY DISCLAIMS ALL EXPRESS AND IMPLIED WARRANTIES, INCLUDING ANY
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE,
+ * AND ANY WARRANTIES OF NON-INFRINGEMENT OF ANY INTELLECTUAL PROPERTY RIGHTS.
+ * IN NO EVENT SHALL SYNAPTICS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, PUNITIVE, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION
+ * WITH THE USE OF THE INFORMATION CONTAINED IN THIS DOCUMENT, HOWEVER CAUSED
+ * AND BASED ON ANY THEORY OF LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF SYNAPTICS WAS ADVISED OF
+ * THE POSSIBILITY OF SUCH DAMAGE. IF A TRIBUNAL OF COMPETENT JURISDICTION
+ * DOES NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES,
+ * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
+ * EXCEED ONE HUNDRED U.S. DOLLARS
+ *
+ * Copyright (C) 2024, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -297,9 +316,52 @@ static int bcmsdh_sdmmc_resume(struct device *pdev)
 	return 0;
 }
 
+#ifdef DEVICE_PM_CALLBACK
+static int bcmsdh_sdmmc_prepare(struct device *pdev)
+{
+	int err;
+	sdioh_info_t *sdioh;
+	struct sdio_func *func = dev_to_sdio_func(pdev);
+
+	printf("%s Enter func->num=%d\n", __FUNCTION__, func->num);
+	if (func->num != 2)
+		return 0;
+
+	sdioh = sdio_get_drvdata(func);
+	err = bcmsdh_prepare(sdioh->bcmsdh);
+	if (err) {
+		printf("%s bcmsdh_suspend err=%d\n", __FUNCTION__, err);
+		return err;
+	}
+
+	printf("%s Exit\n", __FUNCTION__);
+	return 0;
+}
+
+static void bcmsdh_sdmmc_complete(struct device *pdev)
+{
+	sdioh_info_t *sdioh;
+	struct sdio_func *func = dev_to_sdio_func(pdev);
+
+	printf("%s Enter func->num=%d\n", __FUNCTION__, func->num);
+	if (func->num != 2)
+		return ;
+
+	sdioh = sdio_get_drvdata(func);
+	bcmsdh_complete(sdioh->bcmsdh);
+
+	printf("%s Exit\n", __FUNCTION__);
+	return ;
+}
+#endif /* DEVICE_PM_CALLBACK */
+
 static const struct dev_pm_ops bcmsdh_sdmmc_pm_ops = {
 	.suspend	= bcmsdh_sdmmc_suspend,
 	.resume		= bcmsdh_sdmmc_resume,
+#ifdef DEVICE_PM_CALLBACK
+	.prepare	= bcmsdh_sdmmc_prepare,
+	.complete	= bcmsdh_sdmmc_complete,
+#endif /* DEVICE_PM_CALLBACK */
 };
 #endif  /* (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 39)) && defined(CONFIG_PM_SLEEP) */
 
@@ -312,11 +374,12 @@ static int dummy_probe(struct sdio_func *func,
 	if (func)
 		sd_err(("%s: func->num=0x%x; \n", __FUNCTION__, func->num));
 	if (id) {
-		sd_err(("%s: class=0x%x; vendor=0x%x; device=0x%x\n", __FUNCTION__,
-			id->class, id->vendor, id->device));
 		if ((id->vendor != SDIO_VENDOR_ID_BROADCOM) &&
-			(id->vendor != SDIO_VENDOR_ID_SYNAPTICS))
+			(id->vendor != SDIO_VENDOR_ID_SYNAPTICS)) {
+				sd_err(("%s: class=0x%x; vendor=0x%x; device=0x%x\n", __FUNCTION__,
+					id->class, id->vendor, id->device));
 				return -ENODEV;
+		}
 	}
 
 	if (func && (func->num != 2)) {
