@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-WIFI_FIRMWARE_PATH := hardware/amlogic/kernel-modules/dhd-driver/firmware/wifi
+WIFI_FIRMWARE_PATH := kernel/amlogic/kernel-modules/dhd-driver/firmware/wifi
 
 # bcm4339a0_ag ap6335
 PRODUCT_COPY_FILES += \

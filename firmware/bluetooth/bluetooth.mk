@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-BLUETOOTH_FIRMWARE_PATH := hardware/amlogic/kernel-modules/dhd-driver/firmware/bluetooth
+BLUETOOTH_FIRMWARE_PATH := kernel/amlogic/kernel-modules/dhd-driver/firmware/bluetooth
 
 # bcm2076b1
 PRODUCT_COPY_FILES += \
