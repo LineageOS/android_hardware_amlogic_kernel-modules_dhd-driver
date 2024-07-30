@@ -4405,6 +4405,10 @@ dhd_conf_read_others(dhd_pub_t *dhd, char *full_param, uint len_param)
 			CONFIG_MSG("bw_cap 5g = %d\n", conf->bw_cap[1]);
 		}
 	}
+	else if (!strncmp("mapsta_mode=", full_param, len_param)) {
+		conf->mapsta_mode = (uint)simple_strtol(data, NULL, 0);
+		CONFIG_MSG("mapsta_mode = %d\n", conf->mapsta_mode);
+	}
 	else if (!strncmp("keep_alive_period=", full_param, len_param)) {
 		conf->keep_alive_period = (uint)simple_strtol(data, NULL, 10);
 		CONFIG_MSG("keep_alive_period = %d\n", conf->keep_alive_period);
@@ -5205,6 +5209,7 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 	dhd_conf_free_preinit(dhd);
 	conf->band = -1;
 	memset(&conf->bw_cap, -1, sizeof(conf->bw_cap));
+	conf->mapsta_mode = 0;
 	if (conf->chip == BCM4345_CHIP_ID || conf->chip == BCM4359_CHIP_ID ||
 			conf->chip == BCM43569_CHIP_ID ||
 			conf->chip == BCM4375_CHIP_ID) {
@@ -5241,6 +5246,9 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 	conf->keep_alive_period = 30000;
 #ifdef ARP_OFFLOAD_SUPPORT
 	conf->garp = FALSE;
+#endif
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 2))
+	wl_reassoc_support = TRUE;
 #endif
 	conf->force_wme_ac = 0;
 	memset(&conf->wme_sta, 0, sizeof(wme_param_t));

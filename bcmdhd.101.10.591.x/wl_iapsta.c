@@ -6882,6 +6882,9 @@ wl_ext_iapsta_get_mapsta_mode(struct net_device *net)
 		mapsta_mode = MCHAN_APSTA_NOT_ALLOW;
 	}
 
+	if (dhd->conf->mapsta_mode > 0)
+		mapsta_mode = dhd->conf->mapsta_mode;
+
 	if (mapsta_mode == MCHAN_APSTA_SBSC)
 		apsta_params->rsdb = 1;
 	else if (mapsta_mode == MCHAN_APSTA_NO_RESTRICT)

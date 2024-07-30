@@ -6285,8 +6285,14 @@ int wl_cfg80211_cleanup_mismatch_status(struct net_device *dev, struct bcm_cfg80
 	while (wl_get_drv_status(cfg, DISCONNECTING, dev) && wait_cnt) {
 		WL_DBG(("Waiting for disconnection terminated, wait_cnt: %d\n",
 			wait_cnt));
+		if (mutex_is_locked(&cfg->connect_sync)) {
+			mutex_unlock(&cfg->connect_sync);
+		}
 		wait_cnt--;
 		OSL_SLEEP(10);
+		if (!mutex_is_locked(&cfg->connect_sync)) {
+			mutex_lock(&cfg->connect_sync);
+		}
 	}
 
 	if (wait_cnt == 0) {
@@ -18807,7 +18813,8 @@ void wl_cfg80211_detach(struct bcm_cfg80211 *cfg)
 	wl_add_remove_pm_enable_work(cfg, WL_PM_WORKQ_DEL);
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
-	cancel_delayed_work_sync(&cfg->remove_iface_work);
+	if (delayed_work_pending(&cfg->remove_iface_work))
+		cancel_delayed_work_sync(&cfg->remove_iface_work);
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0) */
 
 #if defined(OEM_ANDROID)
@@ -22943,7 +22950,9 @@ wl_cfg80211_set_if_band(struct net_device *ndev, int band)
 {
 	struct bcm_cfg80211 *cfg = wl_get_cfg(ndev);
 	int ret = BCME_OK, wait_cnt;
+#ifdef WL_IF_BAND
 	char ioctl_buf[32];
+#endif /* WL_IF_BAND */
 
 	if ((band < WLC_BAND_AUTO) || (band > WLC_BAND_2G)) {
 		WL_ERR(("Invalid band\n"));
@@ -22979,17 +22988,21 @@ wl_cfg80211_set_if_band(struct net_device *ndev, int band)
 			}
 		}
 	}
+#ifdef WL_IF_BAND
 	if ((ret = wldev_iovar_setbuf(ndev, "if_band", &band,
 			sizeof(int), ioctl_buf, sizeof(ioctl_buf), NULL)) < 0) {
 		WL_ERR(("seting if_band failed ret=%d\n", ret));
 		/* issue 'WLC_SET_BAND' if if_band is not supported */
 		if (ret == BCME_UNSUPPORTED) {
+#endif /* WL_IF_BAND */
 			ret = wldev_set_band(ndev, band);
 			if (ret < 0) {
 				WL_ERR(("seting band failed ret=%d\n", ret));
 			}
+#ifdef WL_IF_BAND
 		}
 	}
+#endif /* WL_IF_BAND */
 
 	if (ret == BCME_OK) {
 		cfg->ncho_band = band;

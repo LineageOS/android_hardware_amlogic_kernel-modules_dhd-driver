@@ -156,10 +156,6 @@ struct wl_ibss;
 #endif /* WL_SAE */
 #endif /* WL_CLIENT_SAE */
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0) && !defined(WL_SAE))
-#define WL_SAE
-#endif /* LINUX_VERSION_CODE >= (4, 17, 0) && !(WL_SAE) */
-
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)) && !defined(WL_DISABLE_SCAN_TYPE) && \
 	!defined(WL_SCAN_TYPE)
 #define WL_SCAN_TYPE
