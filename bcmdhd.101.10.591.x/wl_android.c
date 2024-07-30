@@ -1406,13 +1406,17 @@ wl_android_get_band(struct net_device *dev, char *command, int total_len)
 	struct bcm_cfg80211 *cfg = wl_get_cfg(dev);
 #endif /* WL_6G_BAND */
 
+#ifdef WL_IF_BAND
 	error = wldev_iovar_getint(dev, "if_band", &band);
 	if (error == BCME_UNSUPPORTED) {
+#endif /* WL_IF_BAND */
 		error = wldev_get_band(dev, &band);
 		if (error) {
 			return BCME_ERROR;
 		}
+#ifdef WL_IF_BAND
 	}
+#endif /* WL_IF_BAND */
 
 	/* Changed Band types to Band Definition */
 	switch (band) {

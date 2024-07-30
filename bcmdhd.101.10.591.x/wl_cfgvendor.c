@@ -7996,9 +7996,9 @@ wl_cfgvendor_get_radio_stats(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 			radio_h.on_time_pno_scan = (uint32)(radio_v1->on_time_pno_scan / 1000);
 			radio_h.on_time_hs20 = radio_v1->on_time_hs20;
 			if (i == (cfg->num_radios - 1)) {
-				radio_h_v2.num_channels = num_channels;
+				radio_h.num_channels = num_channels;
 			} else {
-				radio_h_v2.num_channels = 0;
+				radio_h.num_channels = 0;
 			}
 			err = memcpy_s(out_radio_stat, avail_radio_stat_len,
 					&radio_h, sizeof(wifi_radio_stat_h));

@@ -215,6 +215,7 @@ typedef struct dhd_conf {
 	int ioctl_ver;
 	int band;
 	int bw_cap[2];
+	int mapsta_mode;
 	wl_country_t cspec;
 	uint roam_off;
 	uint roam_off_suspend;
