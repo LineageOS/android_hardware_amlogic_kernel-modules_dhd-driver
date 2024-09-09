@@ -65,16 +65,17 @@ struct wifi_platform_data {
 	void *(*mem_prealloc)(int section, unsigned long size);
 #endif
 	int (*get_mac_addr)(unsigned char *buf, int ifidx);
-#ifdef BCMSDIO
+#ifdef DHD_USE_HOST_WAKE
 	int (*get_wake_irq)(void);
-#endif
+	int (*get_oob_gpio_level)(void);
+#endif /* DHD_USE_HOST_WAKE */
 #ifdef CUSTOM_FORCE_NODFS_FLAG
 	void *(*get_country_code)(char *ccode, u32 flags);
 #else /* defined (CUSTOM_FORCE_NODFS_FLAG) */
 	void *(*get_country_code)(char *ccode);
 #endif
 };
-#endif
+#endif /* CONFIG_WIFI_CONTROL_FUNC */
 
 #include <linux/pci.h>
 

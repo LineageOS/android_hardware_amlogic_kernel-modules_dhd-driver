@@ -742,7 +742,7 @@ wl_cfg80211_clear_iw_ie(struct bcm_cfg80211 *cfg, struct net_device *ndev, s32 b
 	WL_DBG(("clear interworking IE\n"));
 
 	ie_setbuf = (ie_setbuf_t *)buf;
-	bzero(ie_setbuf, sizeof(ie_setbuf_t));
+	bzero(ie_setbuf, IE_SET_ONE_BUF_LEN);
 
 	ie_setbuf->ie_buffer.iecount = htod32(1);
 	ie_setbuf->ie_buffer.ie_list[0].ie_data.id = DOT11_MNG_INTERWORKING_ID;
@@ -782,7 +782,8 @@ wl_cfg80211_add_iw_ie(struct bcm_cfg80211 *cfg, struct net_device *ndev, s32 bss
 		return BCME_BADARG;
 	}
 
-	buf_len = sizeof(ie_setbuf_t) + data_len - 1;
+	/* Add sizeof(ie_info_t) in case BCM_FLEX_ARRAY is empty. */
+	buf_len = IE_SET_ONE_BUF_LEN + data_len - 1;
 
 	ie_getbufp.id = DOT11_MNG_INTERWORKING_ID;
 	if (wldev_iovar_getbuf_bsscfg(ndev, "ie", (void *)&ie_getbufp,
@@ -1534,7 +1535,7 @@ wl_cfgscan_notify_pfn_complete(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgd
 	err = wl_notify_gscan_event(cfg, cfgdev, e, data);
 	return err;
 #endif /* DISABLE_ANDROID_GSCAN */
-#endif
+#endif /* GSCAN_SUPPORT */
 	mutex_lock(&cfg->scan_sync);
 
 	if (!cfg->sched_scan_req) {

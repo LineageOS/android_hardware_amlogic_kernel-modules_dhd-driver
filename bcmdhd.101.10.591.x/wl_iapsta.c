@@ -879,6 +879,7 @@ wl_ext_radar_detect(struct net_device *dev)
 	if ((ret = wldev_ioctl(dev, WLC_GET_RADAR, &val, sizeof(int), false) == 0)) {
 		radar = TRUE;
 	}
+	IAPSTA_INFO(dev->name, "radar=%d\n", radar);
 
 	return radar;
 }
@@ -2427,26 +2428,6 @@ wl_ext_update_wlfc_maxcount(struct dhd_pub *dhd)
 #endif /* PROPTX_MAXCOUNT */
 
 #ifdef WL_CFG80211
-static struct wl_if_info *
-wl_ext_get_dfs_master_if(struct wl_apsta_params *apsta_params)
-{
-	struct wl_if_info *cur_if = NULL;
-	struct wl_chan_info chan_info;
-	int i;
-
-	for (i=0; i<MAX_IF_NUM; i++) {
-		cur_if = &apsta_params->if_info[i];
-		if (!cur_if->dev || !wl_ext_master_if(cur_if))
-			continue;
-		memset(&chan_info, 0, sizeof(struct wl_chan_info));
-		wl_ext_get_chan(cur_if->dev, &chan_info);
-		if (chan_info.chan && wl_ext_dfs_chan(&chan_info)) {
-			return cur_if;
-		}
-	}
-	return NULL;
-}
-
 static void
 wl_ext_save_master_channel(struct wl_apsta_params *apsta_params,
 	struct wl_if_info *cur_if, struct wl_chan_info *post_chan_info)
@@ -2506,46 +2487,21 @@ wl_ext_iapsta_restart_master(struct net_device *dev)
 {
 	dhd_pub_t *dhd = dhd_get_pub(dev);
 	struct wl_apsta_params *apsta_params = dhd->iapsta_params;
-	struct wl_if_info *ap_if = NULL, *tmp_if = NULL;
-	struct wl_chan_info chan_info;
-	int i;
+	struct wl_if_info *ap_if = NULL;
+	struct wl_chan_info cur_chan_info;
 
-	if (apsta_params->radar)
-		return;
-
-	ap_if = wl_ext_get_dfs_master_if(apsta_params);
+	ap_if = wl_ext_if_enabled(apsta_params, IAP_MODE);
 	if (!ap_if)
 		return;
 
-	for (i=0; i<MAX_IF_NUM; i++) {
-		tmp_if = &apsta_params->if_info[i];
-		if (tmp_if && tmp_if->ifmode == ISTA_MODE &&
-				wl_get_isam_status(tmp_if, IF_READY)) {
-			memset(&chan_info, 0, sizeof(struct wl_chan_info));
-			wl_ext_get_chan(tmp_if->dev, &chan_info);
-			if (wl_ext_same_chan(&chan_info, &tmp_if->chan_info)) {
-				return;
-			}
-		}
-	}
-	if (ap_if) {
-		uint16 chan_2g, chan_5g;
-		WL_MSG(tmp_if->ifname, "move DFS channel interface\n");
+	wl_ext_get_chanspec(ap_if->dev, &ap_if->chan_info);
+	memcpy(&cur_chan_info, &ap_if->chan_info, sizeof(struct wl_chan_info));
+
+	wl_ext_move_cur_channel(apsta_params, ap_if);
+	if (ap_if->chan_info.chan && !wl_ext_same_chan(&cur_chan_info, &ap_if->chan_info)) {
 		wl_ext_if_down(apsta_params, ap_if);
 		wl_ext_iapsta_restart_master(dev);
-		wl_ext_get_default_chan(ap_if->dev, &chan_2g, &chan_5g, TRUE);
-		if (chan_5g)
-			wl_ext_set_chan_info(ap_if, WLC_BAND_5G, chan_5g);
-		else if (chan_2g)
-			wl_ext_set_chan_info(ap_if, WLC_BAND_2G, chan_2g);
-		else
-			ap_if->chan_info.chan = 0;
-		if (ap_if->chan_info.chan) {
-			wl_ext_move_cur_channel(apsta_params, ap_if);
-			wl_ext_if_up(apsta_params, ap_if, FALSE, 0);
-		} else {
-			WL_MSG(tmp_if->ifname, "no preferred channel\n");
-		}
+		wl_ext_if_up(apsta_params, ap_if, TRUE, 0);
 	}
 }
 
@@ -4159,6 +4115,9 @@ wl_ext_in4way_sync_sta(dhd_pub_t *dhd, struct wl_if_info *cur_if,
 				dhd_conf_set_wme(dhd, cur_if->ifidx, 0);
 				wake_up_interruptible(&conf->event_complete);
 			}
+#ifdef WL_CFG80211
+			wl_ext_iapsta_restart_master(cur_if->dev);
+#endif /* WL_CFG80211 */
 			break;
 		case WL_EXT_STATUS_RECONNECT:
 #ifdef EAPOL_RESEND
@@ -4524,7 +4483,7 @@ wl_ext_assoclist_num(struct net_device *dev)
 	assoc_maclist->count = htod32(MAX_NUM_OF_ASSOCLIST);
 	ret = wl_ext_ioctl(dev, WLC_GET_ASSOCLIST, assoc_maclist, sizeof(mac_buf), 0);
 	if (ret)
-		return 0;
+		return ret;
 	maxassoc = dtoh32(assoc_maclist->count);
 
 	return maxassoc;
@@ -5454,7 +5413,7 @@ wl_ext_rxf0ovfl_reinit_handler(struct wl_if_info *cur_if, const wl_event_msg_t *
 				reinit = TRUE;
 		}
 #if 0
-		else if (wl_ext_if_enabled(apsta_params, IAP_MODE)) {
+		if (wl_ext_if_enabled(apsta_params, IAP_MODE)) {
 			if (rxf0ovfl_diff > RXF0OVFL_THRESHOLD)
 				reinit = TRUE;
 		}

@@ -223,6 +223,9 @@ typedef struct dhd_conf {
 	int roam_scan_period[2];
 	int roam_delta[2];
 	int fullroamperiod;
+#ifdef WL_SCHED_SCAN
+	int max_sched_scan_reqs;
+#endif /* WL_SCHED_SCAN */
 	uint keep_alive_period;
 	bool rekey_offload;
 #ifdef ARP_OFFLOAD_SUPPORT
@@ -395,6 +398,9 @@ bool dhd_conf_legacy_otp_chip(dhd_pub_t *dhd);
 #endif
 #ifdef BCMPCIE
 bool dhd_conf_legacy_msi_chip(dhd_pub_t *dhd);
+#if defined(BCMPCIE_CTO_PREVENTION)
+bool dhd_conf_legacy_cto_chip(uint16 chip);
+#endif
 #endif
 #ifdef WL_CFG80211
 bool dhd_conf_legacy_chip_check(dhd_pub_t *dhd);

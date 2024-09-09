@@ -123,7 +123,7 @@ dhd_customer_gpio_wlan_ctrl(void *adapter, int onoff)
 	return err;
 }
 
-#if 0
+#ifdef GET_CUSTOM_MAC_ENABLE
 /* Function to get custom MAC address */
 int
 dhd_custom_get_mac_address(void *adapter, unsigned char *buf)
@@ -340,6 +340,7 @@ int syna_country_update_type_list(eCountry_flag_type type, char *list_str)
 }
 #endif /* SYNA_SAR_CUSTOMER_PARAMETER */
 
+#ifndef CUSTOMER_HW4
 /* Customized Locale table : OPTIONAL feature */
 const struct cntry_locales_custom translate_custom_table[] = {
 /* Table should be filled out based on custom platform regulatory requirement */
@@ -451,16 +452,15 @@ const struct cntry_locales_custom translate_custom_table[] = {
 *  input : ISO 3166-1 country abbreviation
 *  output: customized cspec
 */
-void
 #ifdef CUSTOM_COUNTRY_CODE
-get_customized_country_code(void *adapter, char *country_iso_code,
+void get_customized_country_code(void *adapter, char *country_iso_code,
 	wl_country_t *cspec, u32 flags)
 #else
-get_customized_country_code(void *adapter, char *country_iso_code, wl_country_t *cspec)
+void get_customized_country_code(void *adapter, char *country_iso_code, wl_country_t *cspec)
 #endif /* CUSTOM_COUNTRY_CODE */
 {
 #if defined(OEM_ANDROID)
-#if (defined(CUSTOMER_HW) || defined(CUSTOMER_HW2)) && (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39))
+#if defined(BOARD_HIKEY) && (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39))
 
 	struct cntry_locales_custom *cloc_ptr;
 
@@ -507,3 +507,4 @@ get_customized_country_code(void *adapter, char *country_iso_code, wl_country_t 
 	*/
 #endif /* OEM_ANDROID */
 }
+#endif /* CUSTOMER_HW4 */

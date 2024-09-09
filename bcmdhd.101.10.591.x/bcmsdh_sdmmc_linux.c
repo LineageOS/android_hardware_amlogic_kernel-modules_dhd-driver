@@ -400,7 +400,7 @@ static struct sdio_driver dummy_sdmmc_driver = {
 	.remove		= dummy_remove,
 	.name		= "dummy_sdmmc",
 	.id_table	= bcmsdh_sdmmc_ids,
-	};
+};
 
 int sdio_func_reg_notify(void* semaphore)
 {

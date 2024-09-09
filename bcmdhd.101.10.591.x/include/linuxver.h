@@ -759,17 +759,24 @@ static inline bool binary_sema_up(tsk_ctl_t *tsk)
 #define SMP_RD_BARRIER_DEPENDS(x) smp_rmb(x)
 #endif
 
+#ifdef BCMPCIE
+#define NAME_SUFFIX "_pcie"
+#else
+#define NAME_SUFFIX "_sdio"
+#endif
+
 #define PROC_START(thread_func, owner, tsk_ctl, flags, name) \
 { \
 	sema_init(&((tsk_ctl)->sema), 0); \
 	init_completion(&((tsk_ctl)->completed)); \
 	init_completion(&((tsk_ctl)->flushed)); \
 	(tsk_ctl)->parent = owner; \
-	(tsk_ctl)->proc_name = name;  \
+	(tsk_ctl)->proc_name = name NAME_SUFFIX;  \
 	(tsk_ctl)->terminated = FALSE; \
 	(tsk_ctl)->flush_ind = FALSE; \
 	(tsk_ctl)->up_cnt = 0; \
-	(tsk_ctl)->p_task  = kthread_run(thread_func, tsk_ctl, (char*)name); \
+	(tsk_ctl)->p_task  = kthread_run(thread_func, \
+		tsk_ctl, "%s%s", (char*)(name), NAME_SUFFIX); \
 	if (IS_ERR((tsk_ctl)->p_task)) { \
 		(tsk_ctl)->thr_pid = -1; \
 		DBG_THR(("%s(): thread:%s create failed\n", __FUNCTION__, \

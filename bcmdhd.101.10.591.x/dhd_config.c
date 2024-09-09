@@ -549,6 +549,21 @@ dhd_conf_legacy_msi_chip(dhd_pub_t *dhd)
 
 	return false;
 }
+
+#if defined(BCMPCIE_CTO_PREVENTION)
+bool
+dhd_conf_legacy_cto_chip(uint16 chip)
+{
+	// enable CTO for new chip(4381 and 4382) to prevent unnecessary interrupt
+	if (chip == BCM4359_CHIP_ID ||
+			chip == BCM43752_CHIP_ID || chip == BCM4375_CHIP_ID ||
+			chip == BCM43756_CHIP_ID || chip == BCM43711_CHIP_ID) {
+		return true;
+	}
+
+	return false;
+}
+#endif
 #endif
 
 void
@@ -864,6 +879,9 @@ dhd_conf_set_clm_name_by_chip(dhd_pub_t *dhd, char *clm_path)
 		CONFIG_MSG("clm path is null\n");
 		return;
 	}
+#ifndef FW_PATH_AUTO_SELECT
+	return;
+#endif
 
 	/* find out the last '/' */
 	i = strlen(clm_path);
@@ -3725,6 +3743,12 @@ dhd_conf_read_roam_params(dhd_pub_t *dhd, char *full_param, uint len_param)
 			wl_reassoc_support = TRUE;
 		CONFIG_MSG("wl_reassoc_support = %d\n", wl_reassoc_support);
 	}
+#ifdef WL_SCHED_SCAN
+	else if (!strncmp("max_sched_scan_reqs=", full_param, len_param)) {
+		conf->max_sched_scan_reqs = (int)simple_strtol(data, NULL, 0);
+		CONFIG_MSG("max_sched_scan_reqs = %d\n", conf->max_sched_scan_reqs);
+	}
+#endif /* WL_SCHED_SCAN */
 	else
 		return false;
 
@@ -4213,6 +4237,10 @@ dhd_conf_read_sdio_params(dhd_pub_t *dhd, char *full_param, uint len_param)
 	else if (!strncmp("kso_try_max=", full_param, len_param)) {
 		conf->kso_try_max = (int)simple_strtol(data, NULL, 0);
 		CONFIG_MSG("kso_try_max = %d\n", conf->kso_try_max);
+	}
+	else if (!strncmp("dhd_idletime=", full_param, len_param)) {
+		dhd_idletime = (int)simple_strtol(data, NULL, 0);
+		CONFIG_MSG("dhd_idletime = %d\n", dhd_idletime);
 	}
 	else
 		return false;
@@ -4896,9 +4924,11 @@ dhd_conf_set_ampdu_mpdu(dhd_pub_t *dhd)
 	int val = -1;
 
 	if (chip == BCM43430_CHIP_ID || chip == BCM4345_CHIP_ID ||
-			chip == BCM4359_CHIP_ID || chip == BCM43012_CHIP_ID) {
+			chip == BCM4359_CHIP_ID || chip == BCM43012_CHIP_ID ||
+			chip == BCM4382_CHIP_ID) {
 		val = 16;
-	} else if (chip == BCM43752_CHIP_ID || chip == BCM43756_CHIP_ID) {
+	} else if (chip == BCM43752_CHIP_ID || chip == BCM43756_CHIP_ID ||
+			chip == BCM4381_CHIP_ID) {
 		val = 32;
 	}
 
@@ -5017,6 +5047,9 @@ dhd_conf_preinit_ioctls_sta(dhd_pub_t *dhd, int ifidx)
 #ifdef WL_CFG80211
 	struct net_device *net = dhd_idx2net(dhd, ifidx);
 	struct bcm_cfg80211 *cfg = wl_get_cfg(net);
+#ifdef WL_SCHED_SCAN
+	struct wireless_dev *wdev = cfg->wdev;
+#endif /* WL_SCHED_SCAN */
 #endif /* defined(WL_CFG80211) */
 
 	dhd_conf_set_intiovar(dhd, ifidx, WLC_SET_VAR, "bcn_timeout", conf->bcn_timeout, 0, FALSE);
@@ -5040,6 +5073,19 @@ dhd_conf_preinit_ioctls_sta(dhd_pub_t *dhd, int ifidx)
 		cfg->roam_flags = 0;
 	else
 		cfg->roam_flags |= WL_ROAM_OFF_ON_CONCURRENT;
+#ifdef WL_SCHED_SCAN
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0))
+	if (conf->max_sched_scan_reqs > 0)
+		wdev->wiphy->flags |= WIPHY_FLAG_SUPPORTS_SCHED_SCAN;
+	else if (conf->max_sched_scan_reqs == 0)
+		wdev->wiphy->flags &= ~WIPHY_FLAG_SUPPORTS_SCHED_SCAN;
+#else
+	if (conf->max_sched_scan_reqs > 0)
+		wdev->wiphy->max_sched_scan_reqs = 1;
+	else if (conf->max_sched_scan_reqs == 0)
+		wdev->wiphy->max_sched_scan_reqs = 0;
+#endif /* LINUX_VER < 4.12 */
+#endif /* WL_SCHED_SCAN */
 #endif /* defined(WL_CFG80211) */
 }
 
@@ -5243,6 +5289,9 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 	conf->roam_delta[0] = 10;
 	conf->roam_delta[1] = WLC_BAND_ALL;
 	conf->fullroamperiod = 20;
+#ifdef WL_SCHED_SCAN
+	conf->max_sched_scan_reqs = -1;
+#endif /* WL_SCHED_SCAN */
 	conf->keep_alive_period = 30000;
 #ifdef ARP_OFFLOAD_SUPPORT
 	conf->garp = FALSE;
