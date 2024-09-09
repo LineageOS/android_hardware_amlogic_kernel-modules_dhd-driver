@@ -179,6 +179,10 @@
 #if defined(OEM_ANDROID)
 #include <wl_android.h>
 #endif
+
+#ifdef CSI_SUPPORT
+#include <dhd_csi.h>
+#endif /* CSI_SUPPORT */
 #include <dhd_config.h>
 
 /* RX frame thread priority */
@@ -850,6 +854,14 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 			}
 #endif /* SHOW_LOGTRACE */
 
+#ifdef CSI_SUPPORT
+			if (WLC_E_CSI == event_type) {
+				DHD_TRACE(("%s: WLC_E_CSI\n", __func__));
+				dhd_csi_event_enqueue(dhdp, ifidx, pktbuf);
+				continue;
+			}
+#endif /* CSI_SUPPORT */
+
 			ret_event = dhd_wl_host_event(dhd, ifidx, pkt_data, len, &event, &data);
 
 			wl_event_to_host_order(&event);
@@ -892,12 +904,10 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 			}
 #endif /* DHD_WAKE_STATUS */
 
-			/* For delete virtual interface event, wl_host_event returns positive
-			 * i/f index, do not proceed. just free the pkt.
-			 */
-			if ((event_type == WLC_E_IF) && (ret_event > 0)) {
-				DHD_ERROR(("%s: interface is deleted. Free event packet\n",
-				__FUNCTION__));
+			/* drop events if wl_host_event returns positive */
+			if (0 < ret_event) {
+				DHD_ERROR(("%s: Free event packet, event=%d\n",
+				           __func__, event.event_type));
 				PKTFREE_CTRLBUF(dhdp->osh, pktbuf, FALSE);
 				continue;
 			}
@@ -1074,6 +1084,11 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 			netif_receive_skb(skb);
 #endif /* ENABLE_DHD_GRO */
 #else /* !defined(DHD_LB_RXP) */
+#if defined(WL_MONITOR) && defined(BCMDBUS)
+			if (dhd_monitor_enabled(dhdp, ifidx))
+				dhd_rx_mon_pkt_sdio(dhdp, skb, ifidx);
+			else
+#endif /* WL_MONITOR && BCMDBUS */
 			netif_rx(skb);
 #endif /* !defined(DHD_LB_RXP) */
 		} else {
@@ -1147,6 +1162,10 @@ dhd_rxf_thread(void *data)
 		param.sched_priority = (dhd_rxf_prio < MAX_RT_PRIO)?dhd_rxf_prio:(MAX_RT_PRIO-1);
 		setScheduler(current, SCHED_FIFO, &param);
 	}
+
+#ifdef CUSTOM_RXF_CPUCORE
+	set_cpus_allowed_ptr(current, cpumask_of(CUSTOM_RXF_CPUCORE));
+#endif
 
 #ifdef CUSTOM_SET_CPUCORE
 	dhd->pub.current_rxf = current;
@@ -1256,7 +1275,7 @@ dhd_sched_rxf(dhd_pub_t *dhdp, void *skb)
 }
 
 #ifdef WL_MONITOR
-#ifdef BCMSDIO
+#if defined(BCMSDIO) || defined(BCMDBUS)
 void
 dhd_rx_mon_pkt_sdio(dhd_pub_t *dhdp, void *pkt, int ifidx)
 {

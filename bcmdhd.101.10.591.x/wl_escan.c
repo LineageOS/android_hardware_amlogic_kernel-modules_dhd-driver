@@ -997,7 +997,7 @@ exit2:
 	return err;
 }
 
-#ifdef WL_SOFTAP_ACS
+#ifdef WL_SUPPORT_AUTO_CHANNEL
 static void
 wl_construct_acs_list(struct net_device *net, uint32 band, wl_scan_info_t *scan_info)
 {
@@ -1145,7 +1145,7 @@ exit:
 	escan->autochannel = 0;
 	return chanspec;
 }
-#endif /* WL_SOFTAP_ACS */
+#endif /* WL_SUPPORT_AUTO_CHANNEL */
 
 #if defined(WL_WIRELESS_EXT)
 static int

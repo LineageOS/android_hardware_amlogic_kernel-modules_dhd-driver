@@ -645,7 +645,11 @@ module_param(dhd_watchdog_ms, uint, 0);
 
 #if defined(DHD_DEBUG)
 /* Console poll interval */
+#ifdef SYNAINTERNAL
+uint dhd_console_ms = 250;
+#else
 uint dhd_console_ms = CUSTOM_DHD_CONSOLE_MS;
+#endif /* SYNAINTERNAL */
 module_param(dhd_console_ms, uint, 0644);
 #else
 uint dhd_console_ms = 0;
@@ -4723,12 +4727,19 @@ static struct net_device_stats *
 dhd_get_stats(struct net_device *net)
 {
 	dhd_info_t *dhd = DHD_DEV_INFO(net);
+	dhd_pub_t *dhdp;
 	dhd_if_t *ifp;
 
 	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
 
 	if (!dhd) {
 		DHD_ERROR(("%s : dhd is NULL\n", __FUNCTION__));
+		goto error;
+	}
+
+	dhdp = &dhd->pub;
+	if (!dhdp || OSL_ATOMIC_READ(dhdp->osh, &reboot_in_progress) > -1) {
+		DHD_ERROR(("%s : reboot_in_progress\n", __FUNCTION__));
 		goto error;
 	}
 
@@ -6274,11 +6285,7 @@ done:
  * @param cmd  e.g. SIOCETHTOOL
  */
 static int
-dhd_ioctl_entry(struct net_device *net, struct ifreq *ifr,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
-	void __user *data,
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(5, 15, 0) */
-	int cmd)
+dhd_ioctl_entry(struct net_device *net, struct ifreq *ifr, int cmd)
 {
 	dhd_info_t *dhd = DHD_DEV_INFO(net);
 	dhd_ioctl_t ioc;
@@ -6376,19 +6383,6 @@ dhd_ioctl_entry(struct net_device *net, struct ifreq *ifr,
 
 	memset(&ioc, 0, sizeof(ioc));
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
-	/* Copy the ioc control structure part of ioctl request */
-	if (copy_from_user(&ioc, data, sizeof(wl_ioctl_t))) {
-		bcmerror = BCME_BADADDR;
-		goto done;
-	}
-	/* To differentiate between wl and dhd read 4 more byes */
-	if ((copy_from_user(&ioc.driver, (char *)data + sizeof(wl_ioctl_t),
-			sizeof(uint)) != 0)) {
-		bcmerror = BCME_BADADDR;
-		goto done;
-	}
-#else
 #ifdef CONFIG_COMPAT
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0))
 	if (in_compat_syscall())
@@ -6429,7 +6423,6 @@ dhd_ioctl_entry(struct net_device *net, struct ifreq *ifr,
 			goto done;
 		}
 	}
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(5, 15, 0) */
 
 	if (!capable(CAP_NET_ADMIN)) {
 		bcmerror = BCME_EPERM;
@@ -6496,6 +6489,15 @@ done:
 	return OSL_ERROR(bcmerror);
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
+static int
+dhd_siocdevprivate(struct net_device *net, struct ifreq *ifr,
+	void __user *data, int cmd)
+{
+	return dhd_ioctl_entry(net, ifr, cmd);
+}
+#endif /* LINUX_VERSION_CODE >= 5.15.0 */
+
 #if defined(WL_CFG80211) && defined(SUPPORT_DEEP_SLEEP)
 /* Flags to indicate if we distingish power off policy when
  * user set the memu "Keep Wi-Fi on during sleep" to "Never"
@@ -6549,11 +6551,7 @@ static void dhd_rollback_cpu_freq(dhd_info_t *dhd)
 
 #ifdef DHD_PCIE_NATIVE_RUNTIMEPM
 static int
-dhd_ioctl_entry_wrapper(struct net_device *net, struct ifreq *ifr,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
-	void __user *data,
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(5, 15, 0) */
-	int cmd)
+dhd_ioctl_entry_wrapper(struct net_device *net, struct ifreq *ifr, int cmd)
 {
 	int error;
 	dhd_info_t *dhd = DHD_DEV_INFO(net);
@@ -6564,11 +6562,7 @@ dhd_ioctl_entry_wrapper(struct net_device *net, struct ifreq *ifr,
 	if (pm_runtime_get_sync(dhd_bus_to_dev(dhd->pub.bus)) < 0)
 		return BCME_ERROR;
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
-	error = dhd_ioctl_entry(net, ifr, data, cmd);
-#else
 	error = dhd_ioctl_entry(net, ifr, cmd);
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(5, 15, 0) */
 
 	pm_runtime_mark_last_busy(dhd_bus_to_dev(dhd->pub.bus));
 	pm_runtime_put_autosuspend(dhd_bus_to_dev(dhd->pub.bus));
@@ -8353,20 +8347,16 @@ static struct net_device_ops dhd_ops_pri = {
 	.ndo_stop = dhd_pri_stop,
 	.ndo_get_stats = dhd_get_stats,
 #ifdef DHD_PCIE_NATIVE_RUNTIMEPM
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
-	.ndo_siocdevprivate = dhd_ioctl_entry_wrapper,
-#else
 	.ndo_do_ioctl = dhd_ioctl_entry_wrapper,
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(5, 15, 0) */
 	.ndo_start_xmit = dhd_start_xmit_wrapper,
 #else
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
-	.ndo_siocdevprivate = dhd_ioctl_entry,
-#else
 	.ndo_do_ioctl = dhd_ioctl_entry,
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(5, 15, 0) */
 	.ndo_start_xmit = dhd_start_xmit,
 #endif /* DHD_PCIE_NATIVE_RUNTIMEPM */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
+	.ndo_eth_ioctl = dhd_ioctl_entry,
+	.ndo_siocdevprivate = dhd_siocdevprivate,
+#endif
 	.ndo_set_mac_address = dhd_set_mac_address,
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0))
 	.ndo_set_rx_mode = dhd_set_multicast_list,
@@ -8385,20 +8375,16 @@ static struct net_device_ops dhd_ops_virt = {
 #endif
 	.ndo_get_stats = dhd_get_stats,
 #ifdef DHD_PCIE_NATIVE_RUNTIMEPM
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
-	.ndo_siocdevprivate = dhd_ioctl_entry_wrapper,
-#else
 	.ndo_do_ioctl = dhd_ioctl_entry_wrapper,
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(5, 15, 0) */
 	.ndo_start_xmit = dhd_start_xmit_wrapper,
 #else
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
-	.ndo_siocdevprivate = dhd_ioctl_entry,
-#else
 	.ndo_do_ioctl = dhd_ioctl_entry,
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(5, 15, 0) */
 	.ndo_start_xmit = dhd_start_xmit,
 #endif /* DHD_PCIE_NATIVE_RUNTIMEPM */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
+	.ndo_eth_ioctl = dhd_ioctl_entry,
+	.ndo_siocdevprivate = dhd_siocdevprivate,
+#endif
 	.ndo_set_mac_address = dhd_set_mac_address,
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0))
 	.ndo_set_rx_mode = dhd_set_multicast_list,
@@ -9278,6 +9264,11 @@ dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen
 #ifdef DHD_WET
 	dhd->pub.wet_info = dhd_get_wet_info(&dhd->pub);
 #endif /* DHD_WET */
+
+#ifdef CSI_SUPPORT
+	dhd_csi_init(&dhd->pub);
+#endif /* CSI_SUPPORT */
+
 	/* Initialize thread based operation and lock */
 	sema_init(&dhd->sdsem, 1);
 #endif /* BCMDBUS */
@@ -10936,6 +10927,9 @@ dhd_optimised_preinit_ioctls(dhd_pub_t * dhd)
 	int ret = 0;
 	/*  Room for "event_msgs_ext" + '\0' + bitvec  */
 	char iovbuf[WL_EVENTING_MASK_EXT_LEN + EVENTMSGS_EXT_STRUCT_SIZE + 16];
+	char *mask;
+	uint8 msglen;
+	eventmsgs_ext_t *eventmask_msg = NULL;
 	uint32 event_log_max_sets = 0;
 	char* iov_buf = NULL;
 	/* XXX: Use ret2 for return check of IOVARS that might return BCME_UNSUPPORTED,
@@ -11099,7 +11093,7 @@ dhd_optimised_preinit_ioctls(dhd_pub_t * dhd)
 		dhd->op_mode = DHD_FLAG_STA_MODE;
 
 		BCM_REFERENCE(p2p_ea);
-#if defined(OEM_ANDROID) && !defined(AP) && defined(WLP2P)
+#if !defined(AP) && defined(WLP2P)
 		if ((concurrent_mode = dhd_get_concurrent_capabilites(dhd))) {
 			dhd->op_mode |= concurrent_mode;
 		}
@@ -11115,7 +11109,7 @@ dhd_optimised_preinit_ioctls(dhd_pub_t * dhd)
 			else
 				DHD_INFO(("dhd_preinit_ioctls: p2p_da_override succeeded\n"));
 		}
-#endif /* defined(OEM_ANDROID) && !defined(AP) && defined(WLP2P) */
+#endif /* !defined(AP) && defined(WLP2P) */
 
 	}
 
@@ -11294,6 +11288,17 @@ dhd_optimised_preinit_ioctls(dhd_pub_t * dhd)
 	sec_control_pm(dhd, &power_mode);
 #endif /* DHD_PM_CONTROL_FROM_FILE */
 
+#ifdef EVENT_LOG_RATE_HC
+	ret = dhd_iovar(dhd, 0, "event_log_rate_hc", (char *)&event_log_rate_hc,
+		sizeof(event_log_rate_hc), NULL, 0, TRUE);
+	if (ret < 0) {
+		DHD_ERROR(("%s event_log_rate_hc set failed %d\n", __FUNCTION__, ret));
+	} else  {
+		DHD_ERROR(("%s event_log_rate_hc set with threshold:%d\n", __FUNCTION__,
+			event_log_rate_hc));
+	}
+#endif /* EVENT_LOG_RATE_HC */
+
 #ifdef MIMO_ANT_SETTING
 	dhd_sel_ant_from_file(dhd);
 #endif /* MIMO_ANT_SETTING */
@@ -11373,6 +11378,46 @@ dhd_optimised_preinit_ioctls(dhd_pub_t * dhd)
 	if (iov_buf == NULL) {
 		DHD_ERROR(("failed to allocate %d bytes for iov_buf\n", WLC_IOCTL_SMLEN));
 		ret = BCME_NOMEM;
+		goto done;
+	}
+
+	/* make up event mask ext message iovar for event larger than 128 */
+	msglen = WL_EVENTING_MASK_EXT_LEN + EVENTMSGS_EXT_STRUCT_SIZE;
+	eventmask_msg = (eventmsgs_ext_t*)MALLOC(dhd->osh, msglen);
+	if (eventmask_msg == NULL) {
+		DHD_ERROR(("failed to allocate %d bytes for event_msg_ext\n", msglen));
+		ret = BCME_NOMEM;
+		goto done;
+	}
+	bzero(eventmask_msg, msglen);
+	eventmask_msg->ver = EVENTMSGS_VER;
+	eventmask_msg->len = ROUNDUP(WLC_E_LAST, NBBY)/NBBY;
+
+	/* Read event_msgs_ext mask */
+	ret = dhd_iovar(dhd, 0, "event_msgs_ext", (char *)eventmask_msg, msglen, iov_buf,
+			WLC_IOCTL_SMLEN, FALSE);
+
+	/* event_msgs_ext must be supported */
+	if (ret != BCME_OK) {
+		DHD_ERROR(("%s read event mask ext failed %d\n", __FUNCTION__, ret));
+		goto done;
+	}
+
+	bcopy(iov_buf, eventmask_msg, msglen);
+	/* make up event mask ext message iovar for event larger than 128 */
+	mask = eventmask_msg->mask;
+
+	/* Setup event_msgs */
+	setbit(mask, WLC_E_COUNTRY_CODE_CHANGED);
+
+	/* Write updated Event mask */
+	eventmask_msg->ver = EVENTMSGS_VER;
+	eventmask_msg->command = EVENTMSGS_SET_MASK;
+	eventmask_msg->len = WL_EVENTING_MASK_EXT_LEN;
+	ret = dhd_iovar(dhd, 0, "event_msgs_ext", (char *)eventmask_msg, msglen, NULL, 0,
+			TRUE);
+	if (ret < 0) {
+		DHD_ERROR(("%s write event mask ext failed %d\n", __FUNCTION__, ret));
 		goto done;
 	}
 
@@ -11720,6 +11765,9 @@ dhd_optimised_preinit_ioctls(dhd_pub_t * dhd)
 
 done:
 	dhd_conf_postinit_ioctls(dhd);
+	if (eventmask_msg) {
+		MFREE(dhd->osh, eventmask_msg, msglen);
+	}
 	if (iov_buf) {
 		MFREE(dhd->osh, iov_buf, WLC_IOCTL_SMLEN);
 	}
@@ -12212,7 +12260,7 @@ dhd_legacy_preinit_ioctls(dhd_pub_t *dhd)
 			dhd->op_mode = DHD_FLAG_IBSS_MODE;
 		} else
 			dhd->op_mode = DHD_FLAG_STA_MODE;
-#if defined(OEM_ANDROID) && !defined(AP) && defined(WLP2P)
+#if !defined(AP) && defined(WLP2P)
 		if (dhd->op_mode != DHD_FLAG_IBSS_MODE &&
 			(concurrent_mode = dhd_get_concurrent_capabilites(dhd))) {
 			dhd->op_mode |= concurrent_mode;
@@ -12242,7 +12290,7 @@ dhd_legacy_preinit_ioctls(dhd_pub_t *dhd)
 		}
 #else
 	(void)concurrent_mode;
-#endif /* defined(OEM_ANDROID) && !defined(AP) && defined(WLP2P) */
+#endif /* !defined(AP) && defined(WLP2P) */
 	}
 
 #ifdef DISABLE_PRUNED_SCAN
@@ -12654,6 +12702,11 @@ dhd_legacy_preinit_ioctls(dhd_pub_t *dhd)
 
 #if defined(CUSTOM_AMPDU_MPDU)
 	ampdu_mpdu = CUSTOM_AMPDU_MPDU;
+#ifdef BCMSDIO
+	ret = dhdsdio_mpdu_init(dhd);
+	if (0 != ret)
+		ampdu_mpdu = ret;
+#endif
 	if (ampdu_mpdu != 0 && (ampdu_mpdu <= ampdu_ba_wsize)) {
 		ret = dhd_iovar(dhd, 0, "ampdu_mpdu", (char *)&ampdu_mpdu, sizeof(ampdu_mpdu),
 				NULL, 0, TRUE);
@@ -15185,14 +15238,16 @@ dhd_reboot_callback(struct notifier_block *this, unsigned long code, void *unuse
  */
 #if defined(CONFIG_ARCH_MSM) || defined(CONFIG_ARCH_EXYNOS)
 deferred_module_init_sync(dhd_module_init);
-#else
+#else /* defined(CONFIG_ARCH_MSM) || defined(CONFIG_ARCH_EXYNOS) */
 deferred_module_init(dhd_module_init);
 #endif /* CONFIG_ARCH_MSM || CONFIG_ARCH_EXYNOS */
 #elif defined(USE_LATE_INITCALL_SYNC)
 late_initcall_sync(dhd_module_init);
-#else
+#elif defined(late_initcall)
 late_initcall(dhd_module_init);
-#endif /* USE_LATE_INITCALL_SYNC */
+#else /* default */
+module_init(dhd_module_init);
+#endif /* CONFIG_DEFERRED_INITCALLS */
 
 module_exit(dhd_module_exit);
 

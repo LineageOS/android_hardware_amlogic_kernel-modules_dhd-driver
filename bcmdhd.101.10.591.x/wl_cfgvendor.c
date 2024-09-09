@@ -990,7 +990,7 @@ wl_cfgvendor_set_scan_cfg(struct wiphy *wiphy, struct wireless_dev *wdev,
 				}
 				scan_param->nchannel_buckets = nla_get_u32(iter);
 				if (scan_param->nchannel_buckets >=
-				    GSCAN_MAX_CH_BUCKETS) {
+					GSCAN_MAX_CH_BUCKETS) {
 					WL_ERR(("ncha_buck out of range %d\n",
 					scan_param->nchannel_buckets));
 					err = -EINVAL;
@@ -1165,11 +1165,10 @@ wl_cfgvendor_hotlist_cfg(struct wiphy *wiphy,
 			err = -EINVAL;
 			goto exit;
 		}
-
 	}
 
 	if (dhd_dev_pno_set_cfg_gscan(bcmcfg_to_prmry_ndev(cfg),
-	      DHD_PNO_GEOFENCE_SCAN_CFG_ID, hotlist_params, flush) < 0) {
+		DHD_PNO_GEOFENCE_SCAN_CFG_ID, hotlist_params, flush) < 0) {
 		WL_ERR(("Could not set GSCAN HOTLIST cfg error: %d\n", err));
 		err = -EINVAL;
 		goto exit;
@@ -4140,7 +4139,6 @@ exit:
 	return ret;
 }
 
-int8 chanbuf[CHANSPEC_STR_LEN];
 static int
 wl_cfgvendor_nan_parse_datapath_args(struct wiphy *wiphy,
 	const void *buf, int len, nan_datapath_cmd_data_t *cmd_data)

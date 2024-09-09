@@ -218,6 +218,14 @@ struct chan_info {
 #define WL_BSSIDX_MAX	16
 #endif /* WL_STATIC_IF */
 
+/* Network inteface mac for static IF */
+char iface_wlan1_mac[ETHER_ADDR_STR_LEN] = {'\0'};
+module_param_string(iface_wlan1_mac, iface_wlan1_mac, ETHER_ADDR_STR_LEN, 0660);
+
+/* Network inteface mac for virtual IF */
+char iface_wlan2_mac[ETHER_ADDR_STR_LEN] = {'\0'};
+module_param_string(iface_wlan2_mac, iface_wlan2_mac, ETHER_ADDR_STR_LEN, 0660);
+
 #if defined(WL_FW_OCE_AP_SELECT)
 bool wl_cfg80211_is_oce_ap(struct wiphy *wiphy, const u8 *bssid_hint)
 {
@@ -542,7 +550,9 @@ wl_cfg80211_get_iface_policy(struct net_device *ndev)
 wl_iftype_t
 wl_cfg80211_get_sec_iface(struct bcm_cfg80211 *cfg)
 {
+#ifndef P2P_AP_CONCURRENT
 	dhd_pub_t *dhd = (dhd_pub_t *)(cfg->pub);
+#endif
 	struct net_device *p2p_ndev = NULL;
 
 	p2p_ndev = wl_to_p2p_bss_ndev(cfg,
@@ -621,8 +631,15 @@ wl_cfg80211_data_if_mgmt(struct bcm_cfg80211 *cfg,
 #ifdef BCMDONGLEHOST
 	if (DHD_OPMODE_SUPPORTED(cfg->pub, DHD_FLAG_RSDB_MODE)) {
 		if (sec_wl_if_type == WL_IF_TYPE_AP &&
-			(new_wl_iftype == WL_IF_TYPE_AP || new_wl_iftype == WL_IF_TYPE_STA)) {
-			/* RSDB chip can allow dual apsta */
+			(new_wl_iftype == WL_IF_TYPE_AP || new_wl_iftype == WL_IF_TYPE_STA ||
+			new_wl_iftype == WL_IF_TYPE_P2P_GO)) {
+			/* RSDB chip can allow dual AP + AP/STA/GO */
+			return BCME_OK;
+		}
+
+		if (sec_wl_if_type == WL_IF_TYPE_P2P_GO &&
+			new_wl_iftype == WL_IF_TYPE_AP) {
+			/* RSDB chip can allow GO + AP */
 			return BCME_OK;
 		}
 	}
@@ -1146,6 +1163,7 @@ wl_cfg80211_add_virtual_iface(struct wiphy *wiphy,
 	struct net_device *primary_ndev;
 	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
 	struct wireless_dev *wdev;
+	u8 mac_addr[ETH_ALEN];
 
 	WL_DBG(("Enter iftype: %d\n", type));
 	if (!cfg) {
@@ -1168,7 +1186,12 @@ wl_cfg80211_add_virtual_iface(struct wiphy *wiphy,
 		return ERR_PTR(-EINVAL);
 	}
 
-	wdev = wl_cfg80211_add_if(cfg, primary_ndev, wl_iftype, name, NULL);
+	if (iface_wlan2_mac[0] && !strcmp(name, "wlan2")) {
+		bcm_ether_atoe(iface_wlan2_mac, (struct ether_addr *)mac_addr);
+		wdev = wl_cfg80211_add_if(cfg, primary_ndev, wl_iftype, name, mac_addr);
+	} else {
+		wdev = wl_cfg80211_add_if(cfg, primary_ndev, wl_iftype, name, NULL);
+	}
 	if (unlikely(!wdev)) {
 		return ERR_PTR(-ENODEV);
 	}
@@ -2233,6 +2256,11 @@ wl_get_mfp_capability(u8 rsn_cap, u32 *wpa_auth, u32 *mfp_val)
 	if (rsn_cap & RSN_CAP_MFPR) {
 		WL_DBG(("MFP Required \n"));
 		mfp = WL_MFP_REQUIRED;
+
+		/* This patch will make IE mismatch in 4-way M3 when the hostapd configured to
+		 * wpa_key_mgmt=WPA-PSK-SHA256 and ieee80211w=2, so remove it.
+		 */
+#if 0
 		/* Our firmware has requirement that WPA2_AUTH_PSK/WPA2_AUTH_UNSPECIFIED
 		 * be set, if SHA256 OUI is to be included in the rsn ie.
 		 */
@@ -2241,6 +2269,7 @@ wl_get_mfp_capability(u8 rsn_cap, u32 *wpa_auth, u32 *mfp_val)
 		} else if (*wpa_auth & WPA2_AUTH_1X_SHA256) {
 			*wpa_auth |= WPA2_AUTH_UNSPECIFIED;
 		}
+#endif
 	} else if (rsn_cap & RSN_CAP_MFPC) {
 		WL_DBG(("MFP Capable \n"));
 		mfp = WL_MFP_CAPABLE;
@@ -3953,7 +3982,7 @@ wl_cfg80211_set_ies(
 					VNDR_IE_CUSTOM_FLAG, interworking_ie->id,
 					interworking_ie->data,
 					interworking_ie->len)) != BCME_OK) {
-				WL_ERR(("Failed to add interworking IE"));
+				WL_ERR(("Failed to add interworking IE %d", err));
 			}
 		}
 	}
@@ -4300,18 +4329,25 @@ wl_cfg80211_start_ap(
  *      center frequencies present in 'preset_chandef' instead of using the
  *      hardcoded values in 'wl_cfg80211_set_channel()'.
  */
+#ifdef CFG80211_INFO_CHANDEF
+	if (!info->chandef.chan)
+#else
 #if ((LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)) && !defined(WL_COMPAT_WIRELESS))
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 2) || defined(CFG80211_BKPORT_MLO)
 	if (!dev->ieee80211_ptr->u.ap.preset_chandef.chan)
 #else
 	if (!dev->ieee80211_ptr->preset_chandef.chan)
 #endif /* LINUX_VER >= 5.19.2 || CFG80211_BKPORT_MLO */
+#endif
 	{
 		WL_ERR(("chan is NULL\n"));
 		err = -EINVAL;
 		goto fail;
 	}
 	if ((err = wl_cfg80211_set_channel(wiphy, dev,
+#ifdef CFG80211_INFO_CHANDEF
+			info->chandef.chan,
+#else
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 2) || defined(CFG80211_BKPORT_MLO)
 			dev->ieee80211_ptr->u.ap.preset_chandef.chan,
 #else
@@ -4322,7 +4358,7 @@ wl_cfg80211_start_ap(
 		goto fail;
 	}
 #endif /* ((LINUX_VERSION >= VERSION(3, 6, 0) && !WL_COMPAT_WIRELESS) */
-
+#endif
 	if ((err = wl_cfg80211_bcn_set_params(info, dev,
 		dev_role, bssidx)) < 0) {
 		WL_ERR(("Beacon params set failed \n"));
@@ -4488,7 +4524,6 @@ wl_cfg80211_stop_ap(
 #ifdef BCMDONGLEHOST
 	dhd_pub_t *dhd = (dhd_pub_t *)(cfg->pub);
 #endif /* BCMDONGLEHOST */
-	u8 null_mac[ETH_ALEN];
 
 	WL_DBG(("Enter \n"));
 
@@ -4513,17 +4548,6 @@ wl_cfg80211_stop_ap(
 	if (dev->ieee80211_ptr->iftype == NL80211_IFTYPE_AP) {
 		dev_role = NL80211_IFTYPE_AP;
 		WL_MSG(dev->name, "stopping AP operation\n");
-
-		/* Clear macaddress to prevent any macaddress conflict with interface
-		 * like p2p discovery which can run as soon as softap is brought down
-		 */
-		(void)memset_s(null_mac, sizeof(null_mac),  0, sizeof(null_mac));
-		err = wldev_iovar_setbuf(dev, "cur_etheraddr",
-			null_mac, ETH_ALEN, cfg->ioctl_buf, WLC_IOCTL_SMLEN,
-			&cfg->ioctl_buf_sync);
-		if (err) {
-			WL_ERR(("softap mac_addr set failed\n"));
-		}
 	} else if (dev->ieee80211_ptr->iftype == NL80211_IFTYPE_P2P_GO) {
 		dev_role = NL80211_IFTYPE_P2P_GO;
 		WL_MSG(dev->name, "stopping P2P GO operation\n");
@@ -8024,25 +8048,29 @@ wl_cfg80211_register_static_if(struct bcm_cfg80211 *cfg, u16 iftype, char *ifnam
 	UNUSED_PARAMETER(primary_ndev);
 
 	ifidx += static_ifidx;
+	if (iface_wlan1_mac[0]) {
+		bcm_ether_atoe(iface_wlan1_mac, (struct ether_addr *)mac_addr);
+	} else {
 #ifdef DHD_USE_RANDMAC
-	wl_cfg80211_generate_mac_addr(&ea_addr);
-	(void)memcpy_s(mac_addr, ETH_ALEN, ea_addr.octet, ETH_ALEN);
+		wl_cfg80211_generate_mac_addr(&ea_addr);
+		(void)memcpy_s(mac_addr, ETH_ALEN, ea_addr.octet, ETH_ALEN);
 #else
 #if defined(CUSTOM_MULTI_MAC)
-	if (!wifi_platform_get_mac_addr(dhd->info->adapter, hw_ether, static_ifidx+1)) {
-		(void)memcpy_s(mac_addr, ETH_ALEN, hw_ether, ETH_ALEN);
-		DEV_ADDR_GET(hw_ether, mac_addr);
-	} else
+		if (!wifi_platform_get_mac_addr(dhd->info->adapter, hw_ether, static_ifidx+1)) {
+			(void)memcpy_s(mac_addr, ETH_ALEN, hw_ether, ETH_ALEN);
+			DEV_ADDR_GET(hw_ether, mac_addr);
+		} else
 #endif
-	{
-		/* Use primary mac with locally admin bit set */
-		DEV_ADDR_GET(primary_ndev, mac_addr);
-		mac_addr[0] |= 0x02;
+		{
+			/* Use primary mac with locally admin bit set */
+			DEV_ADDR_GET(primary_ndev, mac_addr);
+			mac_addr[0] |= 0x02;
 #ifdef WL_EXT_IAPSTA
-		wl_ext_iapsta_get_vif_macaddr(dhd, static_ifidx+1, mac_addr);
+			wl_ext_iapsta_get_vif_macaddr(dhd, static_ifidx+1, mac_addr);
 #endif
-	}
+		}
 #endif /* DHD_USE_RANDMAC */
+	}
 
 	ndev = wl_cfg80211_allocate_if(cfg, ifidx, ifname, mac_addr,
 		WL_BSSIDX_MAX, NULL);
@@ -8109,6 +8137,7 @@ wl_cfg80211_static_if_open(struct net_device *net)
 	struct net_device *primary_ndev = bcmcfg_to_prmry_ndev(cfg);
 	u16 iftype = net->ieee80211_ptr ? net->ieee80211_ptr->iftype : 0;
 	u16 wl_iftype, wl_mode;
+	u8 mac_addr[ETH_ALEN];
 #ifdef CUSTOM_MULTI_MAC
 	dhd_pub_t *dhd = dhd_get_pub(net);
 	char hw_ether[62];
@@ -8123,11 +8152,17 @@ wl_cfg80211_static_if_open(struct net_device *net)
 		return BCME_ERROR;
 	}
 	if (cfg->static_ndev_state[static_ifidx] != NDEV_STATE_FW_IF_CREATED) {
+		if (iface_wlan1_mac[0]) {
+			bcm_ether_atoe(iface_wlan1_mac, (struct ether_addr *)mac_addr);
+			wdev = wl_cfg80211_add_if(cfg, primary_ndev, wl_iftype, net->name,
+			mac_addr);
+		} else {
 #ifdef CUSTOM_MULTI_MAC
-		if (!wifi_platform_get_mac_addr(dhd->info->adapter, hw_ether, static_ifidx+1))
-			dev_addr_set(net, hw_ether);
+			if (!wifi_platform_get_mac_addr(dhd->info->adapter, hw_ether, static_ifidx+1))
+				dev_addr_set(net, hw_ether);
 #endif
-		wdev = wl_cfg80211_add_if(cfg, primary_ndev, wl_iftype, net->name, net->dev_addr);
+			wdev = wl_cfg80211_add_if(cfg, primary_ndev, wl_iftype, net->name, net->dev_addr);
+		}
 		if (!wdev) {
 			WL_ERR(("[STATIC_IF] wdev is NULL, can't proceed"));
 			return BCME_ERROR;

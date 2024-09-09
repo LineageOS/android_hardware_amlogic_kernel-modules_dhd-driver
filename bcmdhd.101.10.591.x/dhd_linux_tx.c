@@ -418,6 +418,16 @@ BCMFASTPATH(__dhd_sendpkt)(dhd_pub_t *dhdp, int ifidx, void *pktbuf)
 
 #ifdef PROP_TXSTATUS
 	if (dhd_wlfc_is_supported(dhdp)) {
+		unsigned long flags;
+
+		DHD_GENERAL_LOCK(dhdp, flags);
+		if (ifp->del_in_progress) {
+			DHD_GENERAL_UNLOCK(dhdp, flags);
+			PKTCFREE(dhdp->osh, pktbuf, TRUE);
+			return -ENODEV;
+		}
+		DHD_GENERAL_UNLOCK(dhdp, flags);
+
 		/* store the interface ID */
 		DHD_PKTTAG_SETIF(PKTTAG(pktbuf), ifidx);
 
