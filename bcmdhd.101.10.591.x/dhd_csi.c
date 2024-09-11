@@ -181,7 +181,7 @@ static const char * dhd_csi_get_error_string(uint  error_code)
  */
 
 static struct csi_cfr_node *dhd_csi_allocate_pkt(dhd_pub_t *dhdp,
-						uint pkt_len)
+                                                 uint       pkt_len)
 {
 	int                   ret = BCME_OK;
 	struct csi_cfr_node  *ptr = NULL;
@@ -525,8 +525,8 @@ int dhd_csi_data_queue_polling(dhd_pub_t *dhdp, char *buf, uint count)
 }
 
 static int dhd_csi_data_append(dhd_pub_t *dhdp, struct csi_cfr_node *ptr,
-				uint32 data_length, uint32 remain_length,
-				const uint8 *pData)
+						uint32 data_length, uint32 remain_length,
+						const uint8 *pData)
 {
 	syna_csi_common_header  *pEntry = NULL;
 	int                      error_status = 0;

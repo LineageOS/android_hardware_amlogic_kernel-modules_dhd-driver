@@ -2956,7 +2956,7 @@ int dhd_sar_set_parameter(dhd_pub_t *dhd_pub, int advance_mode)
 				__FUNCTION__));
 			return BCME_BADARG;
 		}
-		sarctrl_iov.ver = sarctrl->ver;
+		sarctrl_iov.ver = sar_ver | (sar_param_num << SAR_PARAM_NUM_OFFSET);
 		err = memcpy_s(sarctrl_iov.sarctrl, MAX_SAR_PARAMS_NUM * sizeof(u32),
 			sarctrl->sarctrl, file_sar_num * sizeof(u32));
 		if (err) {

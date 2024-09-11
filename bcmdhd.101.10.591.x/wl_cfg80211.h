@@ -950,6 +950,7 @@ do {									\
 #endif
 
 /* Join pref defines */
+#define JOIN_PREF_RSSI_LEN		0x02
 #define JOIN_PREF_RSSI_SIZE		4	/* RSSI pref header size in bytes */
 #define JOIN_PREF_WPA_HDR_SIZE		4	/* WPA pref header size in bytes */
 #define JOIN_PREF_WPA_TUPLE_SIZE	12	/* Tuple size in bytes */
@@ -2714,11 +2715,17 @@ wl_alloc_netinfo(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 	return err;
 }
 
+extern atomic_t reboot_in_progress;
 static inline void
 wl_delete_all_netinfo(struct bcm_cfg80211 *cfg)
 {
 	struct net_info *_net_info, *next;
 	unsigned long int flags;
+
+	if (OSL_ATOMIC_READ(cfg->osh, &reboot_in_progress) > -1) {
+		WL_ERR(("reboot_in_progress\n"));
+		return;
+	}
 
 	WL_CFG_NET_LIST_SYNC_LOCK(&cfg->net_list_sync, flags);
 	GCC_DIAGNOSTIC_PUSH_SUPPRESS_CAST();

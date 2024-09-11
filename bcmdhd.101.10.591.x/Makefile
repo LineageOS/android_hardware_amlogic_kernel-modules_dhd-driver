@@ -111,11 +111,11 @@ DHDCFLAGS = -Wall -Wstrict-prototypes -Wno-date-time                      \
 	-DKEY_INSTALL_CHECK                                                   \
 	-DENABLE_INSMOD_NO_FW_LOAD
 
-DHDOFILES = aiutils.o siutils.o sbutils.o                                 \
+DHDOFILES = aiutils.o siutils.o sbutils.o hndpmu.o hndjtag.o              \
 	bcmutils.o bcmwifi_channels.o bcmxtlv.o bcm_app_utils.o bcmstdlib_s.o \
 	dhd_linux.o dhd_linux_platdev.o dhd_linux_sched.o dhd_pno.o           \
 	dhd_common.o dhd_ip.o dhd_linux_wq.o dhd_custom_gpio.o                \
-	bcmevent.o hndpmu.o linux_osl.o wldev_common.o wl_android.o           \
+	bcmevent.o linux_osl.o wldev_common.o wl_android.o                    \
 	dhd_debug_linux.o dhd_debug.o dhd_mschdbg.o dhd_dbg_ring.o            \
 	hnd_pktq.o hnd_pktpool.o linux_pkt.o frag.o                           \
 	dhd_linux_exportfs.o dhd_linux_pktdump.o dhd_mschdbg.o linuxerrmap.o  \
@@ -311,7 +311,7 @@ ifneq ($(CONFIG_CFG80211),)
 	DHDCFLAGS += -DDHD_PKT_LOGGING_DBGRING -DDHD_PKT_LOGGING
 	DHDCFLAGS += -DAPF -DNDO_CONFIG_SUPPORT -DRSSI_MONITOR_SUPPORT
 	DHDCFLAGS += -DDHD_WAKE_STATUS
-	DHDCFLAGS += -DWL_LATENCY_MODE -DWL_SAR_TX_POWER
+	DHDCFLAGS += -DWL_LATENCY_MODE -DWL_USABLE_CHAN -DWL_SAR_TX_POWER
 	DHDOFILES += dhd_rtt.o
 	DHDOFILES += dhd_log_dump.o
 	DHDOFILES += dhd_pktlog.o

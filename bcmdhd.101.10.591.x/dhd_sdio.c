@@ -9876,10 +9876,12 @@ dhdsdio_probe_attach(struct dhd_bus *bus, osl_t *osh, void *sdh, void *regsva,
 #ifdef DHD_DEBUG
 	DHD_ERROR(("F1 signature OK, socitype:0x%x chip:0x%4x rev:0x%x pkg:0x%x\n",
 		bus->sih->socitype, bus->sih->chip, bus->sih->chiprev, bus->sih->chippkg));
+#ifdef DHD_SI_WD_RESET
 	if (CHIPID(bus->sih->chip) == BCM4381_CHIP_GRPID ||
 		CHIPID(bus->sih->chip) == BCM4382_CHIP_GRPID) {
 		bcmsdh_reg_write(bus->sdh, 0x18010040, 2, 0x7);
 	}
+#endif /* DHD_SI_WD_RESET */
 #endif /* DHD_DEBUG */
 
 	/* XXX Let the layers below dhd know the chipid and chiprev for
@@ -10433,10 +10435,8 @@ dhdsdio_release_dongle(dhd_bus_t *bus, osl_t *osh, bool dongle_isolation, bool r
 				DHD_ERROR(("%s: after si_watchdog, "
 					"dongle is going to be released\n",
 					__FUNCTION__));
-#if defined(DHD_SI_WD_RESET)
 				DHD_ERROR(("%s: set si_wd TRUE\n", __FUNCTION__));
 				bus->dhd->si_wd = TRUE;
-#endif
 			}
 		}
 #endif /* !defined(BCMLXSDMMC) */
@@ -11294,6 +11294,10 @@ _dhdsdio_download_firmware(struct dhd_bus *bus)
 		goto err;
 	}
 
+	if (CHIPID(bus->sih->chip) == BCM43711_CHIP_ID) {
+		si_pmu_43711a0_pll_war(bus->sih);
+	}
+
 	/* External nvram takes precedence if specified */
 	if (dhdsdio_download_nvram(bus)) {
 		DHD_ERROR(("%s: dongle nvram file download failed\n", __FUNCTION__));
@@ -11529,6 +11533,13 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 #endif /* !defined(IGNORE_ETH0_DOWN) */
 #endif /* OEM_ANDROID */
 			/* Expect app to have torn down any connection before calling */
+			/* AMPAK WAR: Configuring the UDR10 Regiter by setting the
+			 * UVLO_DISABLE_OVERRIDE_EN (113) bit to avoid
+			 * BT reset
+			 */
+			if (CHIPID(bus->sih->chip) == BCM43711_CHIP_ID)
+				si_pmu_43711a0_udr_war(bus->sih);
+
 			/* Stop the bus, disable F2 */
 			dhd_bus_stop(bus, FALSE);
 

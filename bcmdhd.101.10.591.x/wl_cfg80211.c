@@ -5953,11 +5953,18 @@ wl_set_multi_akm(struct net_device *dev, struct bcm_cfg80211 *cfg,
 	num_tuples = 4;
 
 	if (num_tuples <= JOIN_PREF_MAX_WPA_TUPLES) {
+		/* Add WL_JOIN_PREF_RSSI for old firmware version */
+		*pref++ = WL_JOIN_PREF_RSSI;
+		*pref++ = JOIN_PREF_RSSI_LEN;
+		*pref++ = 0;
+		*pref++ = 0;
+		total_bytes = JOIN_PREF_RSSI_SIZE;
+
 		*pref++ = WL_JOIN_PREF_WPA;
 		*pref++ = (JOIN_PREF_WPA_TUPLE_SIZE * num_tuples) + 2;
 		*pref++ = 0;
 		*pref++ = (uint8)num_tuples;
-		total_bytes = JOIN_PREF_WPA_HDR_SIZE +
+		total_bytes += JOIN_PREF_WPA_HDR_SIZE +
 			(JOIN_PREF_WPA_TUPLE_SIZE * num_tuples);
 	} else {
 		WL_ERR(("Too many wpa configs for join_pref\n"));
@@ -8146,6 +8153,8 @@ wl_cfg80211_add_key(struct wiphy *wiphy, struct net_device *dev,
 		goto exit;
 	}
 	memcpy(key.data, params->key, key.len);
+
+	key.flags = WL_PRIMARY_KEY;
 
 	key.algo = wl_rsn_cipher_wsec_key_algo_lookup(params->cipher);
 	val = wl_rsn_cipher_wsec_algo_lookup(params->cipher);
@@ -13530,17 +13539,16 @@ static void wl_free_wdev(struct bcm_cfg80211 *cfg)
 		wiphy_unregister(wdev->wiphy);
 		wdev->wiphy->dev.parent = NULL;
 		wdev->wiphy = NULL;
-
-		wiphy_free(wiphy);
 	}
 
 	wl_delete_all_netinfo(cfg);
-
-	if (wdev) {
+	if (wiphy) {
 		if (wdev->netdev)
 			wdev->netdev->ieee80211_ptr = NULL;
+		wdev->netdev = NULL;
 		MFREE(cfg->osh, wdev, sizeof(*wdev));
-		cfg->wdev = wdev = NULL;
+		cfg->wdev = NULL;
+		wiphy_free(wiphy);
 	}
 
 	/* PLEASE do NOT call any function after wiphy_free, the driver's private structure "cfg",
@@ -18875,7 +18883,9 @@ s32 wl_cfg80211_attach(struct net_device *ndev, void *context)
 	INIT_DELAYED_WORK(&cfg->loc.work, wl_cfgscan_listen_complete_work);
 	INIT_DELAYED_WORK(&cfg->ap_work, wl_cfg80211_ap_timeout_work);
 	mutex_init(&cfg->pm_sync);
-
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
+		INIT_DELAYED_WORK(&cfg->remove_iface_work, wl_cfgvif_delayed_remove_iface_work);
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0) */
 #ifdef WL_NAN
 	err = wl_cfgnan_attach(cfg);
 	if (err) {
@@ -21157,9 +21167,8 @@ static s32 __wl_cfg80211_down(struct bcm_cfg80211 *cfg)
 	s32 err = 0;
 	struct net_info *iter, *next;
 	struct net_device *ndev = bcmcfg_to_prmry_ndev(cfg);
-#if defined(WL_CFG80211) && \
-	(defined(WL_ENABLE_P2P_IF) || defined(WL_NEWCFG_PRIVCMD_SUPPORT)) && \
-	!defined(PLATFORM_SLP)
+#if defined(WL_CFG80211) && (defined(WL_ENABLE_P2P_IF) || \
+	defined(WL_NEWCFG_PRIVCMD_SUPPORT)) && !defined(PLATFORM_SLP)
 	struct net_device *p2p_net = cfg->p2p_net;
 #endif
 #ifdef BCMDONGLEHOST
@@ -21348,9 +21357,8 @@ static s32 __wl_cfg80211_down(struct bcm_cfg80211 *cfg)
 	if (ndev->ieee80211_ptr->iftype != NL80211_IFTYPE_MONITOR)
 #endif /* WL_CFG80211_MONITOR */
 		ndev->ieee80211_ptr->iftype = NL80211_IFTYPE_STATION;
-#if defined(WL_CFG80211) && \
-	(defined(WL_ENABLE_P2P_IF) || defined(WL_NEWCFG_PRIVCMD_SUPPORT)) && \
-	!defined(PLATFORM_SLP)
+#if defined(WL_CFG80211) && (defined(WL_ENABLE_P2P_IF) || \
+	defined(WL_NEWCFG_PRIVCMD_SUPPORT)) && !defined(PLATFORM_SLP)
 #ifdef SUPPORT_DEEP_SLEEP
 	if (!trigger_deep_sleep)
 #endif /* SUPPORT_DEEP_SLEEP */
@@ -25639,8 +25647,10 @@ wl_cfg80211_sup_event_handler(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgde
 			WL_DBG(("Authorizing Port with BSSID from DHD profile " MACDBG" \n",
 				MAC2STRDBG(curbssid)));
 		}
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)) || \
-	((ANDROID_VERSION >= 13) && (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 94)))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)) || defined(ANDROID_GKI_UPDATE) || \
+	((LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)) && defined(CUSTOMER_HW4)) || \
+	((ANDROID_VERSION == 13) && (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 123))) || \
+	((ANDROID_VERSION >= 14) && (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 109)))
 		cfg80211_port_authorized(ndev, (const u8 *)curbssid, NULL, 0, GFP_KERNEL);
 #else
 		cfg80211_port_authorized(ndev, (const u8 *)curbssid, GFP_KERNEL);
