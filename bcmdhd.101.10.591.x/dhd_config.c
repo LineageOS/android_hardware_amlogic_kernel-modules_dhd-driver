@@ -5093,7 +5093,6 @@ void
 dhd_conf_postinit_ioctls(dhd_pub_t *dhd)
 {
 	struct dhd_conf *conf = dhd->conf;
-	char wl_preinit[] = "";
 #ifdef NO_POWER_SAVE
 	char wl_no_power_save[] = "mpc=0, 86=0";
 	dhd_conf_set_wl_cmd(dhd, wl_no_power_save, FALSE);
@@ -5134,7 +5133,6 @@ dhd_conf_postinit_ioctls(dhd_pub_t *dhd)
 		conf->frameburst, 0, FALSE);
 
 	dhd_conf_preinit_ioctls_sta(dhd, 0);
-	dhd_conf_set_wl_cmd(dhd, wl_preinit, TRUE);
 #if defined(BCMSDIO)
 	dhd_conf_set_ampdu_mpdu(dhd);
 #endif

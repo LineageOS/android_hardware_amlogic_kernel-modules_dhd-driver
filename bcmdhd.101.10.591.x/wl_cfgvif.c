@@ -1416,7 +1416,7 @@ wl_cfg80211_change_virtual_iface(struct wiphy *wiphy, struct net_device *ndev,
 	wl_cfg80211_iface_state_ops(ndev->ieee80211_ptr,
 		WL_IF_CHANGE_REQ, wl_iftype, wl_mode);
 
-#if defined (BCMDONGLEHOST)
+#if defined(BCMDONGLEHOST)
 	if (dhd_query_bus_erros(dhd)) {
 		WL_ERR(("bus error before changing role!\n"));
 		err = -EINVAL;
@@ -4294,6 +4294,14 @@ wl_cfg80211_start_ap(
 		err = -EINVAL;
 		goto fail;
 	}
+#ifndef OEM_ANDROID
+	/* WAR: To overwrite apsta value for non-android FC builds
+	 * set by dhd_override_fwpreinit
+	 */
+	if ((err = wldev_iovar_setint(dev, "apsta", 1)) < 0) {
+		WL_ERR(("failed to set apsta: %d\n", err));
+	}
+#endif /* !OEM_ANDROID */
 
 #ifdef BCMDONGLEHOST
 	/* Disable packet filter */
@@ -6909,6 +6917,51 @@ int wl_cfg80211_set_he_features(struct net_device *dev, struct bcm_cfg80211 *cfg
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0))
 int
+wl_cfg80211_get_bw(struct net_device *dev,
+	struct cfg80211_chan_def *chandef, chanspec_t chspec, u32 *band_width)
+{
+	u32 bw = WL_CHANSPEC_BW_20;
+	s32 err = BCME_OK;
+
+	switch (chandef->width)
+	{
+		case NL80211_CHAN_WIDTH_160:
+			*band_width = WL_CHANSPEC_BW_160;
+			break;
+		case NL80211_CHAN_WIDTH_80P80:
+		case NL80211_CHAN_WIDTH_80:
+			*band_width = WL_CHANSPEC_BW_80;
+			break;
+		case NL80211_CHAN_WIDTH_40:
+			*band_width = WL_CHANSPEC_BW_40;
+			break;
+		default:
+			*band_width = WL_CHANSPEC_BW_20;
+			break;
+	}
+
+	err = wl_get_bandwidth_cap(dev, CHSPEC_BAND(chspec), &bw);
+	if (err < 0) {
+		WL_ERR(("Failed to get bandwidth information, err=%d\n", err));
+		return err;
+	}  else if (bw < *band_width) {
+		WL_ERR(("capability force band_width=0x%X to be 0x%X\n", *band_width, bw));
+		*band_width = bw;
+	}
+
+#ifdef HOSTAPD_BW_SUPPORT
+	WL_MSG(dev->name, "hostapd bw(%sMHz) <= chip bw(%sMHz)\n",
+		wf_chspec_to_bw_str(*band_width), wf_chspec_to_bw_str(bw));
+#else
+	WL_MSG(dev->name, "hostapd bw(%sMHz) => chip bw(%sMHz)\n",
+		wf_chspec_to_bw_str(*band_width), wf_chspec_to_bw_str(bw));
+	*band_width = bw;
+#endif
+
+	return err;
+}
+
+int
 wl_cfg80211_channel_switch(struct wiphy *wiphy, struct net_device *dev,
 	struct cfg80211_csa_settings *params)
 {
@@ -6923,9 +6976,10 @@ wl_cfg80211_channel_switch(struct wiphy *wiphy, struct net_device *dev,
 	dev = ndev_to_wlc_ndev(dev, cfg);
 	chspec = wl_freq_to_chanspec(chandef->chan->center_freq);
 
-	WL_ERR(("netdev_ifidx(%d), target channel(%d) target bandwidth(%d),"
-		" mode(%d), count(%d)\n", dev->ifindex, CHSPEC_CHANNEL(chspec), chandef->width,
-		params->block_tx, params->count));
+	WL_MSG(dev->name, "netdev_ifidx(%d) target channel(%s-%d) target bandwidth (%d)"
+		" mode(%d), count(%d)\n",
+		dev->ifindex, CHSPEC2BANDSTR(chspec), CHSPEC_CHANNEL(chspec), chandef->width,
+		params->block_tx, params->count);
 
 	if (wl_get_mode_by_netdev(cfg, dev) != WL_MODE_AP) {
 		WL_ERR(("Channel Switch doesn't support on "
@@ -6956,7 +7010,7 @@ wl_cfg80211_channel_switch(struct wiphy *wiphy, struct net_device *dev,
 			return -EINVAL;
 		}
 #endif /* APSTA_RESTRICTED_CHANNEL */
-		err = wl_get_bandwidth_cap(primary_dev, CHSPEC_BAND(chspec), &bw);
+		err = wl_cfg80211_get_bw(primary_dev, chandef, chspec, &bw);
 		if (err < 0) {
 			WL_ERR(("Failed to get bandwidth information,"
 				" err=%d\n", err));

@@ -4738,7 +4738,12 @@ dhd_get_stats(struct net_device *net)
 	}
 
 	dhdp = &dhd->pub;
-	if (!dhdp || OSL_ATOMIC_READ(dhdp->osh, &reboot_in_progress) > -1) {
+	if (!dhdp) {
+		DHD_ERROR(("%s : dhdp is NULL\n", __FUNCTION__));
+		goto error;
+	}
+
+	if (OSL_ATOMIC_READ(dhdp->osh, &reboot_in_progress) > -1) {
 		DHD_ERROR(("%s : reboot_in_progress\n", __FUNCTION__));
 		goto error;
 	}
@@ -12196,7 +12201,7 @@ dhd_legacy_preinit_ioctls(dhd_pub_t *dhd)
 		} else
 			memcpy(dhd->mac.octet, iovbuf, ETHER_ADDR_LEN);
 #endif /* SET_RANDOM_MAC_SOFTAP */
-#ifdef USE_DYNAMIC_F2_BLKSIZE
+#if defined(USE_DYNAMIC_F2_BLKSIZE) && defined(DYNAMIC_F2_BLKSIZE_FOR_NONLEGACY)
 		dhdsdio_func_blocksize(dhd, 2, DYNAMIC_F2_BLKSIZE_FOR_NONLEGACY);
 #endif /* USE_DYNAMIC_F2_BLKSIZE */
 #ifdef SUPPORT_AP_POWERSAVE
@@ -12224,7 +12229,7 @@ dhd_legacy_preinit_ioctls(dhd_pub_t *dhd)
 		dhd_pkt_filter_enable = FALSE;
 #endif /* PKT_FILTER_SUPPORT */
 		dhd->op_mode = DHD_FLAG_MFG_MODE;
-#ifdef USE_DYNAMIC_F2_BLKSIZE
+#if defined(USE_DYNAMIC_F2_BLKSIZE) && defined(DYNAMIC_F2_BLKSIZE_FOR_NONLEGACY)
 		/* XXX The 'wl counters' command triggers SDIO bus error
 		 * if F2 block size is greater than 128 bytes using 4354A1
 		 * manufacturing firmware. To avoid this problem, F2 block
@@ -14804,7 +14809,8 @@ void dhd_detach(dhd_pub_t *dhdp)
 	dhd_del_monitor_if(dhd);
 #endif /* WL_MONITOR */
 
-	cancel_work_sync(&dhd->dhd_hang_process_work);
+	if (work_pending(&dhd->dhd_hang_process_work))
+		cancel_work_sync(&dhd->dhd_hang_process_work);
 
 	/* Prefer adding de-init code above this comment unless necessary.
 	 * The idea is to cancel work queue, sysfs and flags at the end.
@@ -19164,7 +19170,7 @@ int dhd_deepsleep(struct net_device *dev, int flag)
 void dhd_wlfc_plat_init(void *dhd)
 {
 #ifdef USE_DYNAMIC_F2_BLKSIZE
-	dhdsdio_func_blocksize((dhd_pub_t *)dhd, 2, DYNAMIC_F2_BLKSIZE_FOR_NONLEGACY);
+	dhdsdio_func_blocksize((dhd_pub_t *)dhd, 2, sd_f2_blocksize);
 #endif /* USE_DYNAMIC_F2_BLKSIZE */
 	return;
 }
@@ -19554,8 +19560,8 @@ dhd_mem_dump(void *handle, void *event_info, u8 event)
 #endif /* DHD_FILE_DUMP_EVENT || DHD_DEBUGABILITY_DEBUG_DUMP */
 #endif /* DHD_LOG_DUMP */
 
-#if (defined(DHD_FILE_DUMP_EVENT)) || \
-	(defined(DHD_SSSR_COREDUMP) && defined(DHD_COREDUMP))
+#if defined(DHD_FILE_DUMP_EVENT) || (defined(DHD_SSSR_COREDUMP) && \
+	defined(DHD_COREDUMP))
 	int ret = 0;
 #endif /* DHD_FILE_DUMP_EVENT || DHD_SSSR_COREDUMP && DHD_COREDUMP */
 	dhd_dump_t *dump = NULL;
@@ -19633,8 +19639,7 @@ dhd_mem_dump(void *handle, void *event_info, u8 event)
 	}
 #endif /* DHD_SDTC_ETB_DUMP */
 
-#if (defined(DHD_FILE_DUMP_EVENT) || \
-	defined(DHD_DEBUGABILITY_DEBUG_DUMP))
+#if (defined(DHD_FILE_DUMP_EVENT) || defined(DHD_DEBUGABILITY_DEBUG_DUMP))
 	if (dhdp->memdump_enabled == DUMP_MEMONLY) {
 		DHD_ERROR(("%s: Force BUG_ON for memdump_enabled:%d\n",
 			__FUNCTION__, dhdp->memdump_enabled));
@@ -24056,13 +24061,6 @@ void wifi_plat_dev_drv_shutdown(struct platform_device *pdev)
 	}
 }
 #endif /* DHD_WIFI_SHUTDOWN */
-#if defined(WL_AUTO_QOS) && defined(DHD_QOS_ON_SOCK_FLOW)
-void
-dhd_wl_sock_qos_set_status(dhd_pub_t *dhdp, unsigned long on_off)
-{
-	dhd_sock_qos_set_status(dhdp->info, on_off);
-}
-#endif /* WL_AUTO_QOS && DHD_QOS_ON_SOCK_FLOW */
 
 #ifdef DHD_CFG80211_SUSPEND_RESUME
 void

@@ -3871,6 +3871,9 @@ dhd_bus_download_firmware(struct dhd_bus *bus, osl_t *osh,
 	dhdpcie_dump_resource(bus);
 #endif /* LINUX || linux */
 
+	if (CHIPID(bus->sih->chip) == BCM43711_CHIP_ID)
+		si_pmu_43711a0_udr_war(bus->sih);
+
 	ret = dhdpcie_download_firmware(bus, osh);
 
 	return ret;
@@ -4897,6 +4900,9 @@ _dhdpcie_download_firmware(struct dhd_bus *bus)
 	if (!dlok) {
 		DHD_ERROR(("%s:%d dongle image download failed\n", __FUNCTION__, __LINE__));
 		goto err;
+	}
+	if (CHIPID(bus->sih->chip) == BCM43711_CHIP_ID) {
+		si_pmu_43711a0_pll_war(bus->sih);
 	}
 
 	/* EXAMPLE: nvram_array */

@@ -1860,9 +1860,6 @@ wl_cfgvendor_set_latency_mode(struct wiphy *wiphy,
 #ifdef SUPPORT_LATENCY_CRITICAL_DATA
 	bool enable;
 #endif /* SUPPORT_LATENCY_CRITICAL_DATA */
-#if defined(WL_AUTO_QOS) && defined(DHD_QOS_ON_SOCK_FLOW)
-	dhd_pub_t *dhdp = wl_cfg80211_get_dhdp(wdev->netdev);
-#endif /* WL_AUTO_QOS && DHD_QOS_ON_SOCK_FLOW */
 
 	nla_for_each_attr(iter, data, len, rem) {
 		type = nla_type(iter);
@@ -1871,10 +1868,6 @@ wl_cfgvendor_set_latency_mode(struct wiphy *wiphy,
 				latency_mode = nla_get_u32(iter);
 				WL_DBG(("%s,Setting latency mode %u\n", __FUNCTION__,
 					latency_mode));
-#if defined(WL_AUTO_QOS) && defined(DHD_QOS_ON_SOCK_FLOW)
-				/* Enable/Disable qos monitoring */
-				dhd_wl_sock_qos_set_status(dhdp, latency_mode);
-#endif /* WL_AUTO_QOS && DHD_QOS_ON_SOCK_FLOW */
 #ifdef SUPPORT_LATENCY_CRITICAL_DATA
 				enable = latency_mode ? true : false;
 				err = wldev_iovar_setint(wdev->netdev,
@@ -11039,13 +11032,16 @@ wl_cfgvendor_custom_mapping_of_dscp_reset(struct wiphy *wiphy,
 }
 #endif /* WL_CUSTOM_MAPPING_OF_DSCP */
 
-#if 0
-//ndef WL_CELLULAR_CHAN_AVOID
+#ifndef WL_CELLULAR_CHAN_AVOID
 static int
 wl_cfgvendor_cellavoid_set_cell_channels(struct wiphy *wiphy,
 	struct wireless_dev *wdev, const void  *data, int len)
 {
-	return WIFI_ERROR_NOT_SUPPORTED;
+#if (ANDROID_VERSION >= 13)
+	return WIFI_SUCCESS;
+#else
+	return BCME_OK;
+#endif
 }
 #endif /* WL_CELLULAR_CHAN_AVOID */
 
@@ -12895,7 +12891,7 @@ const struct nla_policy custom_setting_attr_policy[CUSTOM_SETTING_ATTRIBUTE_MAX]
 };
 #endif /* WL_CUSTOM_MAPPING_OF_DSCP */
 
-#ifdef WL_CELLULAR_CHAN_AVOID
+//#ifdef WL_CELLULAR_CHAN_AVOID
 const struct nla_policy cellavoid_attr_policy[CELLAVOID_ATTRIBUTE_MAX] = {
 	[CELLAVOID_ATTRIBUTE_CNT] = { .type = NLA_U32 },
 	[CELLAVOID_ATTRIBUTE_CONFIG] = { .type = NLA_NESTED },
@@ -12904,7 +12900,7 @@ const struct nla_policy cellavoid_attr_policy[CELLAVOID_ATTRIBUTE_MAX] = {
 	[CELLAVOID_ATTRIBUTE_PWRCAP] = { .type = NLA_U32 },
 	[CELLAVOID_ATTRIBUTE_MANDATORY] = { .type = NLA_U32 },
 };
-#endif /* WL_CELLULAR_CHAN_AVOID */
+//#endif /* WL_CELLULAR_CHAN_AVOID */
 
 #ifdef WL_USABLE_CHAN
 const struct nla_policy usable_chan_attr_policy[USABLECHAN_ATTRIBUTE_MAX] = {
@@ -13999,7 +13995,7 @@ static struct wiphy_vendor_command wl_vendor_cmds [] = {
 #endif /* LINUX_VERSION >= 5.3 */
 	},
 #endif /* WL_CUSTOM_MAPPING_OF_DSCP */
-#ifdef WL_CELLULAR_CHAN_AVOID
+//#ifdef WL_CELLULAR_CHAN_AVOID
 	{
 		{
 			.vendor_id = OUI_GOOGLE,
@@ -14012,7 +14008,7 @@ static struct wiphy_vendor_command wl_vendor_cmds [] = {
 		.maxattr = CELLAVOID_ATTRIBUTE_MAX
 #endif /* LINUX_VERSION >= 5.3 */
 	},
-#endif /* WL_CELLULAR_CHAN_AVOID */
+//#endif /* WL_CELLULAR_CHAN_AVOID */
 #ifdef TPUT_DEBUG_DUMP
 	{
 		{
