@@ -5997,8 +5997,7 @@ BCMFASTPATH(dhd_bus_schedule_queue)(struct dhd_bus  *bus, uint16 flow_id, bool t
 		}
 
 		while ((txp = dhd_flow_queue_dequeue(bus->dhd, queue)) != NULL) {
-			if (bus->dhd->conf->orphan_move <= 1)
-				PKTORPHAN(txp, bus->dhd->conf->tsq);
+			PKTORPHAN(txp);
 
 			/*
 			 * Modifying the packet length caused P2P cert failures.

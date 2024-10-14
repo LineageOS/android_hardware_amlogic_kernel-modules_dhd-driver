@@ -92,11 +92,10 @@ ifndef CONFIG_KASAN
 endif
 
 DHDCFLAGS = -Wall -Wstrict-prototypes -Wno-date-time                      \
-	-Wno-unused-but-set-variable                                          \
-	-Wno-maybe-uninitialized -Wno-error -Wno-format-security              \
+	-Wno-maybe-uninitialized                                              \
+	-Wno-error -Wno-format-security -Wno-strict-prototypes                \
 	-Wno-unknown-warning-option -Wno-sometimes-uninitialized              \
 	-Wno-parentheses-equality -Wno-implicit-fallthrough                   \
-	-Wno-strict-prototypes													  \
 	-Dlinux -DLINUX -DBCMDRIVER -DBCMUTILS_ERR_CODES                      \
 	-DBCMDONGLEHOST -DBCMDMA32 -DBCMFILEIMAGE                             \
 	-DDHDTHREAD -DDHD_DEBUG -DSHOW_EVENTS -DGET_OTP_MAC_ENABLE            \
@@ -104,7 +103,7 @@ DHDCFLAGS = -Wall -Wstrict-prototypes -Wno-date-time                      \
 	-DPKTPRIO_OVERRIDE                                                    \
 	-DKEEP_ALIVE -DPKT_FILTER_SUPPORT -DDHDTCPACK_SUPPRESS                \
 	-DDHD_DONOT_FORWARD_BCMEVENT_AS_NETWORK_PKT -DOEM_ANDROID             \
-	-DMULTIPLE_SUPPLICANT -DTSQ_MULTIPLIER -DMFP -DDHD_8021X_DUMP         \
+	-DMULTIPLE_SUPPLICANT -DTSQ_MULTIPLIER=10 -DMFP -DDHD_8021X_DUMP      \
 	-DPOWERUP_MAX_RETRY=1 -DIFACE_HANG_FORCE_DEV_CLOSE -DWAIT_DEQUEUE     \
 	-DUSE_NEW_RSPEC_DEFS                                                  \
 	-DWL_EXT_IAPSTA -DWL_ESCAN -DCCODE_LIST -DSUSPEND_EVENT               \
@@ -210,6 +209,7 @@ BUS_TYPE := pcie
 	DHDCFLAGS += -DINSMOD_FW_LOAD
 	DHDCFLAGS += -DCONFIG_HAS_WAKELOCK #-DDHD_DEBUG_WAKE_LOCK
 	DHDCFLAGS += -DDHD_PACKET_TIMEOUT_MS=50 -DMAX_TX_TIMEOUT=50
+#	DHDCFLAGS += -DRMMOD_POWER_DOWN_LATER -DPCIE_ATU_FIXUP
 ifeq ($(CONFIG_BCMDHD),y)
 	DHDCFLAGS += -DWAKEUP_KSOFTIRQD_POST_NAPI_SCHEDULE
 endif

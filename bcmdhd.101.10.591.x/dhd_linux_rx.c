@@ -93,6 +93,7 @@
 #include <bcmdevs_legacy.h>    /* need to still support chips no longer in trunk firmware */
 #include <bcmiov.h>
 #include <bcmstdlib_s.h>
+#include <bcmsdpcm.h>
 
 #include <ethernet.h>
 #include <bcmevent.h>
@@ -675,7 +676,7 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 #else /* !BCM_ROUTER_DHD */
 
 #if defined(DBG_PKT_MON) && !defined(PCIE_FULL_DONGLE)
-		if (dhd_80211_mon_pkt(dhdp, pktbuf, ifidx)) {
+		if (chan == SDPCM_AML_CHANNEL && dhd_80211_mon_pkt(dhdp, pktbuf, ifidx)) {
 			continue;
 		}
 #endif

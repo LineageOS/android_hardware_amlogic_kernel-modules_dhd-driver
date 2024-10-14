@@ -2343,10 +2343,6 @@ dhd_bus_txdata(struct dhd_bus *bus, void *pkt)
 
 	prec = PRIO2PREC((PKTPRIO(pkt) & PRIOMASK));
 
-	/* move from dhdsdio_sendfromq(), try to orphan skb early */
-	if (bus->dhd->conf->orphan_move == 1)
-		PKTORPHAN(pkt, bus->dhd->conf->tsq);
-
 	/* Check for existing queue, current flow-control, pending event, or pending clock */
 	if (dhd_deferred_tx || bus->fcstate || pktq_n_pkts_tot(&bus->txq) || bus->dpc_sched ||
 	    (!DATAOK(bus)) || (bus->flowcontrol & NBITVAL(prec)) ||
@@ -2961,8 +2957,7 @@ dhdsdio_sendfromq(dhd_bus_t *bus, uint maxframes)
 				(uint32)PKTLEN(bus->dhd->osh, pkts[i]), TRUE, NULL, NULL);
 #endif /* DHD_PKTDUMP_TOFW */
 #endif /* DHD_LOSSLESS_ROAMING || DHD_PKTDUMP_TOFW */
-			if (!bus->dhd->conf->orphan_move)
-				PKTORPHAN(pkts[i], bus->dhd->conf->tsq);
+			PKTORPHAN(pkts[i]);
 			datalen += PKTLEN(osh, pkts[i]);
 		}
 		dhd_os_sdunlock_txq(bus->dhd);

@@ -6275,7 +6275,7 @@ wl_process_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata, uint pktlen
 				if (ifevent->opcode == WLC_E_IF_DEL) {
 					unsigned long fl;
 					ifp = dhd_get_ifp(dhd_pub, ifevent->ifidx);
-					if (ifp) {
+					if (ifp && !ifp->static_if) {
 						DHD_GENERAL_LOCK(dhd_pub, fl);
 						ifp->del_in_progress = true;
 						DHD_GENERAL_UNLOCK(dhd_pub, fl);

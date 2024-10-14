@@ -25,6 +25,10 @@
 #define CONFIG_PATH_AUTO_SELECT
 #endif
 extern char firmware_path[MOD_PARAM_PATHLEN];
+#ifdef RMMOD_POWER_DOWN_LATER
+extern atomic_t exit_in_progress;
+extern bool is_power_on;
+#endif
 #if defined(BCMSDIO)
 extern uint dhd_rxbound;
 extern uint dhd_txbound;
@@ -341,8 +345,6 @@ typedef struct dhd_conf {
 	char *wl_preinit;
 	char *wl_suspend;
 	char *wl_resume;
-	int tsq;
-	int orphan_move;
 	uint in4way;
 	uint war;
 #ifdef WL_EXT_WOWL

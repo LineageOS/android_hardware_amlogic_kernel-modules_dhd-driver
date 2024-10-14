@@ -31,6 +31,10 @@ bcmdhd_wlan {
 #define GPIO_WL_HOST_WAKE_PROPNAME	"gpio_wl_host_wake"
 #endif
 
+#if defined(BCMPCIE) && defined(PCIE_ATU_FIXUP)
+extern void amlogic_pcie_power_on_atu_fixup(void);
+#endif
+
 #ifdef CUSTOMER_HW_AMLOGIC
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0))
 #include <linux/amlogic/aml_gpio_consumer.h>
@@ -43,7 +47,6 @@ extern void set_usb_bt_power(int is_power);
 extern void set_usb_wifi_power(int is_power);
 extern void extern_wifi_set_enable(int is_on);
 extern void pci_remove_reinit(unsigned int vid, unsigned int pid, int delBus);
-//extern void amlogic_pcie_power_on_atu_fixup(void);
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0))
 extern int wifi_irq_num(void);
 #endif
@@ -89,15 +92,15 @@ dhd_wlan_set_power(int on, wifi_adapter_info_t *adapter)
 #ifdef BCMDBUS
 		if (dhd_pwr_ctrl) {
 			set_usb_wifi_power(1);
-    	}
+		}
 #endif
-#ifdef BCMPCIE
-//		extern_wifi_set_enable(0);
-//		mdelay(200);
-//		extern_wifi_set_enable(1);
-//		mdelay(200);
-//		amlogic_pcie_power_on_atu_fixup();
 #endif
+#if defined(BCMPCIE) && defined(PCIE_ATU_FIXUP)
+		extern_wifi_set_enable(0);
+		mdelay(200);
+		extern_wifi_set_enable(1);
+		mdelay(100);
+		amlogic_pcie_power_on_atu_fixup();
 #endif
 #ifdef BUS_POWER_RESTORE
 #ifdef BCMPCIE
@@ -380,6 +383,23 @@ dhd_wlan_init_gpio(wifi_adapter_info_t *adapter)
 				__FUNCTION__, gpio_wl_reg_on, err);
 			gpio_wl_reg_on = -1;
 		}
+#if defined(BCMPCIE) && defined(PCIE_ATU_FIXUP)
+		printf("======== PULL WL_REG_ON(%d) HIGH! ========\n", gpio_wl_reg_on);
+		err = gpio_direction_output(gpio_wl_reg_on, 1);
+		if (err) {
+			printf("%s: WL_REG_ON didn't output high\n", __FUNCTION__);
+			gpio_wl_reg_on = -1;
+		} else {
+			OSL_SLEEP(WIFI_TURNON_DELAY);
+		}
+#ifdef CUSTOMER_HW_AMLOGIC
+		extern_wifi_set_enable(0);
+		mdelay(200);
+		extern_wifi_set_enable(1);
+		mdelay(200);
+#endif
+		amlogic_pcie_power_on_atu_fixup();
+#endif
 	}
 	adapter->gpio_wl_reg_on = gpio_wl_reg_on;
 
