@@ -2179,7 +2179,7 @@ int wl_android_wifi_off(struct net_device *dev, bool force_off)
 	}
 #endif	/* BCMPCIE && DHD_DEBUG_UART */
 	dhd_net_if_lock(dev);
-	WL_MSG(dev->name, " g_wifi_on=%d force_off=%d\n", g_wifi_on, force_off);
+	WL_MSG(dev->name, "g_wifi_on=%d force_off=%d\n", g_wifi_on, force_off);
 	if (g_wifi_on || force_off) {
 #if defined(BCMSDIO) || defined(BCMPCIE) || defined(BCMDBUS)
 		ret = dhd_net_bus_devreset(dev, TRUE);
@@ -2187,6 +2187,11 @@ int wl_android_wifi_off(struct net_device *dev, bool force_off)
 		dhd_net_bus_suspend(dev);
 #endif /* BCMSDIO */
 #endif /* BCMSDIO || BCMPCIE || BCMDBUS */
+#ifdef RMMOD_POWER_DOWN_LATER
+		if (atomic_read(&exit_in_progress))
+			WL_MSG(dev->name, "module exit in progress\n");
+		else
+#endif
 		dhd_net_wifi_platform_set_power(dev, FALSE, WIFI_TURNOFF_DELAY);
 		g_wifi_on = FALSE;
 	}

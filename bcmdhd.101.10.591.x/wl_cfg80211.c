@@ -917,11 +917,11 @@ static int wl_cfg80211_get_rsn_capa(const bcm_tlv_t *wpa2ie, const u8** rsn_cap)
 static s32 wl_setup_wiphy(struct wireless_dev *wdev, struct device *dev, dhd_pub_t *data);
 static void wl_free_wdev(struct bcm_cfg80211 *cfg);
 #ifdef CONFIG_CFG80211_INTERNAL_REGDB
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 11))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0))
 static int
 #else
 static void
-#endif /* kernel version < 3.10.11 */
+#endif /* kernel version < 3.9.0 */
 wl_cfg80211_reg_notifier(struct wiphy *wiphy, struct regulatory_request *request);
 #endif /* CONFIG_CFG80211_INTERNAL_REGDB */
 
@@ -5426,7 +5426,7 @@ wl_set_wsec_info_algos(struct net_device *dev, uint32 algos, uint32 mask)
 	bcm_xtlv_t *wsec_info_tlv;
 	uint16 tlv_data_len;
 	uint32 tlv_data[2];
-	uint32 param_len;
+	uint32 param_len, buflen;
 	uint8 * buf;
 
 	WL_DBG(("enter.\n"));
@@ -5438,7 +5438,9 @@ wl_set_wsec_info_algos(struct net_device *dev, uint32 algos, uint32 mask)
 		return BCME_ERROR;
 	}
 
-	buf = MALLOCZ(cfg->osh, sizeof(wl_wsec_info_t) + sizeof(tlv_data));
+	buflen = OFFSETOF(wl_wsec_info_t, tlvs) +
+		sizeof(wl_wsec_info_tlv_t) + sizeof(tlv_data);
+	buf = MALLOCZ(cfg->osh, buflen);
 	if (!buf) {
 		WL_ERR(("No memory"));
 		return BCME_NOMEM;
@@ -5459,7 +5461,7 @@ wl_set_wsec_info_algos(struct net_device *dev, uint32 algos, uint32 mask)
 	err = wldev_iovar_setbuf_bsscfg(dev, "wsec_info", wsec_info, param_len,
 		cfg->ioctl_buf, WLC_IOCTL_MAXLEN, bssidx, &cfg->ioctl_buf_sync);
 
-	MFREE(cfg->osh, buf, sizeof(wl_wsec_info_t) + sizeof(tlv_data));
+	MFREE(cfg->osh, buf, buflen);
 	return err;
 }
 #endif /* WL_GCMP */
@@ -5473,7 +5475,7 @@ wl_cfg80211_set_wsec_info(struct net_device *dev, uint32 *data,
 	s32 err = 0;
 	wl_wsec_info_t *wsec_info;
 	bcm_xtlv_t *bcm_info_tlv;
-	uint32 param_len;
+	uint32 param_len, buflen;
 	uint8 *buf = NULL;
 
 	if (!cfg) {
@@ -5491,7 +5493,9 @@ wl_cfg80211_set_wsec_info(struct net_device *dev, uint32 *data,
 		goto exit;
 	}
 
-	buf = MALLOCZ(cfg->osh, sizeof(wl_wsec_info_t) + data_len);
+	buflen = OFFSETOF(wl_wsec_info_t, tlvs) +
+		sizeof(wl_wsec_info_tlv_t) + data_len;
+	buf = MALLOCZ(cfg->osh, buflen);
 	if (!buf) {
 		WL_ERR(("No memory"));
 		err = BCME_NOMEM;
@@ -5499,7 +5503,7 @@ wl_cfg80211_set_wsec_info(struct net_device *dev, uint32 *data,
 	}
 
 	wsec_info = (wl_wsec_info_t *)buf;
-	bzero(wsec_info, sizeof(wl_wsec_info_t) + data_len);
+	bzero(wsec_info, buflen);
 	wsec_info->version = WL_WSEC_INFO_VERSION_1;
 	bcm_info_tlv = (bcm_xtlv_t *)(buf + OFFSETOF(wl_wsec_info_t, tlvs));
 
@@ -5516,7 +5520,7 @@ wl_cfg80211_set_wsec_info(struct net_device *dev, uint32 *data,
 
 exit:
 	if (buf)
-		MFREE(cfg->osh, buf, sizeof(wl_wsec_info_t) + data_len);
+		MFREE(cfg->osh, buf, buflen);
 	return err;
 }
 
@@ -12448,7 +12452,6 @@ wl_cfg80211_cleanup_connection(struct net_device *net, bool user_enforced)
 #endif /* WL_NAN */
 }
 
-#if defined(WL_SELF_MANAGED_REGDOM) && (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0))
 static int wl_cfg80211_regd_duplicate(struct ieee80211_regdomain *regd_copy,
 		const struct ieee80211_regdomain *regd_orig)
 {
@@ -12465,7 +12468,6 @@ static int wl_cfg80211_regd_duplicate(struct ieee80211_regdomain *regd_copy,
 	}
 	return BCME_OK;
 }
-#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)) && defined(WL_SELF_MANAGED_REGDOM) */
 
 #ifdef EXT_REGD_INFO
 static void wl_cfg80211_regd_check_special_country_code(char *country_code)
@@ -12746,7 +12748,7 @@ WL_CFG80211_REG_NOTIFIER()
 
 	if (!request || !cfg) {
 		WL_ERR(("Invalid arg\n"));
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 11))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0))
 		return -EINVAL;
 #else
 		return;
@@ -12776,7 +12778,7 @@ WL_CFG80211_REG_NOTIFIER()
 		WL_ERR(("Set country failed ret:%d\n", ret));
 	}
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 11))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0))
 	return ret;
 #else
 	return;

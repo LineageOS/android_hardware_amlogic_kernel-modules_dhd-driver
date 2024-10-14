@@ -3065,6 +3065,22 @@ wl_ext_add_sta_info(struct net_device *net, u8 *bssid)
 #endif /* STA_MGMT */
 #endif /* WL_CFG80211 */
 
+static int
+wlc_ver_major(struct net_device *dev)
+{
+	wl_wlc_version_t wlc_ver;
+	int ret;
+
+	memset(&wlc_ver, 0, sizeof(wlc_ver));
+	ret = wldev_iovar_getbuf(dev, "wlc_ver", NULL, 0,
+		&wlc_ver, sizeof(wl_wlc_version_t), NULL);
+	if (ret != BCME_OK) {
+		/* old firmware may not support "wlc_ver" */
+		return 0;
+	}
+	return wlc_ver.wlc_ver_major;
+}
+
 #ifndef WL_STATIC_IF
 s32
 wl_ext_add_del_bss(struct net_device *ndev, s32 bsscfg_idx,
@@ -3131,7 +3147,6 @@ wl_ext_interface_ops(struct net_device *dev,
 	uint32 ifflags = 0;
 	bool use_iface_info_v2 = false;
 	u8 ioctl_buf[WLC_IOCTL_SMLEN];
-	wl_wlc_version_t wlc_ver;
 
 	/* Interface create */
 	bzero(&iface, sizeof(iface));
@@ -3140,9 +3155,7 @@ wl_ext_interface_ops(struct net_device *dev,
 		ifflags |= WL_INTERFACE_MAC_USE;
 	}
 
-	ret = wldev_iovar_getbuf(dev, "wlc_ver", NULL, 0,
-		&wlc_ver, sizeof(wl_wlc_version_t), NULL);
-	if ((ret == BCME_OK) && (wlc_ver.wlc_ver_major >= 5)) {
+	if (wlc_ver_major(dev) >= 5) {
 		ret = wldev_iovar_getbuf(dev, "interface_create",
 			&iface, sizeof(struct wl_interface_create_v2),
 			ioctl_buf, sizeof(ioctl_buf), NULL);
@@ -3218,14 +3231,12 @@ wl_ext_interface_create(struct net_device *dev, struct wl_apsta_params *apsta_pa
 static void
 wl_ext_iapsta_intf_add(struct net_device *dev, struct wl_apsta_params *apsta_params)
 {
-	struct dhd_pub *dhd;
 	apstamode_t apstamode = apsta_params->apstamode;
 	struct wl_if_info *cur_if;
 	s8 iovar_buf[WLC_IOCTL_SMLEN];
 	wl_p2p_if_t ifreq;
 	struct ether_addr mac_addr;
 
-	dhd = dhd_get_pub(dev);
 	bzero(&mac_addr, sizeof(mac_addr));
 
 	if (apstamode == ISTAAP_MODE) {
@@ -3909,13 +3920,16 @@ wl_ext_in4way_sync_sta(dhd_pub_t *dhd, struct wl_if_info *cur_if,
 	struct osl_timespec cur_ts, *sta_disc_ts = &cur_if->sta_disc_ts;
 	struct osl_timespec *sta_conn_ts = &cur_if->sta_conn_ts;
 	uint32 diff_ms = 0;
-	int ret = 0, suppressed = 0, wpa_auth = 0, max_wait_time = 0, key_installed = 1;
+	int ret = 0, suppressed = 0, wpa_auth = 0, key_installed = 1;
 	uint cur_conn_state, conn_state;
 	bool connecting = FALSE;
 	wl_event_msg_t *e = (wl_event_msg_t *)context;
 #ifdef WL_CFG80211
 	struct bcm_cfg80211 *cfg = wl_get_cfg(dev);
 #endif /* WL_CFG80211 */
+#if defined(WL_EXT_RECONNECT) && defined(WL_CFG80211)
+	int max_wait_time = 0;
+#endif /* WL_EXT_RECONNECT && WL_CFG80211 */
 
 	action = action & conf->in4way;
 #ifdef WL_CFG80211
@@ -4068,13 +4082,14 @@ wl_ext_in4way_sync_sta(dhd_pub_t *dhd, struct wl_if_info *cur_if,
 #ifdef BTC_WAR
 				wl_ext_btc_config(cur_if->dev, TRUE);
 #endif /* BTC_WAR */
-				max_wait_time = 0;
 			} else {
 				wl_ext_update_conn_state(dhd, cur_if->ifidx, CONN_STATE_ASSOCIATED);
-				max_wait_time = STA_4WAY_TIMEOUT;
 			}
 #if defined(WL_EXT_RECONNECT) && defined(WL_CFG80211)
 			if (action & STA_REASSOC_RETRY) {
+				if ((wpa_auth >= WPA_AUTH_UNSPECIFIED) && !(wpa_auth & WPA2_AUTH_FT)) {
+					max_wait_time = STA_4WAY_TIMEOUT;
+				}
 				wl_ext_update_assoc_info(dev, TRUE);
 				wl_timer_mod(dhd, &cur_if->reconnect_timer, max_wait_time);
 			}
@@ -4098,12 +4113,12 @@ wl_ext_in4way_sync_sta(dhd_pub_t *dhd, struct wl_if_info *cur_if,
 #ifdef BTC_WAR
 				wl_ext_btc_config(cur_if->dev, TRUE);
 #endif /* BTC_WAR */
-				max_wait_time = STA_4WAY_TIMEOUT;
-			} else {
-				max_wait_time = 0;
 			}
 #if defined(WL_EXT_RECONNECT) && defined(WL_CFG80211)
 			if (action & STA_REASSOC_RETRY) {
+				if ((wpa_auth >= WPA_AUTH_UNSPECIFIED) && !(wpa_auth & WPA2_AUTH_FT)) {
+					max_wait_time = STA_4WAY_TIMEOUT;
+				}
 				wl_ext_update_assoc_info(dev, TRUE);
 				wl_timer_mod(dhd, &cur_if->reconnect_timer, max_wait_time);
 			}
@@ -4723,6 +4738,54 @@ wl_sta_info_dump(struct net_device *dev, struct ether_addr *mac)
 }
 
 static void
+wl_swdiv_dump(struct wl_apsta_params *apsta_params, struct wl_if_info *cur_if)
+{
+	void *buf = g_ioctl_buf;
+	struct wlc_swdiv_stats_v1 *cnt_v1;
+	struct wlc_swdiv_stats_v2 *cnt;
+	struct ether_addr bssid;
+	char rssi_buf[16];
+	int ret = 0, swdiv_en = 0;
+
+	if (!(android_msg_level & ANDROID_SWDIV_LEVEL))
+		return;
+
+	if (cur_if->ifmode != ISTA_MODE)
+		return;
+
+	ret = wl_ext_iovar_getint(cur_if->dev, "swdiv_en", &swdiv_en);
+	if (ret != 0 || swdiv_en == 0)
+		return;
+
+	wldev_ioctl(cur_if->dev, WLC_GET_BSSID, &bssid, sizeof(bssid), 0);
+	if (ret == BCME_NOTASSOCIATED || !memcmp(&ether_null, &bssid, ETHER_ADDR_LEN))
+		return;
+
+	ret = wldev_iovar_getbuf(cur_if->dev, "swdiv_stats", NULL, 0,
+		buf, WLC_IOCTL_MEDLEN, NULL);
+	if (ret < 0)
+		return;
+
+	memset(rssi_buf, 0, sizeof(rssi_buf));
+	wl_phy_rssi_ant(cur_if->dev, &bssid, rssi_buf, sizeof(rssi_buf));
+
+	if (wlc_ver_major(cur_if->dev) <= 5) {
+		cnt_v1 = (struct wlc_swdiv_stats_v1 *)buf;
+		WL_MSG(cur_if->dev->name,
+			"active_ant/rssi/snr_ant=%d/%s/[%2d][%2d]\n",
+			cnt_v1->active_ant, rssi_buf,
+			cnt_v1->avg_snr_per_ant0, cnt_v1->avg_snr_per_ant1);
+
+	} else {
+		cnt = (struct wlc_swdiv_stats_v2 *)buf;
+		WL_MSG(cur_if->dev->name,
+			"active_ant/rssi/snr_ant=%d/%s/[%2d][%2d]\n",
+			cnt->active_ant, rssi_buf,
+			cnt->avg_snr_per_ant0, cnt->avg_snr_per_ant1);
+	}
+}
+
+static void
 wl_cur_if_tput_dump(struct wl_apsta_params *apsta_params, struct wl_if_info *cur_if)
 {
 #ifdef WLDWDS
@@ -4868,6 +4931,7 @@ wl_tput_monitor_handler(struct wl_if_info *cur_if,
 			if (monitor_if[i]) {
 				tmp_if = &apsta_params->if_info[i];
 				wl_cur_if_tput_dump(apsta_params, tmp_if);
+				wl_swdiv_dump(apsta_params, tmp_if);
 				monitor = TRUE;
 			}
 		}

@@ -1084,7 +1084,6 @@ dhd_conf_set_tput_patch(dhd_pub_t *dhd)
 #if defined(SET_RPS_CPUS)
 		conf->rps_cpus = TRUE;
 #endif /* SET_RPS_CPUS */
-		conf->orphan_move = 3;
 		conf->flow_ring_queue_threshold = 2048;
 #endif /* BCMPCIE */
 #ifdef DHDTCPACK_SUPPRESS
@@ -1112,11 +1111,6 @@ dhd_conf_set_tput_patch(dhd_pub_t *dhd)
 #if defined(SET_RPS_CPUS)
 		conf->rps_cpus = FALSE;
 #endif /* SET_RPS_CPUS */
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0))
-		conf->orphan_move = 1;
-#else
-		conf->orphan_move = 0;
-#endif
 		conf->flow_ring_queue_threshold = 2048;
 #endif /* BCMPCIE */
 #ifdef DHDTCPACK_SUPPRESS
@@ -1134,7 +1128,6 @@ dhd_conf_dump_tput_patch(dhd_pub_t *dhd)
 	CONFIG_TRACE("tput_patch=%d\n", conf->tput_patch);
 	CONFIG_TRACE("mtu=%d\n", conf->mtu);
 	CONFIG_TRACE("pktsetsum=%d\n", conf->pktsetsum);
-	CONFIG_TRACE("orphan_move=%d\n", conf->orphan_move);
 #ifdef DHDTCPACK_SUPPRESS
 	CONFIG_TRACE("tcpack_sup_ratio=%d\n", conf->tcpack_sup_ratio);
 	CONFIG_TRACE("tcpack_sup_delay=%d\n", conf->tcpack_sup_delay);
@@ -4498,14 +4491,6 @@ dhd_conf_read_others(dhd_pub_t *dhd, char *full_param, uint len_param)
 		CONFIG_MSG("dhd_rxbound = %d\n", dhd_rxbound);
 	}
 #endif
-	else if (!strncmp("orphan_move=", full_param, len_param)) {
-		conf->orphan_move = (int)simple_strtol(data, NULL, 10);
-		CONFIG_MSG("orphan_move = %d\n", conf->orphan_move);
-	}
-	else if (!strncmp("tsq=", full_param, len_param)) {
-		conf->tsq = (int)simple_strtol(data, NULL, 10);
-		CONFIG_MSG("tsq = %d\n", conf->tsq);
-	}
 	else if (!strncmp("ctrl_resched=", full_param, len_param)) {
 		conf->ctrl_resched = (int)simple_strtol(data, NULL, 10);
 		CONFIG_MSG("ctrl_resched = %d\n", conf->ctrl_resched);
@@ -5004,11 +4989,6 @@ dhd_conf_tput_improve(dhd_pub_t *dhd)
 		conf->dhd_txminmax = -1;
 		conf->txinrx_thres = 128;
 #endif
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0))
-		conf->orphan_move = 1;
-#else
-		conf->orphan_move = 0;
-#endif
 	}
 }
 
@@ -5389,12 +5369,6 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 #ifdef IDHCP
 	conf->dhcpc_enable = -1;
 	conf->dhcpd_enable = -1;
-#endif
-	conf->orphan_move = 0;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0))
-	conf->tsq = 10;
-#else
-	conf->tsq = 0;
 #endif
 #ifdef DHDTCPACK_SUPPRESS
 #ifdef BCMPCIE

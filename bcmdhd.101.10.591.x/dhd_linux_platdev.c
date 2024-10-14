@@ -90,7 +90,7 @@ struct regulator *wifi_regulator = NULL;
 bool cfg_multichip = FALSE;
 bcmdhd_wifi_platdata_t *dhd_wifi_platdata = NULL;
 static int wifi_plat_dev_probe_ret = 0;
-static bool is_power_on = FALSE;
+bool is_power_on = FALSE;
 /* XXX Some Qualcomm based CUSTOMER_HW4 platforms are using platform
  * device structure even if the Kernel uses device tree structure.
  * Therefore, the CONFIG_ARCH_MSM condition is temporarly remained
