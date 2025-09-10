@@ -50,3 +50,10 @@ bluetooth/bcm4359c0/sabrina/BCM4359C0.hcd
 wifi/bcm4359c0_ag/sabrina/config_bcm4359c0_ag.txt
 wifi/bcm4359c0_ag/sabrina/fw_bcm4359c0_ag.bin
 wifi/bcm4359c0_ag/sabrina/nvram_ap6398s.txt
+
+# The following files are extracted from fbx8am-user 10 QTT8.201201.002 v10.5.59 release-keys.
+wifi/clm_bcm4359c51a2_ag.blob
+wifi/config_bcm4359c51a2_ag.txt
+wifi/fw_bcm4359c51a2_ag.bin
+wifi/fw_bcm4359c51a2_ag_apsta.bin
+wifi/nvram_ap6398sr32.txt
