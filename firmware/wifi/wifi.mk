@@ -35,7 +35,9 @@ else
 PRODUCT_COPY_FILES += \
     $(WIFI_FIRMWARE_PATH)/bcm4359c0_ag/config_bcm4359c0_ag.txt:$(TARGET_COPY_OUT_VENDOR)/firmware/wifi/config_bcm4359c0_ag.txt \
     $(WIFI_FIRMWARE_PATH)/bcm4359c0_ag/fw_bcm4359c0_ag.bin:$(TARGET_COPY_OUT_VENDOR)/firmware/wifi/fw_bcm4359c0_ag.bin \
-    $(WIFI_FIRMWARE_PATH)/bcm4359c0_ag/nvram_ap6398s.txt:$(TARGET_COPY_OUT_VENDOR)/firmware/wifi/nvram_ap6398s.txt
+    $(WIFI_FIRMWARE_PATH)/bcm4359c0_ag/nvram_ap6398s.txt:$(TARGET_COPY_OUT_VENDOR)/firmware/wifi/nvram_ap6398s.txt \
+    $(WIFI_FIRMWARE_PATH)/bcm4359c0_ag/nvram_ap6398sa.txt:$(TARGET_COPY_OUT_VENDOR)/firmware/wifi/nvram_ap6398sa.txt \
+    $(WIFI_FIRMWARE_PATH)/bcm4359c0_ag/nvram_ap6398sa3.txt:$(TARGET_COPY_OUT_VENDOR)/firmware/wifi/nvram_ap6398sa3.txt
 endif
 
 # bcm43436b0 ap6236

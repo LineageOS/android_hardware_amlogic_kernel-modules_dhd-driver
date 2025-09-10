@@ -56,4 +56,6 @@ wifi/clm_bcm4359c51a2_ag.blob
 wifi/config_bcm4359c51a2_ag.txt
 wifi/fw_bcm4359c51a2_ag.bin
 wifi/fw_bcm4359c51a2_ag_apsta.bin
+wifi/nvram_ap6398sa.txt
+wifi/nvram_ap6398sa3.txt
 wifi/nvram_ap6398sr32.txt
