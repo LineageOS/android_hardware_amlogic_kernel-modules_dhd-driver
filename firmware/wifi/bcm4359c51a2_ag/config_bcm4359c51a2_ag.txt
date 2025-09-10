@@ -1,0 +1,46 @@
+#//[SEI-Tiger.Hu-2020/10/22] add notes by Tiger {
+#country_list=US:US/140, CN:CN/38, JP:JP/967, AR:XZ/11, RU:RU/986,
+
+#chip=0xaae8, rev=2
+ccode=FR
+
+#Define it once and add it later for wl_preinit
+# rsdb_mode=0: only for 6398s/sr3;
+# ampdu_ba_wsize=24, pm2_sleep_ret=2000: Optimized stability;
+# wnm=0x1: Enable BSS TM for 802.11v;
+wl_preinit=ampdu_ba_wsize=24, pm2_sleep_ret=2000, wnm=0x1
+
+#fix WiFi automatically shuts down for 6398SR32
+PM=0
+
+#only for suspend for Free {
+dhd_master_mode=1
+pkt_filter_delete=100, 102, 103, 104, 105, 106, 107
+magic_pkt_filter_add=141 0 1 12
+#pkt_filter_add=142 0 0 12 0xFFFF000000000000000000FF000000000000FFFFFFFF0000000000000000FFFFFFFFFFFFFFFF 0x080000000000000000000011000000000000EFFFFFFA00000000000000004d2d534541524348
+pkt_filter_add=142 0 0 42 0xFFFFFFFFFFFFFFFF 0x4d2d534541524348, 152 0 0 62 0xFFFFFFFFFFFFFFFF 0x4d2d534541524348
+
+suspend_mode=1
+insuspend=0x03
+pm_in_suspend=1
+suspend_bcn_li_dtim=0
+wl_suspend=pm_ignore_bcmc=1
+wl_resume=pm_ignore_bcmc=0
+
+garp=1
+rekey_offload=1
+#only for suspend for Free }
+
+#support 802.11k/v {
+roam_off=0
+roam_scan_period=10
+roam_delta=6
+fullroamperiod=20
+#support 802.11k/v }
+
+#dhd_console_ms=20
+#dhd_watchdog_ms=10
+#wl_dbg_level=0x9
+#dhd_msg_level=0x801
+#//[SEI-Tiger.Hu-2020/10/22] add notes by Tiger }
+

@@ -62,6 +62,14 @@ PRODUCT_COPY_FILES += \
     $(WIFI_FIRMWARE_PATH)/bcm43456c5_ag/fw_bcm43456c5_ag.bin:$(TARGET_COPY_OUT_VENDOR)/firmware/wifi/fw_bcm43456c5_ag.bin \
     $(WIFI_FIRMWARE_PATH)/bcm43456c5_ag/nvram_ap6256.txt:$(TARGET_COPY_OUT_VENDOR)/firmware/wifi/nvram_ap6256.txt
 
+# bcm4359c51a2_ag
+PRODUCT_COPY_FILES += \
+    $(WIFI_FIRMWARE_PATH)/bcm4359c51a2_ag/clm_bcm4359c51a2_ag.blob:$(TARGET_COPY_OUT_VENDOR)/firmware/wifi/clm_bcm4359c51a2_ag.blob \
+    $(WIFI_FIRMWARE_PATH)/bcm4359c51a2_ag/config_bcm4359c51a2_ag.txt:$(TARGET_COPY_OUT_VENDOR)/firmware/wifi/config_bcm4359c51a2_ag.txt \
+    $(WIFI_FIRMWARE_PATH)/bcm4359c51a2_ag/fw_bcm4359c51a2_ag.bin:$(TARGET_COPY_OUT_VENDOR)/firmware/wifi/fw_bcm4359c51a2_ag.bin \
+    $(WIFI_FIRMWARE_PATH)/bcm4359c51a2_ag/fw_bcm4359c51a2_ag_apsta.bin:$(TARGET_COPY_OUT_VENDOR)/firmware/wifi/fw_bcm4359c51a2_ag_apsta.bin \
+    $(WIFI_FIRMWARE_PATH)/bcm4359c51a2_ag/nvram_ap6398sr32.txt:$(TARGET_COPY_OUT_VENDOR)/firmware/wifi/nvram_ap6398sr32.txt
+
 # bcm43751a1_ag
 PRODUCT_COPY_FILES += \
     $(WIFI_FIRMWARE_PATH)/bcm43751a1_ag/clm_bcm43751a1_ag.blob:$(TARGET_COPY_OUT_VENDOR)/firmware/wifi/clm_bcm43751a1_ag.blob \
