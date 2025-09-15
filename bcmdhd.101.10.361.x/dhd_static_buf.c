@@ -240,6 +240,11 @@ void *bcmdhd_mem_prealloc(int section, unsigned long size)
 	}
 
 	if (section == DHD_PREALLOC_DHD_INFO) {
+		if (size > DHD_PREALLOC_DHD_INFO_SIZE) {
+			DHD_STATIC_ERROR("request DHD_INFO(%lu) > %d\n",
+				size, DHD_PREALLOC_DHD_INFO_SIZE);
+			return NULL;
+		}
 		return wlan_static_dhd_info_buf[index];
 	}
 #if defined(BCMSDIO) || defined(BCMDBUS)
