@@ -24,9 +24,6 @@ wifi/bcm43436b0/nvram_ap6236.txt
 wifi/bcm43438a0/config_bcm43438a0.txt
 wifi/bcm43438a0/fw_bcm43438a0.bin
 wifi/bcm43438a0/nvram_ap6212.txt
-wifi/bcm43455c0_ag/config_bcm43455c0_ag.txt
-wifi/bcm43455c0_ag/fw_bcm43455c0_ag.bin
-wifi/bcm43455c0_ag/nvram_ap6255.txt
 wifi/bcm43456c5_ag/config_bcm43456c5_ag.txt
 wifi/bcm43456c5_ag/fw_bcm43456c5_ag.bin
 wifi/bcm43456c5_ag/nvram_ap6256.txt
@@ -59,3 +56,9 @@ wifi/fw_bcm4359c51a2_ag_apsta.bin
 wifi/nvram_ap6398sa.txt
 wifi/nvram_ap6398sa3.txt
 wifi/nvram_ap6398sr32.txt
+
+# The following files are extracted from https://github.com/radxa/firmware/tree/9688073218f24a6976e4b668077a957d0e1a0d94/cypress.
+wifi/bcm43455c0_ag/clm_bcm43455c0_ag.blob
+wifi/bcm43455c0_ag/config_bcm43455c0_ag.txt
+wifi/bcm43455c0_ag/fw_bcm43455c0_ag.bin
+wifi/bcm43455c0_ag/nvram_ap6255.txt

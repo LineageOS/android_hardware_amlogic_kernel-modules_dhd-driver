@@ -54,6 +54,7 @@ PRODUCT_COPY_FILES += \
 
 # bcm43455c0_ag ap6255
 PRODUCT_COPY_FILES += \
+    $(WIFI_FIRMWARE_PATH)/bcm43455c0_ag/clm_bcm43455c0_ag.blob:$(TARGET_COPY_OUT_VENDOR)/firmware/wifi/clm_bcm43455c0_ag.blob \
     $(WIFI_FIRMWARE_PATH)/bcm43455c0_ag/config_bcm43455c0_ag.txt:$(TARGET_COPY_OUT_VENDOR)/firmware/wifi/config_bcm43455c0_ag.txt \
     $(WIFI_FIRMWARE_PATH)/bcm43455c0_ag/fw_bcm43455c0_ag.bin:$(TARGET_COPY_OUT_VENDOR)/firmware/wifi/fw_bcm43455c0_ag.bin \
     $(WIFI_FIRMWARE_PATH)/bcm43455c0_ag/nvram_ap6255.txt:$(TARGET_COPY_OUT_VENDOR)/firmware/wifi/nvram_ap6255.txt
