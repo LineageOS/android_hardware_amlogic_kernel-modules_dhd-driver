@@ -8,7 +8,6 @@ bluetooth/bcm43241b4/bcm43241b4.hcd
 bluetooth/bcm43341b0/bcm43341b0.hcd
 bluetooth/bcm4335c0/bcm4335c0.hcd
 bluetooth/bcm43438a0/4343.hcd
-bluetooth/bcm4345c0/BCM4345C0.hcd
 bluetooth/bcm4345c5/BCM4345C5.hcd
 bluetooth/bcm4354a1/BCM4350.hcd
 bluetooth/bcm43569a2/bcm43569a2.hcd
@@ -62,3 +61,9 @@ wifi/bcm43455c0_ag/clm_bcm43455c0_ag.blob
 wifi/bcm43455c0_ag/config_bcm43455c0_ag.txt
 wifi/bcm43455c0_ag/fw_bcm43455c0_ag.bin
 wifi/bcm43455c0_ag/nvram_ap6255.txt
+
+# The following files are extracted from https://github.com/radxa/firmware/tree/9688073218f24a6976e4b668077a957d0e1a0d94/brcm.
+# BCM4345C0_003.001.025.0162.0000_Generic_UART_37_4MHz_wlbga_ref_iLNA_iTR_eLG.hcd copied to match our driver's naming expectations.
+bluetooth/bcm4345c0/BCM4345C0.hcd
+
+https://github.com/radxa/firmware/blob/9688073218f24a6976e4b668077a957d0e1a0d94/brcm/
