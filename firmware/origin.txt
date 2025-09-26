@@ -58,12 +58,11 @@ wifi/nvram_ap6398sr32.txt
 
 # The following files are extracted from https://github.com/radxa/firmware/tree/9688073218f24a6976e4b668077a957d0e1a0d94/cypress.
 wifi/bcm43455c0_ag/clm_bcm43455c0_ag.blob
-wifi/bcm43455c0_ag/config_bcm43455c0_ag.txt
 wifi/bcm43455c0_ag/fw_bcm43455c0_ag.bin
 wifi/bcm43455c0_ag/nvram_ap6255.txt
 
 # The following files are extracted from https://github.com/radxa/firmware/tree/9688073218f24a6976e4b668077a957d0e1a0d94/brcm.
 # BCM4345C0_003.001.025.0162.0000_Generic_UART_37_4MHz_wlbga_ref_iLNA_iTR_eLG.hcd copied to match our driver's naming expectations.
+# https://github.com/radxa/firmware/blob/master/brcm/brcmfmac43455-sdio.txt copied to our drivers naming expectations.
 bluetooth/bcm4345c0/BCM4345C0.hcd
-
-https://github.com/radxa/firmware/blob/9688073218f24a6976e4b668077a957d0e1a0d94/brcm/
+wifi/bcm43455c0_ag/config_bcm43455c0_ag.txt
